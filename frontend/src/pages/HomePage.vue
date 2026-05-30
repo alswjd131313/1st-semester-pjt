@@ -32,6 +32,7 @@
         <RouterLink to="/request">자재 요청 등록</RouterLink>
         <RouterLink to="/supplier-register">공급사 자재 등록</RouterLink>
         <RouterLink to="/recommendations">추천 상세 보기</RouterLink>
+        <RouterLink to="/dashboard">문의 내역 확인</RouterLink>
       </div>
     </aside>
   </section>

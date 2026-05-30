@@ -5,10 +5,17 @@ import LoginPage from "../pages/LoginPage.vue";
 import MaterialRequestPage from "../pages/MaterialRequestPage.vue";
 import RecommendationPage from "../pages/RecommendationPage.vue";
 import SupplierRegisterPage from "../pages/SupplierRegisterPage.vue";
+import DashboardPage from "../pages/DashboardPage.vue";
 
 const routes = [
   { path: "/", name: "home", component: HomePage },
   { path: "/login", name: "login", component: LoginPage },
+  {
+    path: "/dashboard",
+    name: "dashboard",
+    component: DashboardPage,
+    meta: { requiresAuth: true },
+  },
   {
     path: "/request",
     name: "request",
