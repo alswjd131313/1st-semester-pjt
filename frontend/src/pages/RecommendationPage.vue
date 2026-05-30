@@ -63,7 +63,7 @@
 
         <div class="card-actions">
           <button type="button" class="secondary-button" @click="openDetail(item)">상세 보기</button>
-          <button type="button" class="primary-button">문의하기</button>
+          <button type="button" class="primary-button" @click="openInquiry(item)">문의하기</button>
         </div>
       </article>
     </div>
@@ -173,8 +173,83 @@
 
           <div class="modal-actions">
             <button type="button" class="secondary-button" @click="closeDetail">닫기</button>
-            <button type="button" class="primary-button">문의하기</button>
+            <button type="button" class="primary-button" @click="openInquiry(selectedRecommendation)">
+              문의하기
+            </button>
           </div>
+        </section>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="selectedInquirySupplier"
+        class="modal-backdrop"
+        role="presentation"
+        @click.self="closeInquiry"
+      >
+        <section
+          class="detail-modal inquiry-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="supplier-inquiry-title"
+        >
+          <div class="modal-header">
+            <div>
+              <p class="eyebrow">Supplier Inquiry</p>
+              <h2 id="supplier-inquiry-title">공급사 문의하기</h2>
+              <span>
+                {{ selectedInquirySupplier.supplierName }} ·
+                {{ selectedInquirySupplier.materialName }}
+                {{ selectedInquirySupplier.standard }}
+              </span>
+            </div>
+            <button type="button" class="icon-button" aria-label="문의 닫기" @click="closeInquiry">
+              ×
+            </button>
+          </div>
+
+          <div class="inquiry-summary">
+            <strong>문의 전 확인</strong>
+            <p>
+              PaceFlow는 문의 우선순위를 추천합니다. 실제 재고, 견적, 납품 가능 여부는
+              공급사 확인 후 확정됩니다.
+            </p>
+          </div>
+
+          <form class="inquiry-form" @submit.prevent="submitInquiry">
+            <label>
+              담당자명
+              <input v-model.trim="inquiryForm.requesterName" type="text" placeholder="예: 김현장" required />
+            </label>
+            <label>
+              연락처
+              <input v-model.trim="inquiryForm.contact" type="tel" placeholder="예: 010-1234-5678" required />
+            </label>
+            <label>
+              문의 수량
+              <input v-model.trim="inquiryForm.quantity" type="text" placeholder="예: 50톤" required />
+            </label>
+            <label>
+              희망 납기
+              <input v-model="inquiryForm.desiredDate" type="date" />
+            </label>
+            <label class="full-field">
+              문의 메모
+              <textarea
+                v-model.trim="inquiryForm.message"
+                rows="4"
+                placeholder="현장 조건, 하차 가능 시간, 대체 가능 범위 등을 남겨주세요."
+              />
+            </label>
+
+            <p v-if="inquiryStatus" class="success-message">{{ inquiryStatus }}</p>
+
+            <div class="modal-actions full-field">
+              <button type="button" class="secondary-button" @click="closeInquiry">취소</button>
+              <button type="submit" class="primary-button">문의 저장하기</button>
+            </div>
+          </form>
         </section>
       </div>
     </Teleport>
@@ -182,14 +257,27 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
-import { getLatestMaterialRequest, getRecommendations } from "../api/materialApi";
+import {
+  createSupplierInquiry,
+  getLatestMaterialRequest,
+  getRecommendations,
+} from "../api/materialApi";
 
 const route = useRoute();
 const request = ref(null);
 const recommendations = ref([]);
 const selectedRecommendation = ref(null);
+const selectedInquirySupplier = ref(null);
+const inquiryStatus = ref("");
+const inquiryForm = reactive({
+  requesterName: "",
+  contact: "",
+  quantity: "",
+  desiredDate: "",
+  message: "",
+});
 
 onMounted(async () => {
   request.value = await getLatestMaterialRequest();
@@ -202,5 +290,33 @@ function openDetail(item) {
 
 function closeDetail() {
   selectedRecommendation.value = null;
+}
+
+function openInquiry(item) {
+  selectedInquirySupplier.value = item;
+  inquiryStatus.value = "";
+  inquiryForm.quantity = request.value?.requiredQuantity || "";
+  selectedRecommendation.value = null;
+}
+
+function closeInquiry() {
+  selectedInquirySupplier.value = null;
+  inquiryStatus.value = "";
+}
+
+async function submitInquiry() {
+  const inquiry = await createSupplierInquiry({
+    requestId: route.query.requestId,
+    requestMaterial: request.value,
+    supplier: selectedInquirySupplier.value,
+    requesterName: inquiryForm.requesterName,
+    contact: inquiryForm.contact,
+    quantity: inquiryForm.quantity,
+    desiredDate: inquiryForm.desiredDate,
+    message: inquiryForm.message,
+  });
+
+  inquiryStatus.value = `${inquiry.id} 문의가 임시 저장되었습니다. 실제 전송 API가 연결되면 이 흐름을 그대로 사용할 수 있습니다.`;
+  inquiryForm.message = "";
 }
 </script>

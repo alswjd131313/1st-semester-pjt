@@ -2,6 +2,7 @@ import { recommendationResults } from "../data/dummyData";
 
 const REQUEST_STORAGE_KEY = "paceflow_v2_latest_request";
 const SUPPLIER_STORAGE_KEY = "paceflow_v2_supplier_materials";
+const INQUIRY_STORAGE_KEY = "paceflow_v2_supplier_inquiries";
 
 export async function createMaterialRequest(payload) {
   const request = {
@@ -51,9 +52,34 @@ export async function getSupplierMaterials() {
   return getStoredSupplierMaterials();
 }
 
+export async function createSupplierInquiry(payload) {
+  const inquiry = {
+    id: `INQ-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    ...payload,
+  };
+
+  const savedInquiries = getStoredSupplierInquiries();
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify([inquiry, ...savedInquiries]));
+  return inquiry;
+}
+
+export async function getSupplierInquiries() {
+  return getStoredSupplierInquiries();
+}
+
 function getStoredSupplierMaterials() {
   try {
     const saved = localStorage.getItem(SUPPLIER_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+function getStoredSupplierInquiries() {
+  try {
+    const saved = localStorage.getItem(INQUIRY_STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
   } catch {
     return [];
