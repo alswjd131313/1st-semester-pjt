@@ -75,6 +75,6 @@ watch(
 
 function handleLogin() {
   loginUser(form);
-  router.push(form.role === "supplier" ? "/supplier-register" : "/request");
+  router.push(route.query.redirect || (form.role === "supplier" ? "/supplier-register" : "/request"));
 }
 </script>
