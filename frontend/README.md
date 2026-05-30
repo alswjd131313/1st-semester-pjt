@@ -1,0 +1,36 @@
+# PaceFlow Frontend V2
+
+기존 `frontend` 폴더를 보존하고, 기능별로 다시 구현하기 위한 Vue 3 MVP 작업 공간입니다.
+
+## 실행 방법
+
+```bash
+cd frontend-v2
+npm install
+npm run dev
+```
+
+기본 개발 서버는 `http://localhost:5174`를 사용합니다.
+
+## 현재 1단계 범위
+
+- Vue 3 + Vue Router + Axios 의존성 구성
+- 공통 헤더와 기본 라우터 구성
+- 메인 검색 화면 구현
+- 검색어를 `/request` 페이지로 넘기는 최소 흐름 구현
+
+## 현재 2단계 범위
+
+- mock 로그인 구현
+- 자재 요청자와 공급사 역할 분리
+- `/request`는 자재 요청자만 접근
+- `/supplier-register`는 공급사만 접근
+- 로그인 상태를 `localStorage`에 저장
+
+## 다음 구현 순서
+
+1. 자재 요청 폼 완성
+2. 요청 저장 mock API 연결
+3. 추천 결과 카드 구현
+4. 공급사 등록 화면 구현
+5. Django API 연동으로 교체

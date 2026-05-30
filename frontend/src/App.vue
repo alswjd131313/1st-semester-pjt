@@ -1,8 +1,10 @@
 <template>
-  <HeaderNav />
-  <main>
-    <RouterView />
-  </main>
+  <div class="app-shell">
+    <HeaderNav />
+    <main>
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <script setup>
