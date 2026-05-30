@@ -347,7 +347,9 @@ main {
 
 .request-form,
 .summary-card,
-.recommendation-card {
+.recommendation-card,
+.registered-section,
+.registered-card {
   border: 1px solid #dbe6f8;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.9);
@@ -480,6 +482,7 @@ main {
 
 .rank-badge,
 .approval-badge,
+.source-badge,
 .score-bars span {
   padding: 7px 10px;
   border-radius: 999px;
@@ -490,6 +493,11 @@ main {
 .rank-badge {
   color: #fff;
   background: #1559e8;
+}
+
+.source-badge {
+  color: #1559e8;
+  background: #eaf2ff;
 }
 
 .approval-badge {
@@ -534,6 +542,73 @@ main {
 .score-bars span {
   color: #1559e8;
   background: #eef5ff;
+}
+
+.supplier-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  color: #425571;
+  font-weight: 800;
+}
+
+.supplier-meta span {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f4f7fc;
+}
+
+.success-message {
+  padding: 14px 16px;
+  border: 1px solid #bfe9d0;
+  border-radius: 14px;
+  color: #12733f;
+  background: #ecfbf2;
+  font-weight: 900;
+}
+
+.registered-section {
+  margin-top: 24px;
+  padding: 24px;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.section-title-row span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: #1559e8;
+  background: #eef5ff;
+  font-weight: 900;
+}
+
+.registered-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.registered-card {
+  padding: 18px;
+  box-shadow: none;
+}
+
+.registered-card strong {
+  display: block;
+  color: #102a56;
+  font-size: 18px;
+}
+
+.registered-card p,
+.registered-card span {
+  color: #65748d;
+  line-height: 1.6;
 }
 
 .card-actions {
@@ -581,6 +656,7 @@ main {
 
   .request-form,
   .recommendation-grid,
+  .registered-grid,
   .score-list {
     grid-template-columns: 1fr;
   }

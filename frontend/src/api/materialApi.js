@@ -1,6 +1,7 @@
 import { recommendationResults } from "../data/dummyData";
 
 const REQUEST_STORAGE_KEY = "paceflow_v2_latest_request";
+const SUPPLIER_STORAGE_KEY = "paceflow_v2_supplier_materials";
 
 export async function createMaterialRequest(payload) {
   const request = {
@@ -23,15 +24,66 @@ export async function getLatestMaterialRequest() {
 }
 
 export async function getRecommendations(requestId) {
-  return recommendationResults.map((item) => ({
+  const registeredRecommendations = getStoredSupplierMaterials().map((item, index) =>
+    createRecommendationFromSupplier(item, index),
+  );
+
+  return [...registeredRecommendations, ...recommendationResults].map((item, index) => ({
     ...item,
+    rank: index + 1,
     requestId,
   }));
 }
 
 export async function registerSupplierMaterial(payload) {
-  return {
-    id: "SUP-MOCK-001",
+  const material = {
+    id: `SUP-${Date.now()}`,
+    createdAt: new Date().toISOString(),
     ...payload,
+  };
+
+  const savedMaterials = getStoredSupplierMaterials();
+  localStorage.setItem(SUPPLIER_STORAGE_KEY, JSON.stringify([material, ...savedMaterials]));
+  return material;
+}
+
+export async function getSupplierMaterials() {
+  return getStoredSupplierMaterials();
+}
+
+function getStoredSupplierMaterials() {
+  try {
+    const saved = localStorage.getItem(SUPPLIER_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+function createRecommendationFromSupplier(item, index) {
+  const distanceKm = Number(item.distanceKm || 6 + index * 2);
+  const deliveryCount = Number(item.deliveryCount || 0);
+  const priceScore = Math.max(70, 96 - index * 3);
+  const distanceScore = Math.max(65, Math.round(100 - distanceKm * 4));
+  const reliabilityScore = Math.min(98, 70 + deliveryCount);
+  const totalScore = Math.round(priceScore * 0.4 + distanceScore * 0.3 + reliabilityScore * 0.3);
+
+  return {
+    supplierName: item.supplierName,
+    materialName: item.materialName,
+    standard: [item.standard, item.strengthGrade].filter(Boolean).join(" / ") || "규격 확인 필요",
+    price: item.recentPrice ? `${Number(item.recentPrice).toLocaleString()}원` : "단가 확인 필요",
+    distanceKm,
+    deliveryCount,
+    priceScore,
+    distanceScore,
+    reliabilityScore,
+    totalScore,
+    approvalRequired: item.standard?.includes("ASTM") || item.standard?.includes("JIS"),
+    reason: "공급사가 직접 등록한 취급 자재로, 실제 납품 가능 여부는 문의 확인이 필요합니다.",
+    contact: item.contact,
+    address: item.address,
+    serviceArea: item.serviceArea,
+    isRegisteredSupplier: true,
   };
 }
