@@ -37,6 +37,10 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => {
+  if (to.name === "login" && isLoggedIn()) {
+    return authRedirectPath();
+  }
+
   if (!to.meta.requiresAuth) {
     return true;
   }

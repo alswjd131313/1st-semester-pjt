@@ -3,6 +3,7 @@ import { recommendationResults } from "../data/dummyData";
 const REQUEST_STORAGE_KEY = "paceflow_v2_latest_request";
 const SUPPLIER_STORAGE_KEY = "paceflow_v2_supplier_materials";
 const INQUIRY_STORAGE_KEY = "paceflow_v2_supplier_inquiries";
+const DEFAULT_INQUIRY_STATUS = "received";
 
 export async function createMaterialRequest(payload) {
   const request = {
@@ -56,6 +57,8 @@ export async function createSupplierInquiry(payload) {
   const inquiry = {
     id: `INQ-${Date.now()}`,
     createdAt: new Date().toISOString(),
+    status: DEFAULT_INQUIRY_STATUS,
+    statusUpdatedAt: new Date().toISOString(),
     ...payload,
   };
 
@@ -66,6 +69,16 @@ export async function createSupplierInquiry(payload) {
 
 export async function getSupplierInquiries() {
   return getStoredSupplierInquiries();
+}
+
+export async function updateSupplierInquiryStatus(inquiryId, status) {
+  const updatedAt = new Date().toISOString();
+  const inquiries = getStoredSupplierInquiries().map((inquiry) =>
+    inquiry.id === inquiryId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
+  );
+
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
+  return inquiries.find((inquiry) => inquiry.id === inquiryId) || null;
 }
 
 function getStoredSupplierMaterials() {
@@ -80,10 +93,18 @@ function getStoredSupplierMaterials() {
 function getStoredSupplierInquiries() {
   try {
     const saved = localStorage.getItem(INQUIRY_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved).map(normalizeInquiry) : [];
   } catch {
     return [];
   }
+}
+
+function normalizeInquiry(inquiry) {
+  return {
+    status: DEFAULT_INQUIRY_STATUS,
+    statusUpdatedAt: inquiry.createdAt,
+    ...inquiry,
+  };
 }
 
 function createRecommendationFromSupplier(item, index) {

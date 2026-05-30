@@ -6,7 +6,26 @@
       <p>회사 정보와 취급 자재를 등록하면 추천 결과의 공급사 후보로 노출됩니다.</p>
     </div>
 
-    <form class="request-form" @submit.prevent="submitSupplier">
+    <section v-if="isRegistrationComplete" class="completion-card">
+      <span class="completion-mark">완료</span>
+      <h2>공급사 자재 등록이 완료되었습니다.</h2>
+      <p>
+        등록한 자재는 추천 결과 후보에 반영됩니다. 실제 노출 여부와 문의 가능 여부는
+        백엔드 API 연결 이후 더 정확하게 관리할 수 있습니다.
+      </p>
+      <div class="completion-summary">
+        <strong>{{ completedMaterial?.materialName }}</strong>
+        <span>{{ completedMaterial?.supplierName }} · {{ completedMaterial?.serviceArea }}</span>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="secondary-button" @click="startNewRegistration">
+          추가 등록하기
+        </button>
+        <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
+      </div>
+    </section>
+
+    <form v-else class="request-form" @submit.prevent="submitSupplier">
       <label>
         공급사명
         <input v-model="form.supplierName" type="text" placeholder="성수철강" required />
@@ -71,10 +90,6 @@
         />
       </label>
 
-      <div v-if="savedMessage" class="success-message full-field">
-        {{ savedMessage }}
-      </div>
-
       <div class="form-actions">
         <RouterLink class="secondary-button" to="/">메인으로</RouterLink>
         <button type="submit" class="primary-button">공급사 정보 등록하기</button>
@@ -103,8 +118,9 @@ import { onMounted, reactive, ref } from "vue";
 import { authState } from "../api/authApi";
 import { getSupplierMaterials, registerSupplierMaterial } from "../api/materialApi";
 
-const savedMessage = ref("");
 const registeredMaterials = ref([]);
+const isRegistrationComplete = ref(false);
+const completedMaterial = ref(null);
 
 const form = reactive({
   supplierName: authState.user?.companyName || "",
@@ -125,20 +141,33 @@ onMounted(loadSupplierMaterials);
 
 async function submitSupplier() {
   const saved = await registerSupplierMaterial({ ...form });
-  savedMessage.value = `${saved.materialName} 등록이 완료되었습니다. 추천 결과 후보에 반영됩니다.`;
+  completedMaterial.value = saved;
+  isRegistrationComplete.value = true;
   await loadSupplierMaterials();
-  resetMaterialFields();
+  resetForm();
 }
 
 async function loadSupplierMaterials() {
   registeredMaterials.value = await getSupplierMaterials();
 }
 
-function resetMaterialFields() {
+function startNewRegistration() {
+  isRegistrationComplete.value = false;
+  completedMaterial.value = null;
+  resetForm();
+  form.supplierName = authState.user?.companyName || "";
+}
+
+function resetForm() {
+  form.supplierName = "";
+  form.contact = "";
+  form.address = "";
+  form.mainMaterials = "";
   form.materialName = "";
   form.standard = "";
   form.strengthGrade = "";
   form.recentPrice = "";
+  form.serviceArea = "";
   form.distanceKm = "";
   form.deliveryCount = "";
   form.note = "";
