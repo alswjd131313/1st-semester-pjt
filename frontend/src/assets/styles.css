@@ -22,7 +22,9 @@ a {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -826,6 +828,60 @@ main {
   color: #bc5205;
 }
 
+.inquiry-modal {
+  width: min(760px, 100%);
+}
+
+.inquiry-summary {
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid #dbe6f8;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.inquiry-summary strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #102a56;
+}
+
+.inquiry-summary p {
+  margin: 0;
+  color: #65748d;
+  line-height: 1.7;
+}
+
+.inquiry-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.inquiry-form label {
+  display: grid;
+  gap: 8px;
+  color: #24375e;
+  font-weight: 900;
+}
+
+.inquiry-form input,
+.inquiry-form textarea {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #d9e4f6;
+  border-radius: 14px;
+  padding: 0 16px;
+  color: #102a56;
+  background: #fff;
+  outline: 0;
+}
+
+.inquiry-form textarea {
+  padding: 14px 16px;
+  resize: vertical;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -872,6 +928,7 @@ main {
   }
 
   .request-form,
+  .inquiry-form,
   .recommendation-grid,
   .registered-grid,
   .score-list {
