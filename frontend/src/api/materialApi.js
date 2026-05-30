@@ -71,6 +71,10 @@ export async function getSupplierInquiries() {
   return getStoredSupplierInquiries();
 }
 
+export async function getSupplierInquiry(inquiryId) {
+  return getStoredSupplierInquiries().find((inquiry) => inquiry.id === inquiryId) || null;
+}
+
 export async function updateSupplierInquiryStatus(inquiryId, status) {
   const updatedAt = new Date().toISOString();
   const inquiries = getStoredSupplierInquiries().map((inquiry) =>

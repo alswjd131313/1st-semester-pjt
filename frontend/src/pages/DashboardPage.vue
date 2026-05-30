@@ -88,7 +88,9 @@
               {{ status.label }}
             </button>
           </div>
-          <RouterLink class="secondary-button" to="/recommendations">다른 후보 보기</RouterLink>
+          <RouterLink class="secondary-button" :to="`/dashboard/${inquiry.id}`">
+            상세 보기
+          </RouterLink>
         </div>
       </article>
     </div>
