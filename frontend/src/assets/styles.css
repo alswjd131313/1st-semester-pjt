@@ -837,7 +837,7 @@ main {
 
 .dashboard-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -899,6 +899,54 @@ main {
 .inquiry-footer {
   align-items: center;
   margin-top: 18px;
+}
+
+.status-badge {
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #1559e8;
+  background: #eef5ff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.status-badge.reviewing {
+  color: #8a5a00;
+  background: #fff6db;
+}
+
+.status-badge.quoted {
+  color: #12733f;
+  background: #ecfbf2;
+}
+
+.status-badge.unavailable {
+  color: #b42318;
+  background: #fff0ee;
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.status-action {
+  min-height: 36px;
+  border: 1px solid #c8d8f2;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: #425571;
+  background: #fff;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.status-action.active {
+  border-color: #1559e8;
+  color: #fff;
+  background: #1559e8;
 }
 
 .empty-state {
@@ -1038,8 +1086,13 @@ main {
   }
 
   .primary-button,
-  .secondary-button {
+  .secondary-button,
+  .status-actions {
     width: 100%;
+  }
+
+  .status-action {
+    flex: 1 1 calc(50% - 8px);
   }
 
   .modal-backdrop {

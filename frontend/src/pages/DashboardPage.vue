@@ -25,12 +25,19 @@
         <span>최근 문의</span>
         <strong>{{ latestInquiryLabel }}</strong>
       </article>
+      <article>
+        <span>견적 가능</span>
+        <strong>{{ quotedCount }}건</strong>
+      </article>
     </div>
 
     <div v-if="inquiries.length" class="inquiry-list">
       <article v-for="inquiry in inquiries" :key="inquiry.id" class="inquiry-card">
         <div class="card-topline">
           <span class="rank-badge">{{ inquiry.id }}</span>
+          <span :class="['status-badge', inquiry.status]">
+            {{ getStatusLabel(inquiry.status) }}
+          </span>
           <span :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
             {{ inquiry.supplier?.approvalRequired ? "승인 확인 필요" : "일반 문의" }}
           </span>
@@ -69,7 +76,18 @@
         <p v-if="inquiry.message" class="reason">{{ inquiry.message }}</p>
 
         <div class="inquiry-footer">
-          <span>현재 상태: mock 저장</span>
+          <span>상태 변경: {{ formatDate(inquiry.statusUpdatedAt) }}</span>
+          <div v-if="isSupplier" class="status-actions" aria-label="문의 상태 변경">
+            <button
+              v-for="status in inquiryStatuses"
+              :key="status.value"
+              type="button"
+              :class="['status-action', { active: inquiry.status === status.value }]"
+              @click="changeInquiryStatus(inquiry.id, status.value)"
+            >
+              {{ status.label }}
+            </button>
+          </div>
           <RouterLink class="secondary-button" to="/recommendations">다른 후보 보기</RouterLink>
         </div>
       </article>
@@ -86,16 +104,28 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { authState } from "../api/authApi";
-import { getSupplierInquiries } from "../api/materialApi";
+import { getSupplierInquiries, updateSupplierInquiryStatus } from "../api/materialApi";
 
 const inquiries = ref([]);
+const inquiryStatuses = [
+  { value: "received", label: "문의 접수" },
+  { value: "reviewing", label: "확인 중" },
+  { value: "quoted", label: "견적 가능" },
+  { value: "unavailable", label: "불가" },
+];
 
 const dashboardTitle = computed(() =>
   authState.user?.role === "supplier" ? "공급사 문의 내역" : "내 문의 내역",
 );
 
+const isSupplier = computed(() => authState.user?.role === "supplier");
+
 const approvalCount = computed(
   () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
+);
+
+const quotedCount = computed(
+  () => inquiries.value.filter((inquiry) => inquiry.status === "quoted").length,
 );
 
 const latestInquiryLabel = computed(() => {
@@ -106,6 +136,21 @@ const latestInquiryLabel = computed(() => {
 onMounted(async () => {
   inquiries.value = await getSupplierInquiries();
 });
+
+async function changeInquiryStatus(inquiryId, status) {
+  const updatedInquiry = await updateSupplierInquiryStatus(inquiryId, status);
+  if (!updatedInquiry) {
+    return;
+  }
+
+  inquiries.value = inquiries.value.map((inquiry) =>
+    inquiry.id === inquiryId ? updatedInquiry : inquiry,
+  );
+}
+
+function getStatusLabel(status) {
+  return inquiryStatuses.find((item) => item.value === status)?.label || "문의 접수";
+}
 
 function formatDate(value) {
   if (!value) {
