@@ -27,6 +27,13 @@ npm run dev
 - `/supplier-register`는 공급사만 접근
 - 로그인 상태를 `localStorage`에 저장
 
+## 현재 3단계 범위
+
+- 자재 요청 폼 입력
+- 요청 제출 시 mock request 생성
+- `/recommendations` 추천 결과 화면 이동
+- 요청 요약과 더미 추천 공급사 카드 표시
+
 ## 다음 구현 순서
 
 1. 자재 요청 폼 완성
