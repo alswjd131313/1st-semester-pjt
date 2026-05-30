@@ -12,14 +12,24 @@
         <input
           v-model="keyword"
           type="search"
+          :disabled="isSupplier"
           placeholder="예: 철근 SD400 D10, H빔 300x300, 시멘트 1종"
         />
-        <button type="submit">대체 자재 찾기</button>
+        <button type="submit" :disabled="isSupplier">
+          {{ isSupplier ? "요청자 전용" : "대체 자재 찾기" }}
+        </button>
       </form>
 
       <div class="hero-actions">
-        <RouterLink to="/login?role=requester">요청자 로그인</RouterLink>
-        <RouterLink to="/login?role=supplier">공급사 로그인</RouterLink>
+        <template v-if="authState.user">
+          <span class="disabled-action">요청자 로그인</span>
+          <span class="disabled-action">공급사 로그인</span>
+          <RouterLink to="/dashboard">{{ roleLabel }} 대시보드</RouterLink>
+        </template>
+        <template v-else>
+          <RouterLink to="/login?role=requester">요청자 로그인</RouterLink>
+          <RouterLink to="/login?role=supplier">공급사 로그인</RouterLink>
+        </template>
         <RouterLink to="/recommendations">추천 결과 보기</RouterLink>
       </div>
     </div>
@@ -29,8 +39,10 @@
       <strong>요청부터 상세 확인까지</strong>
       <p>로그인, 자재 요청, 공급사 등록, 추천 결과, 상세 보기 흐름을 한 번에 확인할 수 있습니다.</p>
       <div class="flow-list">
-        <RouterLink to="/request">자재 요청 등록</RouterLink>
-        <RouterLink to="/supplier-register">공급사 자재 등록</RouterLink>
+        <span v-if="isSupplier" class="disabled-flow">자재 요청 등록</span>
+        <RouterLink v-else to="/request">자재 요청 등록</RouterLink>
+        <span v-if="isRequester" class="disabled-flow">공급사 자재 등록</span>
+        <RouterLink v-else to="/supplier-register">공급사 자재 등록</RouterLink>
         <RouterLink to="/recommendations">추천 상세 보기</RouterLink>
         <RouterLink to="/dashboard">문의 내역 확인</RouterLink>
       </div>
@@ -39,13 +51,21 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
+import { authState } from "../api/authApi";
 
 const router = useRouter();
 const keyword = ref("");
+const isSupplier = computed(() => authState.user?.role === "supplier");
+const isRequester = computed(() => authState.user?.role === "requester");
+const roleLabel = computed(() => (isSupplier.value ? "공급사" : "요청자"));
 
 function goToRequest() {
+  if (isSupplier.value) {
+    return;
+  }
+
   router.push({
     path: "/request",
     query: keyword.value ? { keyword: keyword.value } : {},
