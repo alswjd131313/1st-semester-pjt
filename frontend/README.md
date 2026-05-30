@@ -5,12 +5,43 @@
 ## 실행 방법
 
 ```bash
-cd frontend-v2
+cd frontend
 npm install
 npm run dev
 ```
 
-기본 개발 서버는 `http://localhost:5174`를 사용합니다.
+Vite가 터미널에 표시하는 `Local:` 주소로 접속합니다.
+
+## API 전환 설정
+
+기본값은 mock/localStorage 모드입니다. Django API가 준비되기 전까지는 별도 설정 없이 실행할 수 있습니다.
+
+```bash
+cp .env.example .env
+```
+
+```env
+VITE_USE_MOCK=true
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+백엔드 API와 연결할 때는 아래처럼 변경합니다.
+
+```env
+VITE_USE_MOCK=false
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+현재 연결 준비된 endpoint:
+
+- `POST /api/requests/`
+- `GET /api/recommendations/{requestId}/`
+- `GET /api/supplier-materials/`
+- `POST /api/supplier-materials/`
+- `GET /api/inquiries/` MVP 프론트 확장용
+- `POST /api/inquiries/` MVP 프론트 확장용
+- `GET /api/inquiries/{inquiryId}/` MVP 프론트 확장용
+- `PATCH /api/inquiries/{inquiryId}/` MVP 프론트 확장용
 
 ## 현재 1단계 범위
 

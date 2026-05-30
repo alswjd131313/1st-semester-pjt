@@ -1,4 +1,5 @@
 import { recommendationResults } from "../data/dummyData";
+import { apiClient, buildApiUrl, USE_MOCK_API } from "./apiClient";
 
 const REQUEST_STORAGE_KEY = "paceflow_v2_latest_request";
 const SUPPLIER_STORAGE_KEY = "paceflow_v2_supplier_materials";
@@ -6,6 +7,11 @@ const INQUIRY_STORAGE_KEY = "paceflow_v2_supplier_inquiries";
 const DEFAULT_INQUIRY_STATUS = "received";
 
 export async function createMaterialRequest(payload) {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.post(buildApiUrl("/api/requests/"), payload);
+    return data;
+  }
+
   const request = {
     id: `REQ-${Date.now()}`,
     createdAt: new Date().toISOString(),
@@ -17,6 +23,10 @@ export async function createMaterialRequest(payload) {
 }
 
 export async function getLatestMaterialRequest() {
+  if (!USE_MOCK_API) {
+    return null;
+  }
+
   try {
     const saved = localStorage.getItem(REQUEST_STORAGE_KEY);
     return saved ? JSON.parse(saved) : null;
@@ -26,6 +36,11 @@ export async function getLatestMaterialRequest() {
 }
 
 export async function getRecommendations(requestId) {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.get(buildApiUrl(`/api/recommendations/${requestId}/`));
+    return data;
+  }
+
   const registeredRecommendations = getStoredSupplierMaterials().map((item, index) =>
     createRecommendationFromSupplier(item, index),
   );
@@ -38,6 +53,11 @@ export async function getRecommendations(requestId) {
 }
 
 export async function registerSupplierMaterial(payload) {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.post(buildApiUrl("/api/supplier-materials/"), payload);
+    return data;
+  }
+
   const material = {
     id: `SUP-${Date.now()}`,
     createdAt: new Date().toISOString(),
@@ -50,10 +70,20 @@ export async function registerSupplierMaterial(payload) {
 }
 
 export async function getSupplierMaterials() {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.get(buildApiUrl("/api/supplier-materials/"));
+    return data;
+  }
+
   return getStoredSupplierMaterials();
 }
 
 export async function createSupplierInquiry(payload) {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.post(buildApiUrl("/api/inquiries/"), payload);
+    return data;
+  }
+
   const inquiry = {
     id: `INQ-${Date.now()}`,
     createdAt: new Date().toISOString(),
@@ -68,14 +98,29 @@ export async function createSupplierInquiry(payload) {
 }
 
 export async function getSupplierInquiries() {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.get(buildApiUrl("/api/inquiries/"));
+    return data;
+  }
+
   return getStoredSupplierInquiries();
 }
 
 export async function getSupplierInquiry(inquiryId) {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.get(buildApiUrl(`/api/inquiries/${inquiryId}/`));
+    return data;
+  }
+
   return getStoredSupplierInquiries().find((inquiry) => inquiry.id === inquiryId) || null;
 }
 
 export async function updateSupplierInquiryStatus(inquiryId, status) {
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.patch(buildApiUrl(`/api/inquiries/${inquiryId}/`), { status });
+    return data;
+  }
+
   const updatedAt = new Date().toISOString();
   const inquiries = getStoredSupplierInquiries().map((inquiry) =>
     inquiry.id === inquiryId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
