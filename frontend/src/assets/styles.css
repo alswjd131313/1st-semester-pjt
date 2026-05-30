@@ -828,6 +828,97 @@ main {
   color: #bc5205;
 }
 
+.dashboard-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dashboard-stats article,
+.empty-state,
+.inquiry-card {
+  border: 1px solid #dbe6f8;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 22px 70px rgba(31, 61, 115, 0.1);
+}
+
+.dashboard-stats article {
+  padding: 22px;
+}
+
+.dashboard-stats span {
+  display: block;
+  color: #65748d;
+  font-weight: 900;
+}
+
+.dashboard-stats strong {
+  display: block;
+  margin-top: 8px;
+  color: #102a56;
+  font-size: 30px;
+}
+
+.inquiry-list {
+  display: grid;
+  gap: 18px;
+}
+
+.inquiry-card {
+  padding: 24px;
+}
+
+.inquiry-card-header,
+.inquiry-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inquiry-card h2 {
+  margin: 0;
+}
+
+.inquiry-date,
+.inquiry-footer span {
+  color: #65748d;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.inquiry-footer {
+  align-items: center;
+  margin-top: 18px;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: clamp(26px, 5vw, 42px);
+}
+
+.empty-state strong {
+  color: #102a56;
+  font-size: 24px;
+}
+
+.empty-state p {
+  margin: 0;
+  color: #65748d;
+  line-height: 1.7;
+}
+
 .inquiry-modal {
   width: min(760px, 100%);
 }
@@ -929,12 +1020,16 @@ main {
 
   .request-form,
   .inquiry-form,
+  .dashboard-stats,
   .recommendation-grid,
   .registered-grid,
   .score-list {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-heading,
+  .inquiry-card-header,
+  .inquiry-footer,
   .form-actions,
   .card-actions,
   .modal-actions {

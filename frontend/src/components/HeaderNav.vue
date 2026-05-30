@@ -12,6 +12,7 @@
       <RouterLink to="/request">자재 요청</RouterLink>
       <RouterLink to="/recommendations">추천 결과</RouterLink>
       <RouterLink to="/supplier-register">공급사 등록</RouterLink>
+      <RouterLink to="/dashboard">문의 내역</RouterLink>
     </nav>
 
     <div class="auth-actions">
