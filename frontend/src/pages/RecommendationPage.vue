@@ -16,10 +16,44 @@
       <span>{{ request.isUrgent ? "긴급 요청" : "일반 요청" }}</span>
     </div>
 
+    <section class="recommendation-toolbar" aria-label="추천 결과 필터와 정렬">
+      <div>
+        <strong>{{ filteredRecommendations.length }}개 후보</strong>
+        <span>{{ activeFilterLabel }}</span>
+      </div>
+
+      <label>
+        정렬 기준
+        <select v-model="sortOption">
+          <option value="score">최종 점수 높은순</option>
+          <option value="distance">거리 가까운순</option>
+          <option value="price">단가 낮은순</option>
+          <option value="delivery">납품 이력 많은순</option>
+        </select>
+      </label>
+
+      <div class="filter-toggles">
+        <label>
+          <input v-model="hideApprovalRequired" type="checkbox" />
+          감리 승인 필요 제외
+        </label>
+        <label>
+          <input v-model="registeredOnly" type="checkbox" />
+          등록 공급사만 보기
+        </label>
+      </div>
+
+      <button type="button" class="secondary-button" @click="resetFilters">초기화</button>
+    </section>
+
     <div class="recommendation-grid">
-      <article v-for="item in recommendations" :key="item.rank" class="recommendation-card">
+      <article
+        v-for="(item, index) in filteredRecommendations"
+        :key="`${item.supplierName}-${item.materialName}-${item.standard}`"
+        class="recommendation-card"
+      >
         <div class="card-topline">
-          <span class="rank-badge">{{ item.rank }}순위</span>
+          <span class="rank-badge">{{ index + 1 }}순위</span>
           <span v-if="item.isRegisteredSupplier" class="source-badge">등록 공급사</span>
           <span :class="['approval-badge', { warn: item.approvalRequired }]">
             {{ item.approvalRequired ? "감리 승인 필요" : "승인 리스크 낮음" }}
@@ -66,6 +100,12 @@
           <button type="button" class="primary-button" @click="openInquiry(item)">문의하기</button>
         </div>
       </article>
+    </div>
+
+    <div v-if="!filteredRecommendations.length" class="empty-state">
+      <strong>조건에 맞는 추천 후보가 없습니다.</strong>
+      <p>필터를 줄이거나 초기화한 뒤 다시 확인해보세요.</p>
+      <button type="button" class="primary-button" @click="resetFilters">필터 초기화</button>
     </div>
 
     <Teleport to="body">
@@ -257,7 +297,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 import {
   createSupplierInquiry,
@@ -271,6 +311,9 @@ const recommendations = ref([]);
 const selectedRecommendation = ref(null);
 const selectedInquirySupplier = ref(null);
 const inquiryStatus = ref("");
+const sortOption = ref("score");
+const hideApprovalRequired = ref(false);
+const registeredOnly = ref(false);
 const inquiryForm = reactive({
   requesterName: "",
   contact: "",
@@ -283,6 +326,55 @@ onMounted(async () => {
   request.value = await getLatestMaterialRequest();
   recommendations.value = await getRecommendations(route.query.requestId);
 });
+
+const filteredRecommendations = computed(() => {
+  return recommendations.value
+    .filter((item) => !hideApprovalRequired.value || !item.approvalRequired)
+    .filter((item) => !registeredOnly.value || item.isRegisteredSupplier)
+    .slice()
+    .sort((a, b) => compareRecommendations(a, b));
+});
+
+const activeFilterLabel = computed(() => {
+  const filters = [];
+
+  if (hideApprovalRequired.value) {
+    filters.push("승인 리스크 제외");
+  }
+
+  if (registeredOnly.value) {
+    filters.push("등록 공급사");
+  }
+
+  return filters.length ? filters.join(" · ") : "전체 후보를 표시 중입니다.";
+});
+
+function compareRecommendations(a, b) {
+  if (sortOption.value === "distance") {
+    return Number(a.distanceKm) - Number(b.distanceKm);
+  }
+
+  if (sortOption.value === "price") {
+    return parsePrice(a.price) - parsePrice(b.price);
+  }
+
+  if (sortOption.value === "delivery") {
+    return Number(b.deliveryCount || 0) - Number(a.deliveryCount || 0);
+  }
+
+  return Number(b.totalScore || 0) - Number(a.totalScore || 0);
+}
+
+function parsePrice(value) {
+  const price = Number(String(value).replace(/[^\d.]/g, ""));
+  return Number.isFinite(price) && price > 0 ? price : Number.MAX_SAFE_INTEGER;
+}
+
+function resetFilters() {
+  sortOption.value = "score";
+  hideApprovalRequired.value = false;
+  registeredOnly.value = false;
+}
 
 function openDetail(item) {
   selectedRecommendation.value = item;
