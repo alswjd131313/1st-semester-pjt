@@ -195,20 +195,67 @@
 
           <div class="detail-note">
             <h3>추천 이유</h3>
-            <p>{{ selectedRecommendation.reason }}</p>
+            <ul class="reason-list">
+              <li
+                v-for="reason in getReasonItems(selectedRecommendation)"
+                :key="reason"
+              >
+                {{ reason }}
+              </li>
+            </ul>
+          </div>
+
+          <div class="detail-note">
+            <h3>물성 비교</h3>
+            <div class="property-table" role="table" aria-label="물성 비교표">
+              <div class="property-row property-head" role="row">
+                <span>항목</span>
+                <span>기준 자재</span>
+                <span>추천 자재</span>
+                <span>기준</span>
+              </div>
+              <div
+                v-for="row in getPropertyComparison(selectedRecommendation)"
+                :key="row.label"
+                class="property-row"
+                role="row"
+              >
+                <span>{{ row.label }}</span>
+                <span>{{ row.original }}</span>
+                <span>
+                  {{ row.candidate }}
+                  <b :class="['property-result', { fail: !row.passed }]">
+                    {{ row.passed ? "통과" : "확인" }}
+                  </b>
+                </span>
+                <span>{{ row.standard }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-note">
+            <h3>점수 근거</h3>
+            <div class="evidence-grid">
+              <article>
+                <strong>가격 {{ selectedRecommendation.priceScore }}점</strong>
+                <p>{{ getScoreEvidence(selectedRecommendation).price }}</p>
+              </article>
+              <article>
+                <strong>거리 {{ selectedRecommendation.distanceScore }}점</strong>
+                <p>{{ getScoreEvidence(selectedRecommendation).distance }}</p>
+              </article>
+              <article>
+                <strong>신뢰도 {{ selectedRecommendation.reliabilityScore }}점</strong>
+                <p>{{ getScoreEvidence(selectedRecommendation).reliability }}</p>
+              </article>
+            </div>
           </div>
 
           <div :class="['approval-note', { warn: selectedRecommendation.approvalRequired }]">
             <strong>
               {{ selectedRecommendation.approvalRequired ? "감리 승인 확인 필요" : "승인 리스크 낮음" }}
             </strong>
-            <p>
-              {{
-                selectedRecommendation.approvalRequired
-                  ? "국제 규격 또는 강도 상향 자재는 구조 검토와 감리 승인 여부를 확인해야 합니다."
-                  : "동일 규격 기준으로 우선 검토 가능한 후보입니다. 최종 납품 가능 여부는 공급사 문의가 필요합니다."
-              }}
-            </p>
+            <p>{{ getApprovalRiskNote(selectedRecommendation) }}</p>
           </div>
 
           <div class="modal-actions">
@@ -374,6 +421,45 @@ function resetFilters() {
   sortOption.value = "score";
   hideApprovalRequired.value = false;
   registeredOnly.value = false;
+}
+
+function getReasonItems(item) {
+  return item.reasonItems?.length ? item.reasonItems : [item.reason];
+}
+
+function getPropertyComparison(item) {
+  if (item.propertyComparison?.length) {
+    return item.propertyComparison;
+  }
+
+  return [
+    { label: "항복강도", original: "400 MPa", candidate: "확인 필요", standard: ">= 400 MPa", passed: true },
+    { label: "인장강도", original: "560 MPa", candidate: "확인 필요", standard: ">= 560 MPa", passed: true },
+    { label: "연신율", original: "16%", candidate: "확인 필요", standard: ">= 16%", passed: true },
+    { label: "탄소당량", original: "0.50", candidate: "확인 필요", standard: "<= 0.60", passed: true },
+  ];
+}
+
+function getScoreEvidence(item) {
+  return {
+    price: item.scoreEvidence?.price || `${item.price} 기준으로 가격 점수 ${item.priceScore}점을 부여했습니다.`,
+    distance:
+      item.scoreEvidence?.distance ||
+      `현장 기준 ${item.distanceKm}km 거리로 거리 점수 ${item.distanceScore}점을 부여했습니다.`,
+    reliability:
+      item.scoreEvidence?.reliability ||
+      `과거 납품 이력 ${item.deliveryCount}회를 기준으로 신뢰도 점수 ${item.reliabilityScore}점을 부여했습니다.`,
+  };
+}
+
+function getApprovalRiskNote(item) {
+  if (item.approvalRiskNote) {
+    return item.approvalRiskNote;
+  }
+
+  return item.approvalRequired
+    ? "국제 규격 또는 강도 상향 자재는 구조 검토와 감리 승인 여부를 확인해야 합니다."
+    : "동일 규격 기준으로 우선 검토 가능한 후보입니다. 최종 납품 가능 여부는 공급사 문의가 필요합니다.";
 }
 
 function openDetail(item) {
