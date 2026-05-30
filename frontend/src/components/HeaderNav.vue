@@ -9,11 +9,9 @@
     </RouterLink>
 
     <nav>
-      <span v-if="isSupplier" class="disabled-nav">자재 요청</span>
-      <RouterLink v-else to="/request">자재 요청</RouterLink>
+      <RouterLink v-if="!isSupplier" to="/request">자재 요청</RouterLink>
       <RouterLink to="/recommendations">추천 결과</RouterLink>
-      <span v-if="isRequester" class="disabled-nav">공급사 등록</span>
-      <RouterLink v-else to="/supplier-register">공급사 등록</RouterLink>
+      <RouterLink v-if="!isRequester" to="/supplier-register">공급사 등록</RouterLink>
       <RouterLink to="/dashboard">문의 내역</RouterLink>
     </nav>
 

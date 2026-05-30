@@ -86,11 +86,6 @@ button {
   font-weight: 700;
 }
 
-.disabled-nav {
-  color: #9aa8bc;
-  cursor: not-allowed;
-}
-
 .auth-actions {
   display: flex;
   align-items: center;
@@ -184,12 +179,6 @@ h1 {
   outline: 0;
 }
 
-.search-box input:disabled {
-  color: #9aa8bc;
-  background: transparent;
-  cursor: not-allowed;
-}
-
 .search-box button {
   border: 0;
   border-radius: 14px;
@@ -198,12 +187,6 @@ h1 {
   background: #1559e8;
   font-weight: 900;
   cursor: pointer;
-}
-
-.search-box button:disabled {
-  color: #6f7f98;
-  background: #dbe6f8;
-  cursor: not-allowed;
 }
 
 .hero-actions {
@@ -226,18 +209,30 @@ h1 {
   font-weight: 900;
 }
 
-.disabled-action {
+.supplier-action-panel {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.supplier-action-panel a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  padding: 0 18px;
-  border: 1px solid #d9e4f6;
-  border-radius: 999px;
-  color: #9aa8bc;
-  background: #f4f7fc;
+  min-height: 58px;
+  border: 1px solid #c8d8f2;
+  border-radius: 18px;
+  color: #1559e8;
+  background: #fff;
   font-weight: 900;
-  cursor: not-allowed;
+}
+
+.supplier-action-panel .supplier-primary-action {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #1559e8, #1f8df2);
+  box-shadow: 0 18px 36px rgba(21, 89, 232, 0.22);
 }
 
 .flow-list {
@@ -263,26 +258,6 @@ h1 {
   content: ">";
 }
 
-.disabled-flow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 48px;
-  padding: 0 16px;
-  border: 1px solid #d9e4f6;
-  border-radius: 14px;
-  color: #9aa8bc;
-  background: #f4f7fc;
-  font-weight: 900;
-  cursor: not-allowed;
-}
-
-.disabled-flow::after {
-  content: "제한";
-  color: #9aa8bc;
-  font-size: 13px;
-}
-
 .hero-panel,
 .page-card {
   padding: 32px;
@@ -293,6 +268,10 @@ h1 {
   flex-direction: column;
   justify-content: center;
   min-height: 280px;
+}
+
+.role-panel {
+  justify-content: flex-start;
 }
 
 .hero-panel span {
@@ -310,6 +289,31 @@ h1 {
 .page-card p {
   color: #65748d;
   line-height: 1.7;
+}
+
+.role-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0 8px;
+}
+
+.role-stat-grid article {
+  min-height: 104px;
+  border: 1px solid #dbe6f8;
+  border-radius: 18px;
+  background: #f8fbff;
+  padding: 16px;
+}
+
+.role-stat-grid span {
+  color: #65748d;
+  font-size: 13px;
+}
+
+.role-stat-grid strong {
+  margin: 8px 0 0;
+  font-size: 26px;
 }
 
 .notice {
@@ -1176,6 +1180,8 @@ main {
   .request-form,
   .inquiry-form,
   .dashboard-stats,
+  .role-stat-grid,
+  .supplier-action-panel,
   .recommendation-grid,
   .registered-grid,
   .score-list {
