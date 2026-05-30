@@ -62,11 +62,122 @@
         <p class="reason">{{ item.reason }}</p>
 
         <div class="card-actions">
-          <button type="button" class="secondary-button">상세 보기</button>
+          <button type="button" class="secondary-button" @click="openDetail(item)">상세 보기</button>
           <button type="button" class="primary-button">문의하기</button>
         </div>
       </article>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="selectedRecommendation"
+        class="modal-backdrop"
+        role="presentation"
+        @click.self="closeDetail"
+      >
+        <section
+          class="detail-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="recommendation-detail-title"
+        >
+          <div class="modal-header">
+            <div>
+              <p class="eyebrow">Recommendation Detail</p>
+              <h2 id="recommendation-detail-title">
+                {{ selectedRecommendation.supplierName }}
+              </h2>
+              <span>{{ selectedRecommendation.materialName }} · {{ selectedRecommendation.standard }}</span>
+            </div>
+            <button type="button" class="icon-button" aria-label="상세 닫기" @click="closeDetail">
+              ×
+            </button>
+          </div>
+
+          <div class="detail-score-panel">
+            <div>
+              <span>최종 점수</span>
+              <strong>{{ selectedRecommendation.totalScore }}점</strong>
+            </div>
+            <p>
+              가격, 거리, 과거 납품 이력을 기준으로 문의 우선순위를 산출했습니다.
+            </p>
+          </div>
+
+          <div class="detail-grid">
+            <article>
+              <h3>공급 조건</h3>
+              <dl class="detail-list">
+                <div>
+                  <dt>최근 단가</dt>
+                  <dd>{{ selectedRecommendation.price }}</dd>
+                </div>
+                <div>
+                  <dt>현장 거리</dt>
+                  <dd>{{ selectedRecommendation.distanceKm }}km</dd>
+                </div>
+                <div>
+                  <dt>납품 이력</dt>
+                  <dd>{{ selectedRecommendation.deliveryCount }}회</dd>
+                </div>
+                <div v-if="selectedRecommendation.contact">
+                  <dt>연락처</dt>
+                  <dd>{{ selectedRecommendation.contact }}</dd>
+                </div>
+                <div v-if="selectedRecommendation.serviceArea">
+                  <dt>납품 가능 지역</dt>
+                  <dd>{{ selectedRecommendation.serviceArea }}</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article>
+              <h3>점수 분석</h3>
+              <div class="score-breakdown">
+                <div>
+                  <span>가격 점수</span>
+                  <strong>{{ selectedRecommendation.priceScore }}</strong>
+                  <meter min="0" max="100" :value="selectedRecommendation.priceScore" />
+                </div>
+                <div>
+                  <span>거리 점수</span>
+                  <strong>{{ selectedRecommendation.distanceScore }}</strong>
+                  <meter min="0" max="100" :value="selectedRecommendation.distanceScore" />
+                </div>
+                <div>
+                  <span>신뢰도 점수</span>
+                  <strong>{{ selectedRecommendation.reliabilityScore }}</strong>
+                  <meter min="0" max="100" :value="selectedRecommendation.reliabilityScore" />
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="detail-note">
+            <h3>추천 이유</h3>
+            <p>{{ selectedRecommendation.reason }}</p>
+          </div>
+
+          <div :class="['approval-note', { warn: selectedRecommendation.approvalRequired }]">
+            <strong>
+              {{ selectedRecommendation.approvalRequired ? "감리 승인 확인 필요" : "승인 리스크 낮음" }}
+            </strong>
+            <p>
+              {{
+                selectedRecommendation.approvalRequired
+                  ? "국제 규격 또는 강도 상향 자재는 구조 검토와 감리 승인 여부를 확인해야 합니다."
+                  : "동일 규격 기준으로 우선 검토 가능한 후보입니다. 최종 납품 가능 여부는 공급사 문의가 필요합니다."
+              }}
+            </p>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="secondary-button" @click="closeDetail">닫기</button>
+            <button type="button" class="primary-button">문의하기</button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -78,9 +189,18 @@ import { getLatestMaterialRequest, getRecommendations } from "../api/materialApi
 const route = useRoute();
 const request = ref(null);
 const recommendations = ref([]);
+const selectedRecommendation = ref(null);
 
 onMounted(async () => {
   request.value = await getLatestMaterialRequest();
   recommendations.value = await getRecommendations(route.query.requestId);
 });
+
+function openDetail(item) {
+  selectedRecommendation.value = item;
+}
+
+function closeDetail() {
+  selectedRecommendation.value = null;
+}
 </script>
