@@ -20,6 +20,7 @@
       <article v-for="item in recommendations" :key="item.rank" class="recommendation-card">
         <div class="card-topline">
           <span class="rank-badge">{{ item.rank }}순위</span>
+          <span v-if="item.isRegisteredSupplier" class="source-badge">등록 공급사</span>
           <span :class="['approval-badge', { warn: item.approvalRequired }]">
             {{ item.approvalRequired ? "감리 승인 필요" : "승인 리스크 낮음" }}
           </span>
@@ -46,6 +47,11 @@
             <dd>{{ item.totalScore }}점</dd>
           </div>
         </dl>
+
+        <div v-if="item.contact || item.serviceArea" class="supplier-meta">
+          <span v-if="item.contact">연락처 {{ item.contact }}</span>
+          <span v-if="item.serviceArea">납품 가능 {{ item.serviceArea }}</span>
+        </div>
 
         <div class="score-bars">
           <span>가격 {{ item.priceScore }}</span>
