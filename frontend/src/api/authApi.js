@@ -1,44 +1,43 @@
 import { reactive } from "vue";
 
-const STORAGE_KEY = "paceflow_mock_user";
+const STORAGE_KEY = "paceflow_v2_user";
 
-function readStoredUser() {
+function loadStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : null;
   } catch {
     return null;
   }
 }
 
 export const authState = reactive({
-  user: readStoredUser(),
+  user: loadStoredUser(),
 });
 
-export async function loginUser({ email, password, companyName, role = "requester" }) {
-  if (!email || !password) {
-    throw new Error("이메일과 비밀번호를 입력해주세요.");
-  }
-
+export function loginUser(payload) {
   const user = {
-    email,
-    companyName: companyName || (role === "supplier" ? "공급사 계정" : "현장 담당자"),
-    role,
-    loggedInAt: new Date().toISOString(),
+    id: `USER-${Date.now()}`,
+    name: payload.name || "PaceFlow 사용자",
+    email: payload.email,
+    role: payload.role,
+    companyName: payload.companyName || "",
   };
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   authState.user = user;
   return user;
 }
 
-export async function loginSupplier(payload) {
-  return loginUser({ ...payload, role: "supplier" });
-}
-
-export function logout() {
+export function logoutUser() {
   localStorage.removeItem(STORAGE_KEY);
   authState.user = null;
 }
 
 export function isLoggedIn() {
   return Boolean(authState.user);
+}
+
+export function hasRole(role) {
+  return authState.user?.role === role;
 }

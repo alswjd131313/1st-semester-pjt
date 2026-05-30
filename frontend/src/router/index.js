@@ -1,22 +1,63 @@
 import { createRouter, createWebHistory } from "vue-router";
 import HomePage from "../pages/HomePage.vue";
+import { isLoggedIn, hasRole } from "../api/authApi";
+import LoginPage from "../pages/LoginPage.vue";
 import MaterialRequestPage from "../pages/MaterialRequestPage.vue";
 import RecommendationPage from "../pages/RecommendationPage.vue";
 import SupplierRegisterPage from "../pages/SupplierRegisterPage.vue";
-import LoginPage from "../pages/LoginPage.vue";
-import NearbySuppliersPage from "../pages/NearbySuppliersPage.vue";
 
 const routes = [
   { path: "/", name: "home", component: HomePage },
-  { path: "/request", name: "request", component: MaterialRequestPage },
-  { path: "/recommendations", name: "recommendations", component: RecommendationPage },
-  { path: "/nearby-suppliers", name: "nearby-suppliers", component: NearbySuppliersPage },
   { path: "/login", name: "login", component: LoginPage },
-  { path: "/supplier-register", name: "supplier-register", component: SupplierRegisterPage },
+  {
+    path: "/request",
+    name: "request",
+    component: MaterialRequestPage,
+    meta: { requiresAuth: true, role: "requester" },
+  },
+  { path: "/recommendations", name: "recommendations", component: RecommendationPage },
+  {
+    path: "/supplier-register",
+    name: "supplier-register",
+    component: SupplierRegisterPage,
+    meta: { requiresAuth: true, role: "supplier" },
+  },
 ];
 
-export default createRouter({
+const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior: () => ({ top: 0 }),
 });
+
+router.beforeEach((to) => {
+  if (!to.meta.requiresAuth) {
+    return true;
+  }
+
+  const role = to.meta.role;
+
+  if (!isLoggedIn()) {
+    return {
+      path: "/login",
+      query: {
+        role,
+        redirect: to.fullPath,
+      },
+    };
+  }
+
+  if (role && !hasRole(role)) {
+    return {
+      path: authRedirectPath(),
+      query: { roleMismatch: role },
+    };
+  }
+
+  return true;
+});
+
+function authRedirectPath() {
+  return hasRole("supplier") ? "/supplier-register" : "/request";
+}
+
+export default router;

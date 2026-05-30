@@ -1,5 +1,5 @@
 {
-  "name": "paceflow-frontend",
+  "name": "paceflow-frontend-v2",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-vue": "^6.0.2",
-    "axios": "^1.13.2",
-    "vite": "^7.2.6",
-    "vue": "^3.5.25",
-    "vue-router": "^4.6.3"
+    "@vitejs/plugin-vue": "^5.2.1",
+    "axios": "^1.7.9",
+    "vite": "^6.0.7",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {}
 }
