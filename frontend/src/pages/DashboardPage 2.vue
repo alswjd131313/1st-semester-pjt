@@ -25,22 +25,12 @@
         <span>최근 문의</span>
         <strong>{{ latestInquiryLabel }}</strong>
       </article>
-      <article>
-        <span>견적 가능</span>
-        <strong>{{ quotedCount }}건</strong>
-      </article>
     </div>
 
-    <p v-if="isLoading" class="loading-message">문의 내역을 불러오는 중입니다.</p>
-    <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-
-    <div v-if="!isLoading && inquiries.length" class="inquiry-list">
+    <div v-if="inquiries.length" class="inquiry-list">
       <article v-for="inquiry in inquiries" :key="inquiry.id" class="inquiry-card">
         <div class="card-topline">
           <span class="rank-badge">{{ inquiry.id }}</span>
-          <span :class="['status-badge', inquiry.status]">
-            {{ getStatusLabel(inquiry.status) }}
-          </span>
           <span :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
             {{ inquiry.supplier?.approvalRequired ? "승인 확인 필요" : "일반 문의" }}
           </span>
@@ -79,27 +69,13 @@
         <p v-if="inquiry.message" class="reason">{{ inquiry.message }}</p>
 
         <div class="inquiry-footer">
-          <span>상태 변경: {{ formatDate(inquiry.statusUpdatedAt) }}</span>
-          <div v-if="isSupplier" class="status-actions" aria-label="문의 상태 변경">
-            <button
-              v-for="status in inquiryStatuses"
-              :key="status.value"
-              type="button"
-              :class="['status-action', { active: inquiry.status === status.value }]"
-              :disabled="updatingInquiryId === inquiry.id"
-              @click="changeInquiryStatus(inquiry.id, status.value)"
-            >
-              {{ status.label }}
-            </button>
-          </div>
-          <RouterLink class="secondary-button" :to="`/dashboard/${inquiry.id}`">
-            상세 보기
-          </RouterLink>
+          <span>현재 상태: mock 저장</span>
+          <RouterLink class="secondary-button" to="/recommendations">다른 후보 보기</RouterLink>
         </div>
       </article>
     </div>
 
-    <div v-else-if="!isLoading" class="empty-state">
+    <div v-else class="empty-state">
       <strong>아직 저장된 문의가 없습니다.</strong>
       <p>추천 결과에서 공급사 후보의 문의하기 버튼을 눌러 첫 문의를 저장해보세요.</p>
       <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
@@ -110,31 +86,16 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { authState } from "../api/authApi";
-import { getSupplierInquiries, updateSupplierInquiryStatus } from "../api/materialApi";
+import { getSupplierInquiries } from "../api/materialApi";
 
 const inquiries = ref([]);
-const isLoading = ref(false);
-const errorMessage = ref("");
-const updatingInquiryId = ref("");
-const inquiryStatuses = [
-  { value: "received", label: "문의 접수" },
-  { value: "reviewing", label: "확인 중" },
-  { value: "quoted", label: "견적 가능" },
-  { value: "unavailable", label: "불가" },
-];
 
 const dashboardTitle = computed(() =>
   authState.user?.role === "supplier" ? "공급사 문의 내역" : "내 문의 내역",
 );
 
-const isSupplier = computed(() => authState.user?.role === "supplier");
-
 const approvalCount = computed(
   () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
-);
-
-const quotedCount = computed(
-  () => inquiries.value.filter((inquiry) => inquiry.status === "quoted").length,
 );
 
 const latestInquiryLabel = computed(() => {
@@ -142,42 +103,9 @@ const latestInquiryLabel = computed(() => {
   return latest ? formatDate(latest.createdAt) : "없음";
 });
 
-onMounted(loadInquiries);
-
-async function changeInquiryStatus(inquiryId, status) {
-  try {
-    updatingInquiryId.value = inquiryId;
-    errorMessage.value = "";
-    const updatedInquiry = await updateSupplierInquiryStatus(inquiryId, status);
-    if (!updatedInquiry) {
-      return;
-    }
-
-    inquiries.value = inquiries.value.map((inquiry) =>
-      inquiry.id === inquiryId ? updatedInquiry : inquiry,
-    );
-  } catch {
-    errorMessage.value = "문의 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.";
-  } finally {
-    updatingInquiryId.value = "";
-  }
-}
-
-async function loadInquiries() {
-  try {
-    isLoading.value = true;
-    errorMessage.value = "";
-    inquiries.value = await getSupplierInquiries();
-  } catch {
-    errorMessage.value = "문의 내역을 불러오지 못했습니다.";
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-function getStatusLabel(status) {
-  return inquiryStatuses.find((item) => item.value === status)?.label || "문의 접수";
-}
+onMounted(async () => {
+  inquiries.value = await getSupplierInquiries();
+});
 
 function formatDate(value) {
   if (!value) {

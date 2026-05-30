@@ -6,6 +6,8 @@
       <p>기존 자재 정보와 현장 조건을 입력하면 문의 우선순위가 높은 공급사 후보를 보여줍니다.</p>
     </div>
 
+    <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
     <form class="request-form" @submit.prevent="submitRequest">
       <label>
         자재명
@@ -63,14 +65,16 @@
 
       <div class="form-actions">
         <RouterLink class="secondary-button" to="/">취소</RouterLink>
-        <button type="submit" class="primary-button">추천 결과 보기</button>
+        <button type="submit" class="primary-button" :disabled="isSubmitting">
+          {{ isSubmitting ? "요청 저장 중" : "추천 결과 보기" }}
+        </button>
       </div>
     </form>
   </section>
 </template>
 
 <script setup>
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { createMaterialRequest } from "../api/materialApi";
 import { categories } from "../data/dummyData";
@@ -78,6 +82,8 @@ import { categories } from "../data/dummyData";
 const route = useRoute();
 const router = useRouter();
 const keyword = String(route.query.keyword || "");
+const isSubmitting = ref(false);
+const errorMessage = ref("");
 
 const form = reactive({
   materialName: parseMaterialName(keyword),
@@ -92,11 +98,19 @@ const form = reactive({
 });
 
 async function submitRequest() {
-  const request = await createMaterialRequest({ ...form });
-  router.push({
-    path: "/recommendations",
-    query: { requestId: request.id },
-  });
+  try {
+    isSubmitting.value = true;
+    errorMessage.value = "";
+    const request = await createMaterialRequest({ ...form });
+    router.push({
+      path: "/recommendations",
+      query: { requestId: request.id },
+    });
+  } catch {
+    errorMessage.value = "자재 요청을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 function parseMaterialName(value) {

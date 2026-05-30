@@ -520,6 +520,13 @@ main {
   background: #fff;
 }
 
+.primary-button:disabled,
+.secondary-button:disabled,
+.status-action:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
 .summary-card {
   display: flex;
   flex-wrap: wrap;
@@ -717,6 +724,26 @@ main {
   color: #12733f;
   background: #ecfbf2;
   font-weight: 900;
+}
+
+.loading-message,
+.error-message {
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-weight: 900;
+  line-height: 1.6;
+}
+
+.loading-message {
+  border: 1px solid #c8d8f2;
+  color: #1559e8;
+  background: #eef5ff;
+}
+
+.error-message {
+  border: 1px solid #ffd0c9;
+  color: #b42318;
+  background: #fff0ee;
 }
 
 .registered-section {

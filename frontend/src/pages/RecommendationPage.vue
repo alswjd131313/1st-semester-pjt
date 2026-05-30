@@ -16,7 +16,10 @@
       <span>{{ request.isUrgent ? "긴급 요청" : "일반 요청" }}</span>
     </div>
 
-    <section class="recommendation-toolbar" aria-label="추천 결과 필터와 정렬">
+    <p v-if="isLoading" class="loading-message">추천 후보를 불러오는 중입니다.</p>
+    <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
+    <section v-if="!isLoading" class="recommendation-toolbar" aria-label="추천 결과 필터와 정렬">
       <div>
         <strong>{{ filteredRecommendations.length }}개 후보</strong>
         <span>{{ activeFilterLabel }}</span>
@@ -46,7 +49,7 @@
       <button type="button" class="secondary-button" @click="resetFilters">초기화</button>
     </section>
 
-    <div class="recommendation-grid">
+    <div v-if="!isLoading" class="recommendation-grid">
       <article
         v-for="(item, index) in filteredRecommendations"
         :key="`${item.supplierName}-${item.materialName}-${item.standard}`"
@@ -102,7 +105,7 @@
       </article>
     </div>
 
-    <div v-if="!filteredRecommendations.length" class="empty-state">
+    <div v-if="!isLoading && !filteredRecommendations.length" class="empty-state">
       <strong>조건에 맞는 추천 후보가 없습니다.</strong>
       <p>필터를 줄이거나 초기화한 뒤 다시 확인해보세요.</p>
       <button type="button" class="primary-button" @click="resetFilters">필터 초기화</button>
@@ -330,11 +333,14 @@
               />
             </label>
 
-            <p v-if="inquiryStatus" class="success-message">{{ inquiryStatus }}</p>
+            <p v-if="inquiryStatus" class="success-message full-field">{{ inquiryStatus }}</p>
+            <p v-if="inquiryErrorMessage" class="error-message full-field">{{ inquiryErrorMessage }}</p>
 
             <div class="modal-actions full-field">
               <button type="button" class="secondary-button" @click="closeInquiry">취소</button>
-              <button type="submit" class="primary-button">문의 저장하기</button>
+              <button type="submit" class="primary-button" :disabled="isInquirySubmitting">
+                {{ isInquirySubmitting ? "문의 저장 중" : "문의 저장하기" }}
+              </button>
             </div>
           </form>
         </section>
@@ -358,6 +364,10 @@ const recommendations = ref([]);
 const selectedRecommendation = ref(null);
 const selectedInquirySupplier = ref(null);
 const inquiryStatus = ref("");
+const inquiryErrorMessage = ref("");
+const isLoading = ref(false);
+const isInquirySubmitting = ref(false);
+const errorMessage = ref("");
 const sortOption = ref("score");
 const hideApprovalRequired = ref(false);
 const registeredOnly = ref(false);
@@ -369,10 +379,7 @@ const inquiryForm = reactive({
   message: "",
 });
 
-onMounted(async () => {
-  request.value = await getLatestMaterialRequest();
-  recommendations.value = await getRecommendations(route.query.requestId);
-});
+onMounted(loadRecommendations);
 
 const filteredRecommendations = computed(() => {
   return recommendations.value
@@ -473,6 +480,7 @@ function closeDetail() {
 function openInquiry(item) {
   selectedInquirySupplier.value = item;
   inquiryStatus.value = "";
+  inquiryErrorMessage.value = "";
   inquiryForm.quantity = request.value?.requiredQuantity || "";
   selectedRecommendation.value = null;
 }
@@ -483,18 +491,40 @@ function closeInquiry() {
 }
 
 async function submitInquiry() {
-  const inquiry = await createSupplierInquiry({
-    requestId: route.query.requestId,
-    requestMaterial: request.value,
-    supplier: selectedInquirySupplier.value,
-    requesterName: inquiryForm.requesterName,
-    contact: inquiryForm.contact,
-    quantity: inquiryForm.quantity,
-    desiredDate: inquiryForm.desiredDate,
-    message: inquiryForm.message,
-  });
+  try {
+    isInquirySubmitting.value = true;
+    inquiryStatus.value = "";
+    inquiryErrorMessage.value = "";
+    const inquiry = await createSupplierInquiry({
+      requestId: route.query.requestId,
+      requestMaterial: request.value,
+      supplier: selectedInquirySupplier.value,
+      requesterName: inquiryForm.requesterName,
+      contact: inquiryForm.contact,
+      quantity: inquiryForm.quantity,
+      desiredDate: inquiryForm.desiredDate,
+      message: inquiryForm.message,
+    });
 
-  inquiryStatus.value = `${inquiry.id} 문의가 임시 저장되었습니다. 실제 전송 API가 연결되면 이 흐름을 그대로 사용할 수 있습니다.`;
-  inquiryForm.message = "";
+    inquiryStatus.value = `${inquiry.id} 문의가 임시 저장되었습니다. 실제 전송 API가 연결되면 이 흐름을 그대로 사용할 수 있습니다.`;
+    inquiryForm.message = "";
+  } catch {
+    inquiryErrorMessage.value = "공급사 문의를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
+  } finally {
+    isInquirySubmitting.value = false;
+  }
+}
+
+async function loadRecommendations() {
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+    request.value = await getLatestMaterialRequest();
+    recommendations.value = await getRecommendations(route.query.requestId);
+  } catch {
+    errorMessage.value = "추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
+  } finally {
+    isLoading.value = false;
+  }
 }
 </script>
