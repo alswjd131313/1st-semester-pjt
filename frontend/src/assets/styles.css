@@ -86,6 +86,11 @@ button {
   font-weight: 700;
 }
 
+.disabled-nav {
+  color: #9aa8bc;
+  cursor: not-allowed;
+}
+
 .auth-actions {
   display: flex;
   align-items: center;
@@ -179,6 +184,12 @@ h1 {
   outline: 0;
 }
 
+.search-box input:disabled {
+  color: #9aa8bc;
+  background: transparent;
+  cursor: not-allowed;
+}
+
 .search-box button {
   border: 0;
   border-radius: 14px;
@@ -187,6 +198,12 @@ h1 {
   background: #1559e8;
   font-weight: 900;
   cursor: pointer;
+}
+
+.search-box button:disabled {
+  color: #6f7f98;
+  background: #dbe6f8;
+  cursor: not-allowed;
 }
 
 .hero-actions {
@@ -207,6 +224,20 @@ h1 {
   color: #1559e8;
   background: #fff;
   font-weight: 900;
+}
+
+.disabled-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid #d9e4f6;
+  border-radius: 999px;
+  color: #9aa8bc;
+  background: #f4f7fc;
+  font-weight: 900;
+  cursor: not-allowed;
 }
 
 .flow-list {
@@ -230,6 +261,26 @@ h1 {
 
 .flow-list a::after {
   content: ">";
+}
+
+.disabled-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid #d9e4f6;
+  border-radius: 14px;
+  color: #9aa8bc;
+  background: #f4f7fc;
+  font-weight: 900;
+  cursor: not-allowed;
+}
+
+.disabled-flow::after {
+  content: "제한";
+  color: #9aa8bc;
+  font-size: 13px;
 }
 
 .hero-panel,

@@ -9,9 +9,11 @@
     </RouterLink>
 
     <nav>
-      <RouterLink to="/request">자재 요청</RouterLink>
+      <span v-if="isSupplier" class="disabled-nav">자재 요청</span>
+      <RouterLink v-else to="/request">자재 요청</RouterLink>
       <RouterLink to="/recommendations">추천 결과</RouterLink>
-      <RouterLink to="/supplier-register">공급사 등록</RouterLink>
+      <span v-if="isRequester" class="disabled-nav">공급사 등록</span>
+      <RouterLink v-else to="/supplier-register">공급사 등록</RouterLink>
       <RouterLink to="/dashboard">문의 내역</RouterLink>
     </nav>
 
@@ -39,6 +41,8 @@ const router = useRouter();
 const roleLabel = computed(() =>
   authState.user?.role === "supplier" ? "공급사" : "요청자",
 );
+const isSupplier = computed(() => authState.user?.role === "supplier");
+const isRequester = computed(() => authState.user?.role === "requester");
 
 function handleLogout() {
   logoutUser();
