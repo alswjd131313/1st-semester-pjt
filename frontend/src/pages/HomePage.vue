@@ -18,15 +18,21 @@
       </form>
 
       <div class="hero-actions">
-        <RouterLink to="/login?role=requester">자재 요청자 로그인</RouterLink>
+        <RouterLink to="/login?role=requester">요청자 로그인</RouterLink>
         <RouterLink to="/login?role=supplier">공급사 로그인</RouterLink>
+        <RouterLink to="/recommendations">추천 결과 보기</RouterLink>
       </div>
     </div>
 
     <aside class="hero-panel">
-      <span>이번 단계</span>
-      <strong>역할별 흐름 분리</strong>
-      <p>자재 요청자는 요청 등록으로, 공급사는 취급 자재 등록으로 이동합니다.</p>
+      <span>누적 구현 상태</span>
+      <strong>요청부터 상세 확인까지</strong>
+      <p>로그인, 자재 요청, 공급사 등록, 추천 결과, 상세 보기 흐름을 한 번에 확인할 수 있습니다.</p>
+      <div class="flow-list">
+        <RouterLink to="/request">자재 요청 등록</RouterLink>
+        <RouterLink to="/supplier-register">공급사 자재 등록</RouterLink>
+        <RouterLink to="/recommendations">추천 상세 보기</RouterLink>
+      </div>
     </aside>
   </section>
 </template>
