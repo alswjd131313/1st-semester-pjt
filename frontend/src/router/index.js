@@ -6,6 +6,7 @@ import MaterialRequestPage from "../pages/MaterialRequestPage.vue";
 import RecommendationPage from "../pages/RecommendationPage.vue";
 import SupplierRegisterPage from "../pages/SupplierRegisterPage.vue";
 import DashboardPage from "../pages/DashboardPage.vue";
+import InquiryDetailPage from "../pages/InquiryDetailPage.vue";
 
 const routes = [
   { path: "/", name: "home", component: HomePage },
@@ -14,6 +15,12 @@ const routes = [
     path: "/dashboard",
     name: "dashboard",
     component: DashboardPage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/dashboard/:inquiryId",
+    name: "inquiry-detail",
+    component: InquiryDetailPage,
     meta: { requiresAuth: true },
   },
   {
