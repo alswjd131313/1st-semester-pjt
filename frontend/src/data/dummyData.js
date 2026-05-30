@@ -21,6 +21,23 @@ export const recommendationResults = [
     totalScore: 91,
     approvalRequired: false,
     reason: "규격과 강도 조건이 일치하고 현장과 가까워 우선 문의 후보로 적합합니다.",
+    reasonItems: [
+      "KS D 3504 SD400 D10 기준 자재와 동일 규격입니다.",
+      "현장 기준 3.2km 거리로 긴급 문의 우선순위가 높습니다.",
+      "과거 납품 이력 42회로 반복 납품 경험이 확인됩니다.",
+    ],
+    propertyComparison: [
+      { label: "항복강도", original: "400 MPa", candidate: "400 MPa", standard: ">= 400 MPa", passed: true },
+      { label: "인장강도", original: "560 MPa", candidate: "570 MPa", standard: ">= 560 MPa", passed: true },
+      { label: "연신율", original: "16%", candidate: "17%", standard: ">= 16%", passed: true },
+      { label: "탄소당량", original: "0.50", candidate: "0.49", standard: "<= 0.60", passed: true },
+    ],
+    scoreEvidence: {
+      price: "희망 예산 범위 내 단가로 가격 점수 92점을 부여했습니다.",
+      distance: "현장 5km 이내 후보로 거리 점수 96점을 부여했습니다.",
+      reliability: "납품 이력 42회를 기준으로 신뢰도 점수 91점을 부여했습니다.",
+    },
+    approvalRiskNote: "동일 KS 규격 기준 후보로 승인 리스크가 낮습니다. 최종 적용 전 현장 기준 확인은 필요합니다.",
   },
   {
     rank: 2,
@@ -36,6 +53,23 @@ export const recommendationResults = [
     totalScore: 88,
     approvalRequired: false,
     reason: "최근 단가가 낮고 동일 규격 납품 이력이 있어 비교 문의하기 좋습니다.",
+    reasonItems: [
+      "기준 자재와 동일한 SD400 D10 규격입니다.",
+      "최근 단가가 후보군 내에서 낮아 비교 견적 후보로 적합합니다.",
+      "납품 이력 31회로 기본 신뢰도 기준을 충족합니다.",
+    ],
+    propertyComparison: [
+      { label: "항복강도", original: "400 MPa", candidate: "405 MPa", standard: ">= 400 MPa", passed: true },
+      { label: "인장강도", original: "560 MPa", candidate: "565 MPa", standard: ">= 560 MPa", passed: true },
+      { label: "연신율", original: "16%", candidate: "16%", standard: ">= 16%", passed: true },
+      { label: "탄소당량", original: "0.50", candidate: "0.51", standard: "<= 0.60", passed: true },
+    ],
+    scoreEvidence: {
+      price: "후보군 대비 낮은 단가로 가격 점수 95점을 부여했습니다.",
+      distance: "현장 7.4km 거리로 중거리 후보에 해당합니다.",
+      reliability: "납품 이력 31회를 기준으로 신뢰도 점수 86점을 부여했습니다.",
+    },
+    approvalRiskNote: "동일 KS 규격 후보로 구조 변경 가능성은 낮지만, 현장 감리 기준 확인은 필요합니다.",
   },
   {
     rank: 3,
@@ -51,5 +85,22 @@ export const recommendationResults = [
     totalScore: 81,
     approvalRequired: true,
     reason: "강도 조건은 충족하지만 국제 규격 자재라 감리 승인 확인이 필요합니다.",
+    reasonItems: [
+      "항복강도와 인장강도는 기준치를 상회합니다.",
+      "ASTM A615 Grade 60 자재로 국제 규격 동등성 확인이 필요합니다.",
+      "거리와 납품 이력 점수가 낮아 보조 후보로 분류됩니다.",
+    ],
+    propertyComparison: [
+      { label: "항복강도", original: "400 MPa", candidate: "420 MPa", standard: ">= 400 MPa", passed: true },
+      { label: "인장강도", original: "560 MPa", candidate: "610 MPa", standard: ">= 560 MPa", passed: true },
+      { label: "연신율", original: "16%", candidate: "18%", standard: ">= 16%", passed: true },
+      { label: "탄소당량", original: "0.50", candidate: "0.48", standard: "<= 0.60", passed: true },
+    ],
+    scoreEvidence: {
+      price: "단가는 낮지만 국제 규격 확인이 필요해 단독 판단은 어렵습니다.",
+      distance: "현장 11.2km 거리로 거리 점수 70점을 부여했습니다.",
+      reliability: "납품 이력 12회로 신뢰도 점수 72점을 부여했습니다.",
+    },
+    approvalRiskNote: "국제 규격 또는 강도 상향 자재는 구조 검토와 감리 승인 여부를 별도로 확인해야 합니다.",
   },
 ];
