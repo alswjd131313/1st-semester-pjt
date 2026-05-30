@@ -636,6 +636,62 @@ main {
   line-height: 1.6;
 }
 
+.completion-card {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  max-width: 820px;
+  border: 1px solid #dbe6f8;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 22px 70px rgba(31, 61, 115, 0.1);
+  padding: clamp(28px, 5vw, 48px);
+}
+
+.completion-card h2 {
+  margin: 0;
+  color: #102a56;
+  font-size: clamp(28px, 4vw, 42px);
+}
+
+.completion-card p {
+  max-width: 680px;
+  margin: 0;
+  color: #65748d;
+  line-height: 1.7;
+}
+
+.completion-mark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #12733f;
+  background: #ecfbf2;
+  font-weight: 900;
+}
+
+.completion-summary {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid #dbe6f8;
+  border-radius: 18px;
+  background: #f8fbff;
+  padding: 18px;
+}
+
+.completion-summary strong {
+  color: #102a56;
+  font-size: 20px;
+}
+
+.completion-summary span {
+  color: #65748d;
+  font-weight: 800;
+}
+
 .card-actions {
   justify-content: space-between;
   margin-top: 18px;
