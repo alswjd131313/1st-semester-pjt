@@ -11,7 +11,10 @@
       <RouterLink class="secondary-button" to="/dashboard">문의 내역으로</RouterLink>
     </div>
 
-    <div v-if="inquiry" class="detail-page-grid">
+    <p v-if="isLoading" class="loading-message">문의 상세 정보를 불러오는 중입니다.</p>
+    <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
+    <div v-if="!isLoading && inquiry" class="detail-page-grid">
       <section class="detail-page-card primary-detail">
         <div class="card-topline">
           <span class="rank-badge">{{ inquiry.id }}</span>
@@ -40,6 +43,7 @@
             :key="status.value"
             type="button"
             :class="['status-action', { active: inquiry.status === status.value }]"
+            :disabled="isUpdating"
             @click="changeInquiryStatus(status.value)"
           >
             {{ status.label }}
@@ -126,7 +130,7 @@
       </section>
     </div>
 
-    <div v-else class="empty-state">
+    <div v-else-if="!isLoading" class="empty-state">
       <strong>문의 정보를 찾을 수 없습니다.</strong>
       <p>저장된 mock 문의가 없거나 브라우저 저장 데이터가 초기화되었을 수 있습니다.</p>
       <RouterLink class="primary-button" to="/dashboard">문의 내역으로 이동</RouterLink>
@@ -142,6 +146,9 @@ import { getSupplierInquiry, updateSupplierInquiryStatus } from "../api/material
 
 const route = useRoute();
 const inquiry = ref(null);
+const isLoading = ref(false);
+const isUpdating = ref(false);
+const errorMessage = ref("");
 const inquiryStatuses = [
   { value: "received", label: "문의 접수" },
   { value: "reviewing", label: "확인 중" },
@@ -151,14 +158,32 @@ const inquiryStatuses = [
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
 
-onMounted(async () => {
-  inquiry.value = await getSupplierInquiry(route.params.inquiryId);
-});
+onMounted(loadInquiry);
 
 async function changeInquiryStatus(status) {
-  const updatedInquiry = await updateSupplierInquiryStatus(inquiry.value.id, status);
-  if (updatedInquiry) {
-    inquiry.value = updatedInquiry;
+  try {
+    isUpdating.value = true;
+    errorMessage.value = "";
+    const updatedInquiry = await updateSupplierInquiryStatus(inquiry.value.id, status);
+    if (updatedInquiry) {
+      inquiry.value = updatedInquiry;
+    }
+  } catch {
+    errorMessage.value = "문의 상태를 변경하지 못했습니다.";
+  } finally {
+    isUpdating.value = false;
+  }
+}
+
+async function loadInquiry() {
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+    inquiry.value = await getSupplierInquiry(route.params.inquiryId);
+  } catch {
+    errorMessage.value = "문의 상세 정보를 불러오지 못했습니다.";
+  } finally {
+    isLoading.value = false;
   }
 }
 

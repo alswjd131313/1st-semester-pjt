@@ -25,7 +25,10 @@
       </div>
     </section>
 
-    <form v-else class="request-form" @submit.prevent="submitSupplier">
+    <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+    <p v-if="isLoading" class="loading-message">등록된 자재를 불러오는 중입니다.</p>
+
+    <form v-if="!isRegistrationComplete" class="request-form" @submit.prevent="submitSupplier">
       <label>
         공급사명
         <input v-model="form.supplierName" type="text" placeholder="성수철강" required />
@@ -92,7 +95,9 @@
 
       <div class="form-actions">
         <RouterLink class="secondary-button" to="/">메인으로</RouterLink>
-        <button type="submit" class="primary-button">공급사 정보 등록하기</button>
+        <button type="submit" class="primary-button" :disabled="isSubmitting">
+          {{ isSubmitting ? "등록 중" : "공급사 정보 등록하기" }}
+        </button>
       </div>
     </form>
 
@@ -121,6 +126,9 @@ import { getSupplierMaterials, registerSupplierMaterial } from "../api/materialA
 const registeredMaterials = ref([]);
 const isRegistrationComplete = ref(false);
 const completedMaterial = ref(null);
+const isLoading = ref(false);
+const isSubmitting = ref(false);
+const errorMessage = ref("");
 
 const form = reactive({
   supplierName: authState.user?.companyName || "",
@@ -140,15 +148,31 @@ const form = reactive({
 onMounted(loadSupplierMaterials);
 
 async function submitSupplier() {
-  const saved = await registerSupplierMaterial({ ...form });
-  completedMaterial.value = saved;
-  isRegistrationComplete.value = true;
-  await loadSupplierMaterials();
-  resetForm();
+  try {
+    isSubmitting.value = true;
+    errorMessage.value = "";
+    const saved = await registerSupplierMaterial({ ...form });
+    completedMaterial.value = saved;
+    isRegistrationComplete.value = true;
+    await loadSupplierMaterials();
+    resetForm();
+  } catch {
+    errorMessage.value = "공급사 자재 정보를 등록하지 못했습니다. 입력값을 확인한 뒤 다시 시도해주세요.";
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 async function loadSupplierMaterials() {
-  registeredMaterials.value = await getSupplierMaterials();
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+    registeredMaterials.value = await getSupplierMaterials();
+  } catch {
+    errorMessage.value = "등록된 자재 목록을 불러오지 못했습니다.";
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 function startNewRegistration() {

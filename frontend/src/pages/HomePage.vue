@@ -81,6 +81,8 @@
       <span>{{ roleLabel }} 요약</span>
       <strong>{{ roleHeadline }}</strong>
       <p>{{ roleDescription }}</p>
+      <p v-if="isLoading" class="loading-message">요약 데이터를 불러오는 중입니다.</p>
+      <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
       <div class="role-stat-grid">
         <article v-for="item in roleStats" :key="item.label">
@@ -112,6 +114,8 @@ const router = useRouter();
 const keyword = ref("");
 const inquiries = ref([]);
 const supplierMaterials = ref([]);
+const isLoading = ref(false);
+const errorMessage = ref("");
 const isSupplier = computed(() => authState.user?.role === "supplier");
 const isRequester = computed(() => authState.user?.role === "requester");
 const roleLabel = computed(() => (isSupplier.value ? "공급사" : "요청자"));
@@ -160,10 +164,24 @@ const roleLinks = computed(() => {
   ];
 });
 
-onMounted(async () => {
-  inquiries.value = await getSupplierInquiries();
-  supplierMaterials.value = await getSupplierMaterials();
-});
+onMounted(loadRoleSummary);
+
+async function loadRoleSummary() {
+  if (!authState.user) {
+    return;
+  }
+
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+    inquiries.value = await getSupplierInquiries();
+    supplierMaterials.value = await getSupplierMaterials();
+  } catch {
+    errorMessage.value = "역할별 요약 정보를 불러오지 못했습니다.";
+  } finally {
+    isLoading.value = false;
+  }
+}
 
 function goToRequest() {
   router.push({
