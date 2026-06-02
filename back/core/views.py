@@ -79,7 +79,7 @@ class MaterialListView(generics.ListAPIView):
         if category:
             qs = qs.filter(category=category)
 
-        return qs
+        return qs.order_by("id")
 
 
 # ══════════════════════════════════════════
