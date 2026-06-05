@@ -13,9 +13,9 @@ export async function createMaterialRequest(payload) {
       id: `REQ-${Date.now()}`,
       createdAt: new Date().toISOString(),
       backendMaterialId: material.id,
-      siteLat: DEFAULT_SITE_LAT,
-      siteLng: DEFAULT_SITE_LNG,
       ...payload,
+      siteLat: payload.siteLat || DEFAULT_SITE_LAT,
+      siteLng: payload.siteLng || DEFAULT_SITE_LNG,
     };
     const { data } = await apiClient.post(buildApiUrl("/api/v1/demands/"), toBackendDemand(request));
     const savedRequest = { ...request, backendDemandId: data.id };
@@ -167,13 +167,17 @@ async function findBackendMaterial(payload) {
 function toBackendDemand(request) {
   return {
     site_name: request.siteAddress || "PaceFlow 현장",
-    site_lat: request.siteLat,
-    site_lng: request.siteLng,
+    site_lat: roundCoordinate(request.siteLat),
+    site_lng: roundCoordinate(request.siteLng),
     material: request.backendMaterialId,
     quantity: parseQuantity(request.requiredQuantity),
     deadline: request.requiredDate,
     memo: request.memo || "",
   };
+}
+
+function roundCoordinate(value) {
+  return Number(Number(value).toFixed(6));
 }
 
 function parseQuantity(value) {
@@ -222,6 +226,8 @@ function toFrontendRecommendations(data, requestId) {
         "백엔드 물성 필터를 통과한 후보입니다. 최종 납품 가능 여부는 공급사 확인이 필요합니다.",
       contact: supplier?.phone,
       address: supplier?.address,
+      latitude: supplier?.latitude,
+      longitude: supplier?.longitude,
       isRegisteredSupplier: false,
     };
   });

@@ -115,6 +115,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5176",   # 로컬 API 연동 확인용 대체 포트
     "http://localhost:3000",
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
 CORS_ALLOW_CREDENTIALS = True
 
 # ──────────────────────────────────────────
@@ -122,7 +126,8 @@ CORS_ALLOW_CREDENTIALS = True
 # ──────────────────────────────────────────
 NARAJANGTEO_API_KEY      = os.getenv("NARAJANGTEO_API_KEY", "")
 NARAJANGTEO_USER_API_KEY = os.getenv("NARAJANGTEO_USER_API_KEY", "")  # 추가
-JUSO_API_KEY             = os.getenv("JUSO_API_KEY", "")
+JUSO_API_KEY             = os.getenv("JUSO_SEARCH_API_KEY", os.getenv("JUSO_API_KEY", ""))
+KAKAO_REST_API_KEY       = os.getenv("KAKAO_REST_API_KEY", "")
 KAKAO_MAP_KEY            = os.getenv("KAKAO_MAP_KEY", "")
 
 # ──────────────────────────────────────────
