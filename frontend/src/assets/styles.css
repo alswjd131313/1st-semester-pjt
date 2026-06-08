@@ -985,6 +985,10 @@ main {
   box-shadow: 0 22px 70px rgba(31, 61, 115, 0.1);
 }
 
+.signup-card {
+  width: min(100%, 680px);
+}
+
 .auth-description {
   color: #65748d;
   line-height: 1.7;
@@ -1046,6 +1050,74 @@ main {
   color: #fff;
   background: linear-gradient(135deg, #1559e8, #1f8df2);
   font-weight: 900;
+}
+
+.demo-account-box {
+  display: grid;
+  gap: 10px;
+  margin-top: 26px;
+  border-top: 1px solid #e8eef8;
+  padding-top: 22px;
+}
+
+.demo-account-box .section-title-row {
+  margin-bottom: 6px;
+}
+
+.demo-account-box h2 {
+  margin: 0;
+  color: #102a56;
+  font-size: 20px;
+}
+
+.demo-account-card {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid #d9e4f6;
+  border-radius: 16px;
+  padding: 16px;
+  color: #425571;
+  background: #f8fbff;
+  text-align: left;
+}
+
+.demo-account-card:hover {
+  border-color: #bcd4fb;
+  background: #eef5ff;
+}
+
+.auth-secondary-action {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  color: #65748d;
+  font-weight: 800;
+}
+
+.auth-secondary-action a {
+  color: #1559e8;
+  font-weight: 900;
+}
+
+.success-message {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #bfe6d0;
+  border-radius: 14px;
+  color: #147a3f;
+  background: #effaf3;
+  font-weight: 800;
+}
+
+.demo-account-card strong {
+  color: #1559e8;
+}
+
+.demo-account-card small {
+  color: #71809a;
 }
 
 .page-wrap {
