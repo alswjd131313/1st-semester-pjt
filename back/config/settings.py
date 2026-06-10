@@ -25,9 +25,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # 서드파티
     "rest_framework",
+    "rest_framework.authtoken",
     "corsheaders",
     # 내부
     "core",
+    "accounts",
 ]
 
 # ──────────────────────────────────────────
@@ -100,6 +102,9 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
+    ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
