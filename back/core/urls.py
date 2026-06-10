@@ -2,6 +2,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # 주소 검색 / 좌표 변환
+    path("addresses/search/", views.search_addresses, name="address-search"),
+    path("addresses/geocode/", views.geocode_address, name="address-geocode"),
+
     # 자재 검색
     path("materials/", views.MaterialListView.as_view(), name="material-list"),
 
