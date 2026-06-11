@@ -4,8 +4,8 @@
       <p class="eyebrow">Create Account</p>
       <h1>{{ selectedRoleLabel }} 회원가입</h1>
       <p class="auth-description">
-        PaceFlow MVP에서는 가입한 계정으로만 로그인할 수 있습니다. 역할에 따라 자재 요청과
-        공급사 등록 화면 접근 권한이 나뉩니다.
+        PaceFlow 계정을 만들면 역할에 따라 자재 요청과 공급사 등록 화면 접근 권한이
+        나뉩니다.
       </p>
 
       <div class="role-switch" aria-label="회원가입 역할 선택">
@@ -94,11 +94,11 @@ watch(
   },
 );
 
-function handleSignup() {
+async function handleSignup() {
   try {
     errorMessage.value = "";
-    registerUser(form);
-    router.push({ path: "/login", query: { role: form.role, registered: "true" } });
+    await registerUser(form);
+    router.push("/");
   } catch (error) {
     errorMessage.value = error.message || "회원가입 정보를 확인해 주세요.";
   }

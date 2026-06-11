@@ -1,57 +1,7 @@
 import { reactive } from "vue";
+import { apiClient, AUTH_TOKEN_KEY, buildApiUrl } from "./apiClient";
 
 const STORAGE_KEY = "paceflow_v2_user";
-const REGISTERED_USERS_KEY = "paceflow_v2_registered_users";
-
-export const demoAccounts = [
-  {
-    role: "requester",
-    roleLabel: "자재 요청자",
-    name: "김현장",
-    email: "requester@paceflow.kr",
-    password: "paceflow123",
-    companyName: "성수건설",
-  },
-  {
-    role: "supplier",
-    roleLabel: "공급사",
-    name: "박공급",
-    email: "supplier@paceflow.kr",
-    password: "paceflow123",
-    companyName: "성수철강",
-  },
-];
-
-function normalizeEmail(email = "") {
-  return email.trim().toLowerCase();
-}
-
-function loadRegisteredUsers() {
-  try {
-    const saved = localStorage.getItem(REGISTERED_USERS_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRegisteredUsers(users) {
-  localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(users));
-}
-
-function getAllAccounts() {
-  return [...demoAccounts, ...loadRegisteredUsers()];
-}
-
-function toSessionUser(account) {
-  return {
-    id: account.id || `USER-${Date.now()}`,
-    name: account.name,
-    email: account.email,
-    role: account.role,
-    companyName: account.companyName,
-  };
-}
 
 function loadStoredUser() {
   try {
@@ -62,74 +12,87 @@ function loadStoredUser() {
   }
 }
 
-export const authState = reactive({
-  user: loadStoredUser(),
-});
-
-export function registerUser(payload) {
-  const email = normalizeEmail(payload.email);
-  const password = payload.password || "";
-  const passwordConfirm = payload.passwordConfirm || "";
-
-  if (!payload.role || !payload.name?.trim() || !email || !payload.companyName?.trim()) {
-    throw new Error("필수 정보를 모두 입력해 주세요.");
-  }
-
-  if (password.length < 6) {
-    throw new Error("비밀번호는 6자 이상 입력해 주세요.");
-  }
-
-  if (password !== passwordConfirm) {
-    throw new Error("비밀번호 확인이 일치하지 않습니다.");
-  }
-
-  const registeredUsers = loadRegisteredUsers();
-  const duplicated = getAllAccounts().some((account) => normalizeEmail(account.email) === email);
-
-  if (duplicated) {
-    throw new Error("이미 가입된 이메일입니다.");
-  }
-
-  const user = {
-    id: `USER-${Date.now()}`,
-    role: payload.role,
-    roleLabel: payload.role === "supplier" ? "공급사" : "자재 요청자",
-    name: payload.name.trim(),
-    email,
-    password,
-    companyName: payload.companyName.trim(),
-  };
-
-  saveRegisteredUsers([...registeredUsers, user]);
-  return toSessionUser(user);
-}
-
-export function loginUser(payload) {
-  const account = getAllAccounts().find(
-    (item) =>
-      item.role === payload.role &&
-      item.email === normalizeEmail(payload.email) &&
-      item.password === payload.password,
-  );
-
-  if (!account) {
-    throw new Error("가입된 계정 정보와 일치하지 않습니다.");
-  }
-
-  const user = toSessionUser(account);
-
+function saveSession({ token, user }) {
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   authState.user = user;
   return user;
 }
 
-export function logoutUser() {
+function clearSession() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(STORAGE_KEY);
   authState.user = null;
 }
 
+function normalizeEmail(email = "") {
+  return email.trim().toLowerCase();
+}
+
+function extractErrorMessage(error, fallbackMessage) {
+  const data = error?.response?.data;
+  if (!data) return fallbackMessage;
+  if (typeof data === "string") return data;
+  if (data.error) return data.error;
+  if (data.message) return data.message;
+
+  const firstField = Object.keys(data)[0];
+  const firstError = firstField ? data[firstField] : null;
+  if (Array.isArray(firstError)) return firstError[0];
+  if (typeof firstError === "string") return firstError;
+
+  return fallbackMessage;
+}
+
+export const authState = reactive({
+  user: loadStoredUser(),
+});
+
+export async function registerUser(payload) {
+  try {
+    const { data } = await apiClient.post(buildApiUrl("/api/v1/auth/register/"), {
+      role: payload.role,
+      name: payload.name?.trim(),
+      email: normalizeEmail(payload.email),
+      password: payload.password,
+      password_confirm: payload.passwordConfirm,
+      company_name: payload.companyName?.trim(),
+    });
+
+    return saveSession(data);
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "회원가입 정보를 확인해 주세요."));
+  }
+}
+
+export async function loginUser(payload) {
+  try {
+    const { data } = await apiClient.post(buildApiUrl("/api/v1/auth/login/"), {
+      role: payload.role,
+      email: normalizeEmail(payload.email),
+      password: payload.password,
+    });
+
+    return saveSession(data);
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "로그인 정보를 확인해 주세요."));
+  }
+}
+
+export async function logoutUser() {
+  try {
+    if (localStorage.getItem(AUTH_TOKEN_KEY)) {
+      await apiClient.post(buildApiUrl("/api/v1/auth/logout/"));
+    }
+  } catch {
+    // 로컬 세션은 항상 정리해서 사용자가 로그아웃 상태로 돌아가게 둡니다.
+  } finally {
+    clearSession();
+  }
+}
+
 export function isLoggedIn() {
-  return Boolean(authState.user);
+  return Boolean(authState.user && localStorage.getItem(AUTH_TOKEN_KEY));
 }
 
 export function hasRole(role) {
