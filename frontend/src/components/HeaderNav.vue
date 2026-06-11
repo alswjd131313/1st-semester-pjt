@@ -42,8 +42,8 @@ const roleLabel = computed(() =>
 const isSupplier = computed(() => authState.user?.role === "supplier");
 const isRequester = computed(() => authState.user?.role === "requester");
 
-function handleLogout() {
-  logoutUser();
+async function handleLogout() {
+  await logoutUser();
   router.push("/");
 }
 </script>

@@ -19,6 +19,12 @@
     <p v-if="isLoading" class="loading-message">추천 후보를 불러오는 중입니다.</p>
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
+    <KakaoMap
+      v-if="!isLoading && request?.siteLat && request?.siteLng"
+      :site="{ latitude: request.siteLat, longitude: request.siteLng, address: request.siteAddress }"
+      :suppliers="recommendations"
+    />
+
     <section v-if="!isLoading" class="recommendation-toolbar" aria-label="추천 결과 필터와 정렬">
       <div>
         <strong>{{ filteredRecommendations.length }}개 후보</strong>
@@ -357,6 +363,7 @@ import {
   getLatestMaterialRequest,
   getRecommendations,
 } from "../api/materialApi";
+import KakaoMap from "../components/KakaoMap.vue";
 
 const route = useRoute();
 const request = ref(null);
