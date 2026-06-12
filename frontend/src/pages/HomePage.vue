@@ -83,55 +83,148 @@
       </form>
     </section>
 
-    <section class="operations-section section-observe">
-      <div class="section-heading compact-heading">
-        <p class="eyebrow">Field Workflow</p>
-        <h2>자재 수급 이슈를 한 흐름으로 정리합니다.</h2>
+    <section class="value-strip section-observe">
+      <div class="section-heading center-heading">
+        <h2>현장 담당자의 시간을 아껴주는 <span>핵심 가치</span></h2>
       </div>
 
-      <div class="workflow-grid">
+      <div class="value-grid">
+        <article v-for="item in valueCards" :key="item.title">
+          <span class="value-icon">{{ item.icon }}</span>
+          <div>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.description }}</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="flow-section section-observe">
+      <div class="section-heading center-heading">
+        <h2>자재 수급, 이렇게 간단합니다</h2>
+      </div>
+
+      <div class="flow-card-grid">
         <article v-for="item in workflowCards" :key="item.title">
-          <span>{{ item.step }}</span>
-          <h3>{{ item.title }}</h3>
+          <span class="flow-step">{{ item.step }}</span>
+          <div>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.description }}</p>
+          </div>
+          <div :class="['flow-visual', item.visualType]" aria-hidden="true">
+            <span></span>
+            <i></i>
+            <b></b>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="material-proof-section section-observe">
+      <div class="section-heading center-heading">
+        <h2>예시로 보는 <span>물성 비교</span></h2>
+      </div>
+
+      <div class="material-proof-card">
+        <article class="material-mini-card">
+          <span>원본 자재</span>
+          <h3>{{ materialProof.original.name }}</h3>
+          <div :class="['material-visual', materialProof.original.visualClass]" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <dl>
+            <div>
+              <dt>제조사</dt>
+              <dd>{{ materialProof.original.maker }}</dd>
+            </div>
+            <div>
+              <dt>등록일</dt>
+              <dd>{{ materialProof.original.registeredAt }}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <div class="property-compare-table">
+          <div class="compare-row compare-head">
+            <span>항목</span>
+            <span>원본 자재</span>
+            <span>추천 자재</span>
+            <span>비교 결과</span>
+          </div>
+          <div v-for="row in materialComparisonRows" :key="row.label" class="compare-row">
+            <span>{{ row.label }}</span>
+            <span>{{ row.original }}</span>
+            <span>{{ row.candidate }}</span>
+            <strong>{{ row.result }}</strong>
+          </div>
+          <p class="comparison-result">물성 동등성 검증 완료</p>
+        </div>
+
+        <article class="material-mini-card recommended">
+          <span>추천 자재</span>
+          <h3>{{ materialProof.candidate.name }}</h3>
+          <div :class="['material-visual', materialProof.candidate.visualClass]" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <dl>
+            <div>
+              <dt>제조사</dt>
+              <dd>{{ materialProof.candidate.maker }}</dd>
+            </div>
+            <div>
+              <dt>등록일</dt>
+              <dd>{{ materialProof.candidate.registeredAt }}</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+    </section>
+
+    <section class="recommend-reason-section section-observe">
+      <div class="section-heading center-heading">
+        <h2>왜 이 공급사를 추천할까요?</h2>
+      </div>
+
+      <div class="reason-grid">
+        <article v-for="item in reasonCards" :key="item.title">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
           <p>{{ item.description }}</p>
         </article>
       </div>
     </section>
 
-    <section class="evidence-section section-observe">
-      <div class="section-heading compact-heading">
-        <p class="eyebrow">Recommendation Evidence</p>
-        <h2>추천 이유가 보이는 공급사 비교</h2>
+    <section class="service-scope-section section-observe">
+      <div class="scope-illustration" aria-hidden="true">
+        <div class="scope-preview-card main-preview"></div>
+        <div class="scope-preview-card side-preview"></div>
+        <span class="scope-search-ring"></span>
       </div>
-
-      <div class="evidence-layout">
-        <article class="evidence-feature">
-          <span>추천 기준</span>
-          <strong>규격부터 문의 우선순위까지</strong>
-          <p>
-            PaceFlow는 실시간 거래를 대신하지 않습니다. 대신 현장 담당자가 빠르게
-            판단할 수 있도록 후보의 근거와 한계를 함께 보여줍니다.
-          </p>
-        </article>
-
-        <div class="evidence-grid">
-          <article v-for="item in evidenceCards" :key="item.title">
-            <span>{{ item.label }}</span>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.description }}</p>
-          </article>
-        </div>
+      <div class="scope-copy">
+        <p class="eyebrow">Service Scope</p>
+        <h2>실시간 거래 플랫폼이 아닙니다.</h2>
+        <p>
+          PaceFlow는 구매를 대신하지 않습니다. 대신 현장 담당자가 여러 공급사를 탐색하고
+          비교하는 과정을 몇 분 안에 끝낼 수 있도록 돕는 의사결정 지원 플랫폼입니다.
+        </p>
+        <ul>
+          <li v-for="item in scopeItems" :key="item">{{ item }}</li>
+        </ul>
       </div>
     </section>
 
-    <section class="service-scope-section section-observe">
+    <section class="bottom-cta-section section-observe">
       <div>
-        <p class="eyebrow">Service Scope</p>
-        <h2>구매 확정이 아니라, 더 빠른 문의 결정을 돕습니다.</h2>
+        <h2>지금 바로 대체 자재를 검색하고, 최적의 공급사 후보를 확인해보세요.</h2>
       </div>
-      <ul>
-        <li v-for="item in scopeItems" :key="item">{{ item }}</li>
-      </ul>
+      <div>
+        <RouterLink class="primary-button" to="/request">대체 자재 찾기</RouterLink>
+        <RouterLink class="secondary-button" to="/supplier-register">공급사 등록하기</RouterLink>
+      </div>
     </section>
   </div>
 </template>
@@ -149,54 +242,98 @@ const supplierMaterials = ref([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
 
+const valueCards = [
+  {
+    icon: "01",
+    title: "검증된 데이터",
+    description: "공급사 실적과 표준 기준을 함께 확인합니다.",
+  },
+  {
+    icon: "02",
+    title: "정확한 추천",
+    description: "물성 동등성과 납품 조건을 기준으로 후보를 줄입니다.",
+  },
+  {
+    icon: "03",
+    title: "현장 중심 추정",
+    description: "현장 위치 기준으로 거리와 문의 우선순위를 비교합니다.",
+  },
+  {
+    icon: "04",
+    title: "빠른 의사결정",
+    description: "복잡한 전화 확인 전, 먼저 볼 후보를 정리합니다.",
+  },
+];
+
 const workflowCards = [
   {
     step: "01",
     title: "기준 자재 입력",
     description: "자재명, 규격, 강도 등급, 현장 주소를 입력해 비교 기준을 만듭니다.",
+    visualType: "visual-document",
   },
   {
     step: "02",
     title: "대체 후보 선별",
     description: "물성 기준과 납품 조건을 통과한 공급사 후보만 추천 목록에 남깁니다.",
+    visualType: "visual-shield",
   },
   {
     step: "03",
     title: "문의 우선순위 확인",
     description: "가격, 거리, 납품 이력, 승인 리스크를 비교해 먼저 연락할 곳을 정합니다.",
+    visualType: "visual-ranking",
   },
 ];
 
-const evidenceCards = [
+const materialProof = {
+  original: {
+    name: "철근 SD400 D10",
+    maker: "A사",
+    registeredAt: "2024.05.20",
+    visualClass: "material-visual-rebar",
+  },
+  candidate: {
+    name: "철근 SD400 D10",
+    maker: "B사",
+    registeredAt: "2024.05.18",
+    visualClass: "material-visual-rebar",
+  },
+};
+
+const materialComparisonRows = [
+  { label: "항복강도 (MPa)", original: "400 이상", candidate: "420", result: "동등" },
+  { label: "인장강도 (MPa)", original: "560 이상", candidate: "580", result: "동등" },
+  { label: "연신율 (%)", original: "16 이상", candidate: "18", result: "동등" },
+  { label: "단위중량 (kg/m)", original: "0.617", candidate: "0.617", result: "동등" },
+];
+
+const reasonCards = [
   {
-    label: "Spec",
-    title: "물성 기준 검토",
-    description: "KS 규격뿐 아니라 강도 등급과 주요 물성 조건을 함께 확인합니다.",
+    label: "현장까지 가까운 거리",
+    value: "4.8 km",
+    description: "현장 기준 가까운 공급사를 우선 비교합니다.",
   },
   {
-    label: "Route",
-    title: "현장 기준 거리 비교",
-    description: "현장 주소와 공급사 위치를 기준으로 접근성과 납품 부담을 비교합니다.",
+    label: "경쟁력 있는 단가",
+    value: "-7.3%",
+    description: "기준 자재 대비 평균 단가 절감 가능성을 확인합니다.",
   },
   {
-    label: "Record",
-    title: "납품 이력 기반 신뢰도",
-    description: "공급사 등록 정보와 계약 이력을 구분해 추천 근거로 표시합니다.",
+    label: "신뢰할 수 있는 납품 이력",
+    value: "최근 36건",
+    description: "최근 납품 실적을 신뢰도 근거로 반영합니다.",
   },
 ];
 
 const scopeItems = [
-  "실시간 재고 보장은 하지 않으며 최종 납품 가능 여부는 공급사 확인이 필요합니다.",
-  "요청자와 공급사는 로그인 역할에 따라 필요한 기능만 우선 노출됩니다.",
-  "지도와 주소 정보는 현장 기준 거리 비교와 공급사 위치 확인에 활용됩니다.",
+  "문의 및 연락은 사용자가 직접 진행합니다.",
+  "계약 및 거래는 기존 방식 그대로 진행합니다.",
+  "더 빠른 방식으로 의사결정 시간을 줄입니다.",
 ];
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
-const isRequester = computed(() => authState.user?.role === "requester");
 const roleLabel = computed(() => (isSupplier.value ? "Supplier" : "Requester"));
-const quotedCount = computed(
-  () => inquiries.value.filter((inquiry) => inquiry.status === "quoted").length,
-);
 const approvalCount = computed(
   () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
 );
