@@ -1,9 +1,12 @@
 import math
+import re
+import requests
 from decimal import Decimal
 from datetime import date, timedelta
 from collections import defaultdict
 
 from django.db.models import Avg, Count, Max, Min
+from django.conf import settings
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -16,6 +19,93 @@ from .serializers import (
     PriceTrendSerializer,
     DemandSerializer,
 )
+
+
+JUSO_SEARCH_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
+KAKAO_ADDRESS_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/address.json"
+
+
+def clean_address_keyword(keyword: str) -> str:
+    return re.sub(r"[%=><\[\]]", "", keyword).strip()
+
+
+@api_view(["GET"])
+def search_addresses(request):
+    keyword = clean_address_keyword(request.query_params.get("keyword", ""))
+    if len(keyword) < 2:
+        return Response({"error": "주소 검색어를 두 글자 이상 입력해 주세요."}, status=status.HTTP_400_BAD_REQUEST)
+    if not settings.JUSO_API_KEY:
+        return Response({"error": "도로명주소 검색 API 키가 설정되지 않았습니다."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        response = requests.get(
+            JUSO_SEARCH_URL,
+            params={
+                "confmKey": settings.JUSO_API_KEY,
+                "currentPage": 1,
+                "countPerPage": 8,
+                "keyword": keyword,
+                "resultType": "json",
+                "firstSort": "road",
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+        results = response.json().get("results", {})
+        common = results.get("common", {})
+        if common.get("errorCode") != "0":
+            return Response({"error": common.get("errorMessage", "주소 검색에 실패했습니다.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        addresses = [
+            {
+                "roadAddress": item.get("roadAddrPart1") or item.get("roadAddr"),
+                "fullRoadAddress": item.get("roadAddr"),
+                "jibunAddress": item.get("jibunAddr"),
+                "zipNo": item.get("zipNo"),
+                "buildingName": item.get("bdNm"),
+                "buildingManagementNo": item.get("bdMgtSn"),
+            }
+            for item in results.get("juso", [])
+        ]
+        return Response({"addresses": addresses, "totalCount": int(common.get("totalCount", 0))})
+    except (requests.RequestException, ValueError):
+        return Response({"error": "도로명주소 서비스에 연결하지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["GET"])
+def geocode_address(request):
+    address = request.query_params.get("address", "").strip()
+    if not address:
+        return Response({"error": "좌표로 변환할 주소가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+    if not settings.KAKAO_REST_API_KEY:
+        return Response({"error": "카카오 REST API 키가 설정되지 않았습니다."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        response = requests.get(
+            KAKAO_ADDRESS_SEARCH_URL,
+            headers={"Authorization": f"KakaoAK {settings.KAKAO_REST_API_KEY}"},
+            params={"query": address, "analyze_type": "exact"},
+            timeout=8,
+        )
+        data = response.json()
+        if response.status_code == 403:
+            return Response(
+                {"error": "카카오 개발자 콘솔에서 지도/로컬 API 서비스를 활성화해 주세요."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        response.raise_for_status()
+        documents = data.get("documents", [])
+        if not documents:
+            return Response({"error": "선택한 주소의 좌표를 찾지 못했습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        result = documents[0]
+        return Response({
+            "address": result.get("address_name", address),
+            "latitude": round(float(result["y"]), 6),
+            "longitude": round(float(result["x"]), 6),
+        })
+    except (requests.RequestException, ValueError, KeyError):
+        return Response({"error": "카카오 좌표 변환 서비스에 연결하지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
 
 
 # ══════════════════════════════════════════
@@ -79,7 +169,7 @@ class MaterialListView(generics.ListAPIView):
         if category:
             qs = qs.filter(category=category)
 
-        return qs
+        return qs.order_by("id")
 
 
 # ══════════════════════════════════════════
@@ -126,9 +216,12 @@ def alternative_suppliers(request, material_id: int):
     min_tensile  = float(request.data.get("required_tensile_strength", orig_spec.tensile_strength_min))
     min_elongation = float(orig_spec.elongation_min)
 
-    # ══════════════════════════════
-    # STEP 1: 물성치 기반 동등성 필터
-    # ══════════════════════════════
+    # ══════════════════════════════════════════════════════
+    # STEP 1: 물성치 기반 동등성 필터 (Hard Filter)
+    # ① 항복강도·인장강도·연신율·탄소당량 수치 비교
+    # ② KS↔ASTM↔JIS 동등성 — include_international=False 시 승인 필요 자재 제외
+    # ③ 시공 용도 호환성 — 구조재/비구조재·내진·용접 가능 여부 일치
+    # ══════════════════════════════════════════════════════
     candidate_specs = MaterialSpec.objects.select_related(
         "material", "material__regulation"
     ).filter(
@@ -138,8 +231,25 @@ def alternative_suppliers(request, material_id: int):
         material__category=original.category,
     ).exclude(material=original)
 
+    # ① 탄소당량 — 원본 이하만 허용 (높을수록 용접성·가공성 저하)
+    if orig_spec.carbon_equivalent_max:
+        candidate_specs = candidate_specs.filter(
+            carbon_equivalent_max__lte=orig_spec.carbon_equivalent_max
+        )
+
+    # ③ 내진 구조 요구 시 내진 적용 가능 자재만
     if is_seismic:
         candidate_specs = candidate_specs.filter(material__is_seismic=True)
+
+    # ③ 원본이 용접 시공 가능인 경우 동일 조건 유지
+    if original.is_weldable:
+        candidate_specs = candidate_specs.filter(material__is_weldable=True)
+
+    # ② 국제 규격 비포함 시 감리 승인 불필요한 KS 직접 대체재만
+    if not include_international:
+        candidate_specs = candidate_specs.exclude(
+            material__regulation__requires_approval=True
+        )
 
     candidate_material_ids = list(candidate_specs.values_list("material_id", flat=True))
 
@@ -239,10 +349,17 @@ def alternative_suppliers(request, material_id: int):
         material   = c["material"]
         regulation = getattr(material, "regulation", None)
 
-        # 감리 승인 경고: 원본 자재보다 강도가 상향된 경우
+        # ④ 감리 승인 경고 — 승인 필요 자재는 국제 규격 코드(ASTM/JIS)와 함께 상세 안내
         approval_warning = None
         if regulation and regulation.requires_approval:
-            approval_warning = regulation.approval_reason or "감리 승인이 필요합니다. 구조 재계산을 확인하세요."
+            intl_codes = []
+            if regulation.astm_code and regulation.astm_code != "—":
+                intl_codes.append(f"ASTM {regulation.astm_code}")
+            if regulation.jis_code and regulation.jis_code != "—":
+                intl_codes.append(f"JIS {regulation.jis_code}")
+            intl_str = f" (국제 동등 규격: {', '.join(intl_codes)})" if intl_codes else ""
+            base_reason = regulation.approval_reason or "감리 승인이 필요합니다. 구조 재계산을 확인하세요."
+            approval_warning = f"{base_reason}{intl_str}"
 
         recommendations.append({
             "rank":             i,
