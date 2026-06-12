@@ -1,9 +1,12 @@
 import math
+import re
+import requests
 from decimal import Decimal
 from datetime import date, timedelta
 from collections import defaultdict
 
 from django.db.models import Avg, Count, Max, Min
+from django.conf import settings
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -16,6 +19,93 @@ from .serializers import (
     PriceTrendSerializer,
     DemandSerializer,
 )
+
+
+JUSO_SEARCH_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
+KAKAO_ADDRESS_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/address.json"
+
+
+def clean_address_keyword(keyword: str) -> str:
+    return re.sub(r"[%=><\[\]]", "", keyword).strip()
+
+
+@api_view(["GET"])
+def search_addresses(request):
+    keyword = clean_address_keyword(request.query_params.get("keyword", ""))
+    if len(keyword) < 2:
+        return Response({"error": "주소 검색어를 두 글자 이상 입력해 주세요."}, status=status.HTTP_400_BAD_REQUEST)
+    if not settings.JUSO_API_KEY:
+        return Response({"error": "도로명주소 검색 API 키가 설정되지 않았습니다."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        response = requests.get(
+            JUSO_SEARCH_URL,
+            params={
+                "confmKey": settings.JUSO_API_KEY,
+                "currentPage": 1,
+                "countPerPage": 8,
+                "keyword": keyword,
+                "resultType": "json",
+                "firstSort": "road",
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+        results = response.json().get("results", {})
+        common = results.get("common", {})
+        if common.get("errorCode") != "0":
+            return Response({"error": common.get("errorMessage", "주소 검색에 실패했습니다.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        addresses = [
+            {
+                "roadAddress": item.get("roadAddrPart1") or item.get("roadAddr"),
+                "fullRoadAddress": item.get("roadAddr"),
+                "jibunAddress": item.get("jibunAddr"),
+                "zipNo": item.get("zipNo"),
+                "buildingName": item.get("bdNm"),
+                "buildingManagementNo": item.get("bdMgtSn"),
+            }
+            for item in results.get("juso", [])
+        ]
+        return Response({"addresses": addresses, "totalCount": int(common.get("totalCount", 0))})
+    except (requests.RequestException, ValueError):
+        return Response({"error": "도로명주소 서비스에 연결하지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["GET"])
+def geocode_address(request):
+    address = request.query_params.get("address", "").strip()
+    if not address:
+        return Response({"error": "좌표로 변환할 주소가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+    if not settings.KAKAO_REST_API_KEY:
+        return Response({"error": "카카오 REST API 키가 설정되지 않았습니다."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        response = requests.get(
+            KAKAO_ADDRESS_SEARCH_URL,
+            headers={"Authorization": f"KakaoAK {settings.KAKAO_REST_API_KEY}"},
+            params={"query": address, "analyze_type": "exact"},
+            timeout=8,
+        )
+        data = response.json()
+        if response.status_code == 403:
+            return Response(
+                {"error": "카카오 개발자 콘솔에서 지도/로컬 API 서비스를 활성화해 주세요."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        response.raise_for_status()
+        documents = data.get("documents", [])
+        if not documents:
+            return Response({"error": "선택한 주소의 좌표를 찾지 못했습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        result = documents[0]
+        return Response({
+            "address": result.get("address_name", address),
+            "latitude": round(float(result["y"]), 6),
+            "longitude": round(float(result["x"]), 6),
+        })
+    except (requests.RequestException, ValueError, KeyError):
+        return Response({"error": "카카오 좌표 변환 서비스에 연결하지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
 
 
 # ══════════════════════════════════════════
@@ -79,7 +169,7 @@ class MaterialListView(generics.ListAPIView):
         if category:
             qs = qs.filter(category=category)
 
-        return qs
+        return qs.order_by("id")
 
 
 # ══════════════════════════════════════════
