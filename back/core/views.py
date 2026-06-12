@@ -126,9 +126,12 @@ def alternative_suppliers(request, material_id: int):
     min_tensile  = float(request.data.get("required_tensile_strength", orig_spec.tensile_strength_min))
     min_elongation = float(orig_spec.elongation_min)
 
-    # ══════════════════════════════
-    # STEP 1: 물성치 기반 동등성 필터
-    # ══════════════════════════════
+    # ══════════════════════════════════════════════════════
+    # STEP 1: 물성치 기반 동등성 필터 (Hard Filter)
+    # ① 항복강도·인장강도·연신율·탄소당량 수치 비교
+    # ② KS↔ASTM↔JIS 동등성 — include_international=False 시 승인 필요 자재 제외
+    # ③ 시공 용도 호환성 — 구조재/비구조재·내진·용접 가능 여부 일치
+    # ══════════════════════════════════════════════════════
     candidate_specs = MaterialSpec.objects.select_related(
         "material", "material__regulation"
     ).filter(
@@ -138,8 +141,25 @@ def alternative_suppliers(request, material_id: int):
         material__category=original.category,
     ).exclude(material=original)
 
+    # ① 탄소당량 — 원본 이하만 허용 (높을수록 용접성·가공성 저하)
+    if orig_spec.carbon_equivalent_max:
+        candidate_specs = candidate_specs.filter(
+            carbon_equivalent_max__lte=orig_spec.carbon_equivalent_max
+        )
+
+    # ③ 내진 구조 요구 시 내진 적용 가능 자재만
     if is_seismic:
         candidate_specs = candidate_specs.filter(material__is_seismic=True)
+
+    # ③ 원본이 용접 시공 가능인 경우 동일 조건 유지
+    if original.is_weldable:
+        candidate_specs = candidate_specs.filter(material__is_weldable=True)
+
+    # ② 국제 규격 비포함 시 감리 승인 불필요한 KS 직접 대체재만
+    if not include_international:
+        candidate_specs = candidate_specs.exclude(
+            material__regulation__requires_approval=True
+        )
 
     candidate_material_ids = list(candidate_specs.values_list("material_id", flat=True))
 
@@ -239,10 +259,17 @@ def alternative_suppliers(request, material_id: int):
         material   = c["material"]
         regulation = getattr(material, "regulation", None)
 
-        # 감리 승인 경고: 원본 자재보다 강도가 상향된 경우
+        # ④ 감리 승인 경고 — 승인 필요 자재는 국제 규격 코드(ASTM/JIS)와 함께 상세 안내
         approval_warning = None
         if regulation and regulation.requires_approval:
-            approval_warning = regulation.approval_reason or "감리 승인이 필요합니다. 구조 재계산을 확인하세요."
+            intl_codes = []
+            if regulation.astm_code and regulation.astm_code != "—":
+                intl_codes.append(f"ASTM {regulation.astm_code}")
+            if regulation.jis_code and regulation.jis_code != "—":
+                intl_codes.append(f"JIS {regulation.jis_code}")
+            intl_str = f" (국제 동등 규격: {', '.join(intl_codes)})" if intl_codes else ""
+            base_reason = regulation.approval_reason or "감리 승인이 필요합니다. 구조 재계산을 확인하세요."
+            approval_warning = f"{base_reason}{intl_str}"
 
         recommendations.append({
             "rank":             i,
