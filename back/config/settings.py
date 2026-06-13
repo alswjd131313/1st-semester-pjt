@@ -110,6 +110,9 @@ REST_FRAMEWORK = {
 # ──────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",   # Vite 기본 포트
+    "http://localhost:5174",   # PaceFlow 프론트 개발 포트
+    "http://localhost:5175",   # 포트 충돌 시 Vite 대체 포트
+    "http://localhost:5176",   # 로컬 API 연동 확인용 대체 포트
     "http://localhost:3000",
 ]
 CORS_ALLOW_CREDENTIALS = True
