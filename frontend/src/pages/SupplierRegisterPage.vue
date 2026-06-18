@@ -39,10 +39,14 @@
         <input v-model="form.contact" type="tel" placeholder="02-1234-5678" required />
       </label>
 
-      <label class="full-field">
-        주소
-        <input v-model="form.address" type="text" placeholder="서울 성동구 아차산로 123" required />
-      </label>
+      <AddressSearchField
+        v-model="form.address"
+        class="full-field"
+        label="공급사 주소"
+        :zip-no="form.zipNo"
+        placeholder="예: 서울 성동구 아차산로 123"
+        @selected="applySupplierAddress"
+      />
 
       <label>
         주요 취급 자재
@@ -122,6 +126,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { authState } from "../api/authApi";
 import { getSupplierMaterials, registerSupplierMaterial } from "../api/materialApi";
+import AddressSearchField from "../components/AddressSearchField.vue";
 
 const registeredMaterials = ref([]);
 const isRegistrationComplete = ref(false);
@@ -134,6 +139,9 @@ const form = reactive({
   supplierName: authState.user?.companyName || "",
   contact: "",
   address: "",
+  zipNo: "",
+  latitude: null,
+  longitude: null,
   mainMaterials: "",
   materialName: "",
   standard: "",
@@ -148,6 +156,11 @@ const form = reactive({
 onMounted(loadSupplierMaterials);
 
 async function submitSupplier() {
+  if (!Number.isFinite(form.latitude) || !Number.isFinite(form.longitude)) {
+    errorMessage.value = "주소 검색 결과에서 공급사 주소를 선택해 주세요.";
+    return;
+  }
+
   try {
     isSubmitting.value = true;
     errorMessage.value = "";
@@ -161,6 +174,17 @@ async function submitSupplier() {
   } finally {
     isSubmitting.value = false;
   }
+}
+
+function applySupplierAddress(address) {
+  form.address = address.roadAddress;
+  form.zipNo = address.zipNo;
+  form.latitude = roundCoordinate(address.latitude);
+  form.longitude = roundCoordinate(address.longitude);
+}
+
+function roundCoordinate(value) {
+  return Number(Number(value).toFixed(6));
 }
 
 async function loadSupplierMaterials() {
@@ -186,6 +210,9 @@ function resetForm() {
   form.supplierName = "";
   form.contact = "";
   form.address = "";
+  form.zipNo = "";
+  form.latitude = null;
+  form.longitude = null;
   form.mainMaterials = "";
   form.materialName = "";
   form.standard = "";

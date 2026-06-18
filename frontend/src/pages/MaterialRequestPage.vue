@@ -39,10 +39,14 @@
         <input v-model="form.requiredQuantity" type="text" placeholder="50톤" required />
       </label>
 
-      <label>
-        현장 주소
-        <input v-model="form.siteAddress" type="text" placeholder="서울 성수동" required />
-      </label>
+      <AddressSearchField
+        v-model="form.siteAddress"
+        class="full-field"
+        label="현장 주소"
+        :zip-no="form.siteZipNo"
+        placeholder="예: 서울 성동구 아차산로 123"
+        @selected="applySiteAddress"
+      />
 
       <label>
         필요 날짜
@@ -78,6 +82,7 @@ import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { createMaterialRequest } from "../api/materialApi";
 import { categories } from "../data/dummyData";
+import AddressSearchField from "../components/AddressSearchField.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -92,12 +97,20 @@ const form = reactive({
   strengthGrade: keyword.replace(parseMaterialName(keyword), "").trim(),
   requiredQuantity: "",
   siteAddress: "",
+  siteZipNo: "",
+  siteLat: null,
+  siteLng: null,
   requiredDate: "",
   isUrgent: false,
   memo: "",
 });
 
 async function submitRequest() {
+  if (!Number.isFinite(form.siteLat) || !Number.isFinite(form.siteLng)) {
+    errorMessage.value = "주소 검색 결과에서 현장 주소를 선택해 주세요.";
+    return;
+  }
+
   try {
     isSubmitting.value = true;
     errorMessage.value = "";
@@ -106,11 +119,31 @@ async function submitRequest() {
       path: "/recommendations",
       query: { requestId: request.id },
     });
-  } catch {
-    errorMessage.value = "자재 요청을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
+  } catch (error) {
+    errorMessage.value =
+      getApiErrorMessage(error) ||
+      "자재 요청을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
   } finally {
     isSubmitting.value = false;
   }
+}
+
+function applySiteAddress(address) {
+  form.siteAddress = address.roadAddress;
+  form.siteZipNo = address.zipNo;
+  form.siteLat = roundCoordinate(address.latitude);
+  form.siteLng = roundCoordinate(address.longitude);
+}
+
+function roundCoordinate(value) {
+  return Number(Number(value).toFixed(6));
+}
+
+function getApiErrorMessage(error) {
+  const data = error.response?.data;
+  if (!data) return "";
+  if (typeof data.error === "string") return data.error;
+  return Object.values(data).flat().filter(Boolean).join(" ");
 }
 
 function parseMaterialName(value) {

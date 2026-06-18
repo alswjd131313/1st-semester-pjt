@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import HomePage from "../pages/HomePage.vue";
 import { isLoggedIn, hasRole } from "../api/authApi";
 import LoginPage from "../pages/LoginPage.vue";
+import SignupPage from "../pages/SignupPage.vue";
 import MaterialRequestPage from "../pages/MaterialRequestPage.vue";
 import RecommendationPage from "../pages/RecommendationPage.vue";
 import SupplierRegisterPage from "../pages/SupplierRegisterPage.vue";
@@ -11,6 +12,7 @@ import InquiryDetailPage from "../pages/InquiryDetailPage.vue";
 const routes = [
   { path: "/", name: "home", component: HomePage },
   { path: "/login", name: "login", component: LoginPage },
+  { path: "/signup", name: "signup", component: SignupPage },
   {
     path: "/dashboard",
     name: "dashboard",
