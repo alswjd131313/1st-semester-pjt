@@ -1,24 +1,15 @@
 <template>
   <div class="home-page">
     <section class="hero-section pace-hero section-observe">
-      <div class="hero-motion-bg motion-bg" aria-hidden="true">
-        <span class="flow-line line-one"></span>
-        <span class="flow-line line-two"></span>
-        <span class="flow-line line-three"></span>
-        <span class="data-node node node-one"></span>
-        <span class="data-node node node-two"></span>
-        <span class="data-node node node-three"></span>
-      </div>
 
       <div class="pace-hero-copy">
         <p class="eyebrow">PaceFlow Material Intelligence</p>
         <h1>
-          <span>공급이 막혀도,</span>
-          <span>공사는 멈추지 않도록</span>
+          <span>대체 자재 추천부터</span>
+          <span>공급사 문의까지, 더 빠르게</span>
         </h1>
         <p class="hero-description">
-          규격, 물성, 거리, 단가, 납품 이력을 한 번에 비교해 현장에서 먼저 문의할
-          공급사 후보를 정리합니다.
+          KS 규격·물성 데이터와 공급사 납품 이력을 자동 비교해 현장 위치·단가 기준으로 우선 문의할 후보를 즉시 추천합니다.
         </p>
         <div class="hero-proof-row" aria-label="추천 기준">
           <span>물성 기준 검토</span>
@@ -27,66 +18,49 @@
         </div>
       </div>
 
-      <aside class="pace-hero-panel">
-        <template v-if="!authState.user">
-          <span class="panel-label">Start PaceFlow</span>
-          <h2>필요한 역할로 바로 시작하세요.</h2>
-          <p>
-            요청자는 대체 자재를 찾고, 공급사는 취급 자재와 문의 가능 상태를 관리합니다.
-          </p>
-          <div class="panel-action-stack">
-            <RouterLink class="primary-button" to="/login?role=requester">
-              요청자로 시작
-            </RouterLink>
-            <RouterLink class="secondary-button" to="/login?role=supplier">
-              공급사로 시작
-            </RouterLink>
-          </div>
-        </template>
-
-        <template v-else>
-          <span class="panel-label">{{ roleLabel }} Workspace</span>
-          <h2>{{ roleHeadline }}</h2>
-          <p>{{ roleDescription }}</p>
-          <p v-if="isLoading" class="loading-message">요약 정보를 불러오는 중입니다.</p>
-          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-
-          <div class="compact-stat-row">
-            <article v-for="item in roleStats" :key="item.label">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </article>
-          </div>
-
-          <div class="panel-action-stack compact">
-            <RouterLink class="primary-button" :to="primaryRoleAction.to">
-              {{ primaryRoleAction.label }}
-            </RouterLink>
-            <RouterLink class="secondary-button" :to="secondaryRoleAction.to">
-              {{ secondaryRoleAction.label }}
-            </RouterLink>
-          </div>
-        </template>
-      </aside>
-
       <form class="hero-search-dock" @submit.prevent="submitSearch">
-        <label>
-          <span>자재 검색</span>
-          <input
-            v-model="keyword"
-            type="search"
-            placeholder="예: 철근 SD400 D10, H빔 300x300, 시멘트 1종"
-          />
-        </label>
-        <button type="submit">{{ searchButtonLabel }}</button>
-        <RouterLink class="dock-link" :to="dockLink.to">{{ dockLink.label }}</RouterLink>
+        <p class="dock-title">자재 검색</p>
+        <div class="dock-row">
+          <div class="dock-input-wrap">
+            <input
+              v-model="keyword"
+              type="text"
+              placeholder="필요한 자재를 입력하세요"
+              autocomplete="off"
+              @focus="showAc = true"
+              @blur="hideAc"
+              @keydown.arrow-down.prevent="acMove(1)"
+              @keydown.arrow-up.prevent="acMove(-1)"
+              @keydown.enter.prevent="onAcEnter"
+              @keydown.esc="showAc = false"
+              @input="showAc = true; acIndex = -1"
+            />
+            <ul v-if="showAc && acSuggestions.length" class="ac-list">
+              <li
+                v-for="(s, i) in acSuggestions"
+                :key="s"
+                :class="{ 'ac-active': i === acIndex }"
+                @mousedown.prevent="selectAc(s)"
+              >
+                <span class="ac-icon">🔍</span>{{ s }}
+              </li>
+            </ul>
+          </div>
+          <button type="submit">대체 자재 찾기</button>
+          <RouterLink class="dock-link" to="/login?role=supplier">공급사 등록 안내</RouterLink>
+        </div>
+        <div class="dock-tags">
+          <button type="button" class="dock-tag" @click="fillTag('철근 SD400 D10')">철근 SD400 D10</button>
+          <button type="button" class="dock-tag" @click="fillTag('H형강 300x300')">H형강 300x300</button>
+          <button type="button" class="dock-tag" @click="fillTag('고로슬래그 시멘트 1종')">고로슬래그 시멘트 1종</button>
+        </div>
       </form>
     </section>
       <StandardEvidencePanel />
 
     <section class="value-strip section-observe">
       <div class="section-heading center-heading">
-        <h2>현장 담당자의 시간을 아껴주는 <span>핵심 가치</span></h2>
+        <h2>자재 수급 업무를 <span>더 간단하게</span></h2>
       </div>
 
       <div class="value-grid">
@@ -102,7 +76,7 @@
 
     <section class="flow-section section-observe">
       <div class="section-heading center-heading">
-        <h2>자재 수급, 이렇게 간단합니다</h2>
+        <h2>3단계로 끝나는 자재 탐색</h2>
       </div>
 
       <div class="flow-card-grid">
@@ -207,9 +181,9 @@
       </div>
       <div class="scope-copy">
         <p class="eyebrow">Service Scope</p>
-        <h2>실시간 거래 플랫폼이 아닙니다.</h2>
+        <h2>현장 의사결정을 위한 추천 플랫폼</h2>
         <p>
-          PaceFlow는 구매를 대신하지 않습니다. 대신 현장 담당자가 여러 공급사를 탐색하고
+          PaceFlow는 자재 구매 과정에서 필요한 공급사 탐색과 비교 업무를 간소화합니다. 여러 공급사를 직접 찾고 비교하던 과정을 몇 분 안에 끝낼 수 있도록 지원합니다. 현장 담당자가 여러 공급사를 탐색하고
           비교하는 과정을 몇 분 안에 끝낼 수 있도록 돕는 의사결정 지원 플랫폼입니다.
         </p>
         <ul>
@@ -238,6 +212,57 @@ import { authState } from "../api/authApi";
 import { getSupplierInquiries, getSupplierMaterials } from "../api/materialApi";
 
 const router = useRouter();
+
+// 자동완성
+const showAc = ref(false);
+const acIndex = ref(-1);
+
+const AC_DATA = [
+  "철근 SD300 D10", "철근 SD300 D13", "철근 SD300 D16",
+  "철근 SD400 D10", "철근 SD400 D13", "철근 SD400 D16", "철근 SD400 D19", "철근 SD400 D22", "철근 SD400 D25",
+  "철근 SD500 D13", "철근 SD500 D16", "철근 SD500 D19", "철근 SD500 D22", "철근 SD500 D25", "철근 SD500 D29",
+  "철근 SD600 D16", "철근 SD600 D19", "철근 SD600 D22", "철근 SD600 D25",
+  "H형강 100x100", "H형강 150x150", "H형강 200x200", "H형강 250x250", "H형강 300x300", "H형강 350x350", "H형강 400x400",
+  "I형강 100x50", "I형강 150x75", "I형강 200x100",
+  "ㄷ형강 75x40", "ㄷ형강 100x50", "ㄷ형강 150x65",
+  "ㄱ형강 50x50x6", "ㄱ형강 75x75x6", "ㄱ형강 100x100x7",
+  "포틀랜드 시멘트 1종", "포틀랜드 시멘트 2종", "포틀랜드 시멘트 3종",
+  "고로슬래그 시멘트 1종", "고로슬래그 시멘트 2종", "백시멘트",
+  "EPS 단열재 1종 50t", "EPS 단열재 2종 100t", "XPS 단열재 50t", "XPS 단열재 100t",
+  "우레탄폼 단열재 50t", "경질 우레탄폼 단열재 80t",
+  "합판 12mm", "합판 15mm", "합판 18mm", "합판 24mm",
+  "각재 30x40", "각재 40x60", "각재 50x100",
+];
+
+const acSuggestions = computed(() => {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return [];
+  return AC_DATA.filter((s) => s.toLowerCase().includes(kw)).slice(0, 8);
+});
+
+function hideAc() {
+  setTimeout(() => { showAc.value = false; acIndex.value = -1; }, 150);
+}
+
+function acMove(dir) {
+  showAc.value = true;
+  acIndex.value = Math.max(-1, Math.min(acIndex.value + dir, acSuggestions.value.length - 1));
+}
+
+function onAcEnter() {
+  if (acIndex.value >= 0 && acSuggestions.value[acIndex.value]) {
+    selectAc(acSuggestions.value[acIndex.value]);
+  } else {
+    showAc.value = false;
+    submitSearch();
+  }
+}
+
+function selectAc(text) {
+  keyword.value = text;
+  showAc.value = false;
+  acIndex.value = -1;
+}
 const keyword = ref("");
 const inquiries = ref([]);
 const supplierMaterials = ref([]);
@@ -247,43 +272,43 @@ const errorMessage = ref("");
 const valueCards = [
   {
     icon: "01",
-    title: "검증된 데이터",
-    description: "공급사 실적과 표준 기준을 함께 확인합니다.",
+    title: "검증된 공급사 정보 ",
+    description: "실제 납품 이력과 표준 규격을 기반으로 신뢰할 수 있는 공급사를 찾습니다.",
   },
   {
     icon: "02",
-    title: "정확한 추천",
-    description: "물성 동등성과 납품 조건을 기준으로 후보를 줄입니다.",
+    title: "대체 가능 자재 자동 검토",
+    description: "복잡한 규격과 물성 조건을 비교해 대체 가능한 후보를 선별합니다.",
   },
   {
     icon: "03",
-    title: "현장 중심 추정",
+    title: "현장에 가까운 공급사 우선 추천",
     description: "현장 위치 기준으로 거리와 문의 우선순위를 비교합니다.",
   },
   {
     icon: "04",
     title: "빠른 의사결정",
-    description: "복잡한 전화 확인 전, 먼저 볼 후보를 정리합니다.",
+    description: "여러 업체를 직접 비교하는 시간을 줄이고 필요한 자재를 빠르게 확보합니다.",
   },
 ];
 
 const workflowCards = [
   {
     step: "01",
-    title: "기준 자재 입력",
-    description: "자재명, 규격, 강도 등급, 현장 주소를 입력해 비교 기준을 만듭니다.",
+    title: "자재와 현장 정보 입력",
+    description: "찾고 있는 자재와 현장 정보를 입력하면 비교 기준이 자동으로 설정됩니다.",
     visualType: "visual-document",
   },
   {
     step: "02",
-    title: "대체 후보 선별",
-    description: "물성 기준과 납품 조건을 통과한 공급사 후보만 추천 목록에 남깁니다.",
+    title: "대체 가능 후보 자동 검토",
+    description: "규격과 물성 조건을 분석해 적용 가능한 자재와 공급사를 선별합니다.",
     visualType: "visual-shield",
   },
   {
     step: "03",
     title: "문의 우선순위 확인",
-    description: "가격, 거리, 납품 이력, 승인 리스크를 비교해 먼저 연락할 곳을 정합니다.",
+    description: "거리, 단가, 납품 실적을 종합해 우선 연락할 업체를 정리합니다.",
     visualType: "visual-ranking",
   },
 ];
@@ -314,17 +339,17 @@ const reasonCards = [
   {
     label: "현장까지 가까운 거리",
     value: "4.8 km",
-    description: "현장 기준 가까운 공급사를 우선 비교합니다.",
+    description: "현장과 가까운 공급사를 우선 추천해 운송 부담을 줄입니다.",
   },
   {
     label: "경쟁력 있는 단가",
     value: "-7.3%",
-    description: "기준 자재 대비 평균 단가 절감 가능성을 확인합니다.",
+    description: "기존 자재 대비 비용 절감 가능성이 높은 후보입니다.",
   },
   {
     label: "신뢰할 수 있는 납품 이력",
     value: "최근 36건",
-    description: "최근 납품 실적을 신뢰도 근거로 반영합니다.",
+    description: "실제 납품 이력을 바탕으로 공급 안정성을 평가합니다.",
   },
 ];
 
@@ -430,9 +455,10 @@ async function loadRoleSummary() {
 
 function submitSearch() {
   const query = keyword.value ? { keyword: keyword.value } : {};
-  router.push({
-    path: "/recommendations",
-    query,
-  });
+  router.push({ path: "/recommendations", query });
+}
+
+function fillTag(text) {
+  keyword.value = text;
 }
 </script>

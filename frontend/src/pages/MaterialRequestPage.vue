@@ -75,11 +75,9 @@
       </div>
     </form>
   </section>
-      <StandardEvidencePanel />
 </template>
 
 <script setup>
-import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { createMaterialRequest } from "../api/materialApi";

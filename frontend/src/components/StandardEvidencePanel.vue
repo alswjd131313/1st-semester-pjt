@@ -22,142 +22,159 @@ const evidenceItems = computed(() => getStandardEvidenceForMaterial(searchText.v
 </script>
 
 <template>
-  <section class="standard-evidence-panel">
-    <div class="evidence-heading">
-      <p>KS 기준</p>
+  <section class="sep">
+    <div class="sep-heading">
+      <p class="sep-eyebrow">KS 기준</p>
       <h2>대체 가능성 핵심 검토 항목</h2>
     </div>
 
-    <div class="evidence-grid">
-      <article v-for="item in evidenceItems" :key="item.id" class="evidence-card">
-        <div class="evidence-card__top">
-          <span>{{ item.category }}</span>
-          <strong>{{ item.standard }}</strong>
+    <div class="sep-grid">
+      <article v-for="item in evidenceItems" :key="item.id" class="sep-card">
+        <div class="sep-card-header">
+          <strong class="sep-category">{{ item.category }}</strong>
+          <span class="sep-ks-badge">{{ item.standard }}</span>
         </div>
-        <h3>{{ item.title }}</h3>
-        <div class="evidence-chip-row">
-          <span v-for="metric in item.metrics.slice(0, 3)" :key="metric">{{ metric }}</span>
+
+        <div class="sep-chips">
+          <span v-for="metric in item.metrics.slice(0, 3)" :key="metric" class="sep-chip">
+            {{ metric }}
+          </span>
         </div>
-        <p>{{ item.filters[0] }}</p>
-        <small>{{ item.approvalRisk }}</small>
+
+        <p class="sep-filter">{{ item.filters[0] }}</p>
+
+        <p class="sep-risk">⚠ {{ item.approvalRisk.split('，')[0].split(',')[0].trim() }}</p>
       </article>
     </div>
+
+    <p class="sep-note">KS 규격을 통과한 자재만 대체 후보로 추천됩니다.</p>
   </section>
 </template>
 
 <style scoped>
-.standard-evidence-panel {
-  margin: 32px 0;
-  padding: 28px;
-  border: 1px solid rgba(30, 92, 210, 0.14);
+.sep {
+  margin: 40px 0;
+  padding: 32px 32px 24px;
+  border: 1px solid rgba(30, 92, 210, 0.12);
   border-radius: 28px;
-  background: linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%);
-  box-shadow: 0 18px 45px rgba(30, 75, 160, 0.08);
+  background: linear-gradient(135deg, #fff 0%, #f4f8ff 100%);
+  box-shadow: 0 12px 40px rgba(30, 75, 160, 0.07);
 }
 
-.evidence-heading {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 16px;
+.sep-heading {
+  margin-bottom: 24px;
 }
 
-.evidence-heading p {
-  margin: 0;
+.sep-eyebrow {
+  margin: 0 0 6px;
   color: #2563eb;
+  font-size: 13px;
   font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.evidence-heading h2 {
+.sep-heading h2 {
   margin: 0;
   color: #112653;
-  font-size: clamp(24px, 3vw, 36px);
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: 700;
   line-height: 1.2;
 }
 
-.evidence-grid {
+.sep-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
-.evidence-card {
+.sep-card {
   display: flex;
-  min-height: 100%;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid rgba(30, 92, 210, 0.12);
-  border-radius: 22px;
+  gap: 12px;
+  padding: 20px 18px 16px;
+  border: 1px solid rgba(30, 92, 210, 0.11);
+  border-radius: 18px;
   background: #fff;
 }
 
-.evidence-card__top {
+.sep-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
-.evidence-card__top span,
-.evidence-chip-row span {
-  border-radius: 999px;
-  background: #eef5ff;
-  color: #1d5ee6;
+.sep-category {
+  font-size: 18px;
   font-weight: 800;
+  color: #112653;
 }
 
-.evidence-card__top span {
-  padding: 7px 11px;
+.sep-ks-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1559e8;
+  background: #eef5ff;
+  border: 1px solid #c8d8f2;
 }
 
-.evidence-card__top strong {
-  color: #6a7890;
-  font-size: 14px;
-}
-
-.evidence-card h3 {
-  margin: 0;
-  color: #122a58;
-  font-size: 20px;
-  line-height: 1.35;
-}
-
-.evidence-chip-row {
+.sep-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
-.evidence-chip-row span {
-  padding: 6px 10px;
+.sep-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
   font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  background: #f2f5fa;
+  border: 1px solid #e2eaf5;
 }
 
-.evidence-card ul {
-  display: grid;
-  gap: 8px;
+.sep-filter {
   margin: 0;
-  padding-left: 18px;
-  color: #52627a;
-  line-height: 1.55;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e4fc2;
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: #eef5ff;
+  border-radius: 10px;
 }
 
-.evidence-card p {
+.sep-risk {
   margin: 0;
-  color: #465b78;
-  font-weight: 800;
-  line-height: 1.55;
+  font-size: 12px;
+  color: #92600a;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 7px 11px;
+  line-height: 1.5;
 }
 
-.evidence-card small {
-  color: #8a5a10;
-  font-weight: 800;
-  line-height: 1.45;
+.sep-note {
+  margin: 0;
+  font-size: 13px;
+  color: #71809a;
+  text-align: center;
 }
 
-@media (max-width: 980px) {
-  .evidence-grid {
+@media (max-width: 860px) {
+  .sep-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sep {
+    padding: 24px 20px;
   }
 }
 </style>

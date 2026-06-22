@@ -111,11 +111,9 @@
       <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
     </div>
   </section>
-      <StandardEvidencePanel />
 </template>
 
 <script setup>
-import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { computed, onMounted, ref } from "vue";
 import { authState } from "../api/authApi";
 import { getSupplierInquiries, updateSupplierInquiryStatus } from "../api/materialApi";

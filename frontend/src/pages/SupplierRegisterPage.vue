@@ -24,8 +24,6 @@
         <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
       </div>
     </section>
-      <StandardEvidencePanel />
-
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     <p v-if="isLoading" class="loading-message">등록된 자재를 불러오는 중입니다.</p>
 
@@ -124,7 +122,6 @@
 </template>
 
 <script setup>
-import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { onMounted, reactive, ref } from "vue";
 import { authState } from "../api/authApi";
 import { getSupplierMaterials, registerSupplierMaterial } from "../api/materialApi";

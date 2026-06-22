@@ -98,7 +98,7 @@ async function handleSignup() {
   try {
     errorMessage.value = "";
     await registerUser(form);
-    router.push("/");
+    router.push({ path: "/signup-success", query: { role: form.role } });
   } catch (error) {
     errorMessage.value = error.message || "회원가입 정보를 확인해 주세요.";
   }
