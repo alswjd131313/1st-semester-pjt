@@ -2,9 +2,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 # ──────────────────────────────────────────
 # 보안
@@ -129,7 +128,7 @@ CORS_ALLOW_CREDENTIALS = True
 # ──────────────────────────────────────────
 # 외부 API 키
 # ──────────────────────────────────────────
-NARAJANGTEO_API_KEY      = os.getenv("NARAJANGTEO_API_KEY", "")
+NARAJANGTEO_API_KEY      = os.getenv("NARAJANGTEO_API_KEY", os.getenv("NARA_API_KEY", ""))
 NARAJANGTEO_USER_API_KEY = os.getenv("NARAJANGTEO_USER_API_KEY", "")  # 추가
 JUSO_API_KEY             = os.getenv("JUSO_SEARCH_API_KEY", os.getenv("JUSO_API_KEY", ""))
 KAKAO_REST_API_KEY       = os.getenv("KAKAO_REST_API_KEY", "")

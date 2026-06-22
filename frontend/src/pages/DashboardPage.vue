@@ -5,8 +5,8 @@
         <p class="eyebrow">Dashboard</p>
         <h1>{{ dashboardTitle }}</h1>
         <p>
-          추천 결과에서 저장한 공급사 문의를 확인합니다. 실제 전송과 상태 변경은
-          백엔드 API 연결 이후 확장할 수 있습니다.
+          추천 결과에서 저장한 공급사 문의를 확인하고, 견적 가능 여부와 후속 상태를
+          역할별로 관리합니다.
         </p>
       </div>
       <RouterLink class="primary-button" to="/recommendations">추천 결과로 이동</RouterLink>
@@ -22,8 +22,8 @@
         <strong>{{ approvalCount }}건</strong>
       </article>
       <article>
-        <span>최근 문의</span>
-        <strong>{{ latestInquiryLabel }}</strong>
+        <span>긴급 요청</span>
+        <strong>{{ urgentCount }}건</strong>
       </article>
       <article>
         <span>견적 가능</span>
@@ -44,6 +44,7 @@
           <span :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
             {{ inquiry.supplier?.approvalRequired ? "승인 확인 필요" : "일반 문의" }}
           </span>
+          <span v-if="isUrgentInquiry(inquiry)" class="urgent-badge">긴급 납품 요청</span>
         </div>
 
         <div class="inquiry-card-header">
@@ -78,6 +79,11 @@
 
         <p v-if="inquiry.message" class="reason">{{ inquiry.message }}</p>
 
+        <div v-if="isUrgentInquiry(inquiry)" class="urgent-request-note">
+          <strong>우선 확인 필요</strong>
+          <span>재고 보유 여부, 최종 단가, 가능한 납품 시간을 빠르게 확인해야 하는 요청입니다.</span>
+        </div>
+
         <div class="inquiry-footer">
           <span>상태 변경: {{ formatDate(inquiry.statusUpdatedAt) }}</span>
           <div v-if="isSupplier" class="status-actions" aria-label="문의 상태 변경">
@@ -105,9 +111,11 @@
       <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
     </div>
   </section>
+      <StandardEvidencePanel />
 </template>
 
 <script setup>
+import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { computed, onMounted, ref } from "vue";
 import { authState } from "../api/authApi";
 import { getSupplierInquiries, updateSupplierInquiryStatus } from "../api/materialApi";
@@ -135,6 +143,10 @@ const approvalCount = computed(
 
 const quotedCount = computed(
   () => inquiries.value.filter((inquiry) => inquiry.status === "quoted").length,
+);
+
+const urgentCount = computed(
+  () => inquiries.value.filter((inquiry) => isUrgentInquiry(inquiry)).length,
 );
 
 const latestInquiryLabel = computed(() => {
@@ -177,6 +189,10 @@ async function loadInquiries() {
 
 function getStatusLabel(status) {
   return inquiryStatuses.find((item) => item.value === status)?.label || "문의 접수";
+}
+
+function isUrgentInquiry(inquiry) {
+  return inquiry?.requestType === "urgent" || inquiry?.priority === "high" || String(inquiry?.id || "").startsWith("URG");
 }
 
 function formatDate(value) {

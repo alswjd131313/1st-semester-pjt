@@ -5,24 +5,31 @@ from decimal import Decimal
 from datetime import date, timedelta
 from collections import defaultdict
 
-from django.db.models import Avg, Count, Max, Min
+from django.db.models import Avg, Count, F, Max, Min, Q
 from django.conf import settings
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Material, MaterialSpec, Supplier, SupplyHistory, Demand
+from .models import Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration
 from .serializers import (
     MaterialListSerializer,
     MaterialDetailSerializer,
     AlternativeResponseSerializer,
     PriceTrendSerializer,
     DemandSerializer,
+    SupplierMaterialRegistrationSerializer,
 )
 
 
 JUSO_SEARCH_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
 KAKAO_ADDRESS_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/address.json"
+KAKAO_KEYWORD_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
+NARAJANGTEO_CONTRACT_SEARCH_URL = "https://apis.data.go.kr/1230000/ao/CntrctInfoService/getCntrctInfoListThngPPSSrch"
+
+SUPPLIER_ADDRESS_FIELDS = ("corpAddr", "cntrctCorpAddr", "spldmdCorpAddr")
+AGENCY_ADDRESS_FIELDS = ("dminsttAddr", "cntrctInsttAddr", "dminsttNm", "cntrctInsttNm")
 
 
 def clean_address_keyword(keyword: str) -> str:
@@ -106,6 +113,285 @@ def geocode_address(request):
         })
     except (requests.RequestException, ValueError, KeyError):
         return Response({"error": "카카오 좌표 변환 서비스에 연결하지 못했습니다."}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["GET"])
+def narajangteo_contracts(request):
+    keyword = request.query_params.get("keyword", "").strip()
+    year = request.query_params.get("year", str(date.today().year))
+    page = request.query_params.get("page", "1")
+    try:
+        rows = min(max(int(request.query_params.get("rows", 10)), 1), 30)
+    except (TypeError, ValueError):
+        rows = 10
+
+    if len(keyword) < 2:
+        return Response({"error": "계약 검색어를 두 글자 이상 입력해 주세요."}, status=status.HTTP_400_BAD_REQUEST)
+    if not settings.NARAJANGTEO_API_KEY:
+        return Response({"error": "나라장터 계약정보서비스 API 키가 설정되지 않았습니다."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        response = requests.get(
+            NARAJANGTEO_CONTRACT_SEARCH_URL,
+            params={
+                "ServiceKey": settings.NARAJANGTEO_API_KEY,
+                "numOfRows": rows,
+                "pageNo": page,
+                "inqryDiv": "1",
+                "inqryBgnDate": f"{year}0101",
+                "inqryEndDate": f"{year}1231",
+                "prdctClsfcNoNm": keyword,
+                "type": "json",
+            },
+            timeout=12,
+        )
+        response.raise_for_status()
+        try:
+            payload = response.json()
+        except ValueError:
+            return Response(
+                {
+                    "error": "나라장터 계약정보서비스 응답을 JSON으로 해석하지 못했습니다.",
+                    "statusCode": response.status_code,
+                    "contentType": response.headers.get("content-type", ""),
+                    "preview": response.text[:300],
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        body = payload.get("response", {}).get("body", {})
+        raw_items = body.get("items", [])
+        if isinstance(raw_items, dict):
+            raw_items = raw_items.get("item", [])
+        if isinstance(raw_items, dict):
+            raw_items = [raw_items]
+
+        contracts = [normalize_narajangteo_contract(item) for item in raw_items if isinstance(item, dict)]
+        return Response({
+            "keyword": keyword,
+            "year": year,
+            "totalCount": int(body.get("totalCount", 0) or 0),
+            "contracts": contracts,
+        })
+    except requests.Timeout:
+        return Response(
+            {"error": "나라장터 계약정보서비스 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요."},
+            status=status.HTTP_504_GATEWAY_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        return Response(
+            {"error": "나라장터 계약정보서비스에 연결하지 못했습니다.", "detail": exc.__class__.__name__},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+    except (ValueError, TypeError) as exc:
+        return Response(
+            {"error": "나라장터 계약정보서비스 응답을 처리하지 못했습니다.", "detail": exc.__class__.__name__},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+
+@api_view(["GET"])
+def cached_narajangteo_contracts(request):
+    keyword = request.query_params.get("keyword", "").strip()
+    rows = request.query_params.get("rows", 20)
+    include_seed = request.query_params.get("include_seed", "").lower() in {"1", "true", "yes"}
+
+    try:
+        rows = min(max(int(rows), 1), 50)
+    except (TypeError, ValueError):
+        rows = 20
+
+    source_filter = Q(supplier__source="narajangteo")
+    if include_seed:
+        source_filter |= Q(raw_data__source="PaceFlow MVP seed")
+
+    histories = (
+        SupplyHistory.objects
+        .select_related("supplier", "material")
+        .filter(source_filter)
+        .annotate(
+            delivery_count=Count(
+                "supplier__supply_histories",
+                filter=Q(supplier__supply_histories__material_id=F("material_id")),
+            )
+        )
+        .order_by("-contract_date")
+    )
+
+    if keyword:
+        histories = histories.filter(
+            Q(material__name__icontains=keyword)
+            | Q(material__ks_code__icontains=keyword)
+            | Q(material__ks_grade__icontains=keyword)
+            | Q(material__diameter__icontains=keyword)
+            | Q(supplier__name__icontains=keyword)
+        )
+
+    contracts = []
+    seen_contracts = set()
+    for history in histories[: rows * 8]:
+        raw = history.raw_data or {}
+        dedupe_key = (
+            history.supplier_id,
+            history.contract_date,
+            str(history.unit_price),
+            raw.get("cntrctNm") or raw.get("contractName") or str(history.material),
+        )
+        if dedupe_key in seen_contracts:
+            continue
+        seen_contracts.add(dedupe_key)
+        contracts.append(serialize_cached_contract(history))
+        if len(contracts) >= rows:
+            break
+
+    return Response({
+        "keyword": keyword,
+        "source": "cached_supply_history",
+        "totalCount": histories.count(),
+        "contracts": contracts,
+    })
+
+
+def serialize_cached_contract(history: SupplyHistory) -> dict:
+    raw = history.raw_data or {}
+    location = resolve_contract_location(raw, history.supplier)
+    return {
+        "supplierName": history.supplier.name,
+        "productName": str(history.material),
+        "contractName": raw.get("cntrctNm") or raw.get("contractName") or str(history.material),
+        "contractDate": history.contract_date.isoformat(),
+        "contractAmount": str(history.unit_price),
+        "demandAgency": raw.get("dminsttNm") or raw.get("cntrctInsttNm") or "",
+        "supplierAddress": first_present(raw, SUPPLIER_ADDRESS_FIELDS) or history.supplier.address,
+        "locationLabel": location["label"],
+        "locationBasis": location["basis"],
+        "latitude": location["latitude"],
+        "longitude": location["longitude"],
+        "supplierDistanceAvailable": location["basis"] == "supplier_address",
+        "matchBasis": raw.get("paceflowMatchBasis") or "기존 수집 데이터",
+        "deliveryCount": getattr(history, "delivery_count", 1),
+        "source": raw.get("source") or history.supplier.source,
+    }
+
+
+def normalize_narajangteo_contract(item: dict) -> dict:
+    supplier_name = parse_narajangteo_supplier_name(item.get("corpList", ""))
+    amount = item.get("thtmCntrctAmt") or item.get("cntrctAmt") or ""
+    location = resolve_contract_location(item)
+    return {
+        "supplierName": supplier_name or "계약업체 확인 필요",
+        "productName": item.get("prdctClsfcNoNm") or item.get("prdctClsfcNoNmNm") or item.get("cntrctNm") or "품명 확인 필요",
+        "contractName": item.get("cntrctNm") or "",
+        "contractDate": item.get("cntrctCnclsDate") or item.get("cntrctDate") or "",
+        "contractAmount": amount,
+        "demandAgency": item.get("dminsttNm") or item.get("cntrctInsttNm") or "",
+        "supplierAddress": first_present(item, SUPPLIER_ADDRESS_FIELDS),
+        "locationLabel": location["label"],
+        "locationBasis": location["basis"],
+        "latitude": location["latitude"],
+        "longitude": location["longitude"],
+        "supplierDistanceAvailable": location["basis"] == "supplier_address",
+        "raw": item,
+    }
+
+
+def first_present(source: dict, fields: tuple[str, ...]) -> str:
+    for field in fields:
+        value = str(source.get(field, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def resolve_contract_location(raw: dict, supplier: Supplier | None = None) -> dict:
+    if supplier and supplier.has_coordinates:
+        return {
+            "basis": "supplier_address",
+            "label": supplier.address or supplier.name,
+            "latitude": float(supplier.latitude),
+            "longitude": float(supplier.longitude),
+        }
+
+    supplier_address = first_present(raw, SUPPLIER_ADDRESS_FIELDS) or (supplier.address if supplier else "")
+    if supplier_address:
+        coords = geocode_with_kakao_address(supplier_address)
+        if coords:
+            return {
+                "basis": "supplier_address",
+                "label": supplier_address,
+                **coords,
+            }
+
+    agency_location = first_present(raw, AGENCY_ADDRESS_FIELDS)
+    if agency_location:
+        coords = geocode_with_kakao_address(agency_location) or search_kakao_place(agency_location)
+        if coords:
+            return {
+                "basis": "contract_agency_estimated",
+                "label": agency_location,
+                **coords,
+            }
+
+    return {
+        "basis": "unknown",
+        "label": supplier.name if supplier else first_present(raw, ("cntrctInsttNm", "dminsttNm")),
+        "latitude": None,
+        "longitude": None,
+    }
+
+
+def geocode_with_kakao_address(address: str) -> dict | None:
+    if not address or not settings.KAKAO_REST_API_KEY:
+        return None
+    try:
+        response = requests.get(
+            KAKAO_ADDRESS_SEARCH_URL,
+            headers={"Authorization": f"KakaoAK {settings.KAKAO_REST_API_KEY}"},
+            params={"query": address},
+            timeout=4,
+        )
+        response.raise_for_status()
+        documents = response.json().get("documents", [])
+        if not documents:
+            return None
+        result = documents[0]
+        return {
+            "latitude": round(float(result["y"]), 6),
+            "longitude": round(float(result["x"]), 6),
+        }
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+
+
+def search_kakao_place(keyword: str) -> dict | None:
+    if not keyword or not settings.KAKAO_REST_API_KEY:
+        return None
+    try:
+        response = requests.get(
+            KAKAO_KEYWORD_SEARCH_URL,
+            headers={"Authorization": f"KakaoAK {settings.KAKAO_REST_API_KEY}"},
+            params={"query": keyword, "size": 1},
+            timeout=4,
+        )
+        response.raise_for_status()
+        documents = response.json().get("documents", [])
+        if not documents:
+            return None
+        result = documents[0]
+        return {
+            "latitude": round(float(result["y"]), 6),
+            "longitude": round(float(result["x"]), 6),
+        }
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+
+
+def parse_narajangteo_supplier_name(corp_list: str) -> str:
+    if not corp_list:
+        return ""
+    first = corp_list.strip("[]").split("],[")[0]
+    parts = first.split("^")
+    return parts[3].strip() if len(parts) > 3 else ""
 
 
 # ══════════════════════════════════════════
@@ -216,9 +502,12 @@ def alternative_suppliers(request, material_id: int):
     min_tensile  = float(request.data.get("required_tensile_strength", orig_spec.tensile_strength_min))
     min_elongation = float(orig_spec.elongation_min)
 
-    # ══════════════════════════════
-    # STEP 1: 물성치 기반 동등성 필터
-    # ══════════════════════════════
+    # ══════════════════════════════════════════════════════
+    # STEP 1: 물성치 기반 동등성 필터 (Hard Filter)
+    # ① 항복강도·인장강도·연신율·탄소당량 수치 비교
+    # ② KS↔ASTM↔JIS 동등성 — include_international=False 시 승인 필요 자재 제외
+    # ③ 시공 용도 호환성 — 구조재/비구조재·내진·용접 가능 여부 일치
+    # ══════════════════════════════════════════════════════
     candidate_specs = MaterialSpec.objects.select_related(
         "material", "material__regulation"
     ).filter(
@@ -226,10 +515,28 @@ def alternative_suppliers(request, material_id: int):
         tensile_strength_min__gte=min_tensile,
         elongation_min__gte=min_elongation,
         material__category=original.category,
+        material__name=original.name,
     ).exclude(material=original)
 
+    # ① 탄소당량 — 원본 이하만 허용 (높을수록 용접성·가공성 저하)
+    if orig_spec.carbon_equivalent_max:
+        candidate_specs = candidate_specs.filter(
+            carbon_equivalent_max__lte=orig_spec.carbon_equivalent_max
+        )
+
+    # ③ 내진 구조 요구 시 내진 적용 가능 자재만
     if is_seismic:
         candidate_specs = candidate_specs.filter(material__is_seismic=True)
+
+    # ③ 원본이 용접 시공 가능인 경우 동일 조건 유지
+    if original.is_weldable:
+        candidate_specs = candidate_specs.filter(material__is_weldable=True)
+
+    # ② 국제 규격 비포함 시 감리 승인 불필요한 KS 직접 대체재만
+    if not include_international:
+        candidate_specs = candidate_specs.exclude(
+            material__regulation__requires_approval=True
+        )
 
     candidate_material_ids = list(candidate_specs.values_list("material_id", flat=True))
 
@@ -261,6 +568,7 @@ def alternative_suppliers(request, material_id: int):
                 "material":      h.material,
                 "latest_price":  h.unit_price,
                 "supply_count":  0,
+                "data_source":   (h.raw_data or {}).get("source") or h.supplier.source,
             }
         supplier_material_map[key]["supply_count"] += 1
 
@@ -329,10 +637,17 @@ def alternative_suppliers(request, material_id: int):
         material   = c["material"]
         regulation = getattr(material, "regulation", None)
 
-        # 감리 승인 경고: 원본 자재보다 강도가 상향된 경우
+        # ④ 감리 승인 경고 — 승인 필요 자재는 국제 규격 코드(ASTM/JIS)와 함께 상세 안내
         approval_warning = None
         if regulation and regulation.requires_approval:
-            approval_warning = regulation.approval_reason or "감리 승인이 필요합니다. 구조 재계산을 확인하세요."
+            intl_codes = []
+            if regulation.astm_code and regulation.astm_code != "—":
+                intl_codes.append(f"ASTM {regulation.astm_code}")
+            if regulation.jis_code and regulation.jis_code != "—":
+                intl_codes.append(f"JIS {regulation.jis_code}")
+            intl_str = f" (국제 동등 규격: {', '.join(intl_codes)})" if intl_codes else ""
+            base_reason = regulation.approval_reason or "감리 승인이 필요합니다. 구조 재계산을 확인하세요."
+            approval_warning = f"{base_reason}{intl_str}"
 
         recommendations.append({
             "rank":             i,
@@ -343,6 +658,7 @@ def alternative_suppliers(request, material_id: int):
             "supply_count":     c["supply_count"],
             "distance_km":      round(c["distance_km"], 2),
             "approval_warning": approval_warning,
+            "data_source":      c.get("data_source", ""),
         })
 
     serializer = AlternativeResponseSerializer({
@@ -424,3 +740,42 @@ class DemandCreateView(generics.CreateAPIView):
     """
     serializer_class = DemandSerializer
     queryset = Demand.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        if getattr(request.user, "profile", None) and request.user.profile.role != "requester":
+            return Response({"error": "자재 요청자 계정만 요청을 등록할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class SupplierMaterialRegistrationListCreateView(generics.ListCreateAPIView):
+    """
+    GET/POST /api/v1/supplier-materials/
+    로그인한 공급사 계정의 직접 등록 자재만 조회/생성한다.
+    """
+    serializer_class = SupplierMaterialRegistrationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return self.request.user.supplier_material_registrations.all()
+
+    def create(self, request, *args, **kwargs):
+        if getattr(request.user, "profile", None) and request.user.profile.role != "supplier":
+            return Response({"error": "공급사 계정만 자재를 등록할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class PublicSupplierMaterialRegistrationListView(generics.ListAPIView):
+    """
+    GET /api/v1/supplier-materials/public/
+    요청자 추천 결과에 사용할 공급사 직접 등록 자재 전체 공개 목록.
+    수정/관리는 등록 공급사 본인만 가능하지만, 문의 후보로는 전체 공개한다.
+    """
+    serializer_class = SupplierMaterialRegistrationSerializer
+    queryset = SupplierMaterialRegistration.objects.select_related("owner").all()

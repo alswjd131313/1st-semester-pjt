@@ -3,7 +3,7 @@
     <div class="page-heading">
       <p class="eyebrow">Step 1</p>
       <h1>자재 요청 등록</h1>
-      <p>기존 자재 정보와 현장 조건을 입력하면 문의 우선순위가 높은 공급사 후보를 보여줍니다.</p>
+      <p>필요 자재와 현장 조건을 등록하면 공급사 답변을 기다릴 수 있습니다.</p>
     </div>
 
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
@@ -70,14 +70,16 @@
       <div class="form-actions">
         <RouterLink class="secondary-button" to="/">취소</RouterLink>
         <button type="submit" class="primary-button" :disabled="isSubmitting">
-          {{ isSubmitting ? "요청 저장 중" : "추천 결과 보기" }}
+          {{ isSubmitting ? "요청 저장 중" : "요청 등록하기" }}
         </button>
       </div>
     </form>
   </section>
+      <StandardEvidencePanel />
 </template>
 
 <script setup>
+import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { createMaterialRequest } from "../api/materialApi";
@@ -114,11 +116,8 @@ async function submitRequest() {
   try {
     isSubmitting.value = true;
     errorMessage.value = "";
-    const request = await createMaterialRequest({ ...form });
-    router.push({
-      path: "/recommendations",
-      query: { requestId: request.id },
-    });
+    await createMaterialRequest({ ...form });
+    router.push("/dashboard");
   } catch (error) {
     errorMessage.value =
       getApiErrorMessage(error) ||

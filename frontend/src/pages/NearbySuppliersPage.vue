@@ -3,7 +3,7 @@
     <div class="page-title">
       <p>Nearby Suppliers</p>
       <h1>내 주변 공급사</h1>
-      <span>{{ currentLocation }}으로 가까운 공급사를 확인합니다. 실제 GPS와 지도 API는 추후 연동 예정입니다.</span>
+      <span>{{ currentLocation }} 기준으로 가까운 공급사와 주요 취급 자재를 확인합니다.</span>
     </div>
 
     <section class="nearby-layout">

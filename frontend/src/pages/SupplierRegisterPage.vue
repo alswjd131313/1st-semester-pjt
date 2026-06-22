@@ -10,8 +10,8 @@
       <span class="completion-mark">완료</span>
       <h2>공급사 자재 등록이 완료되었습니다.</h2>
       <p>
-        등록한 자재는 추천 결과 후보에 반영됩니다. 실제 노출 여부와 문의 가능 여부는
-        백엔드 API 연결 이후 더 정확하게 관리할 수 있습니다.
+        등록한 자재는 추천 결과 후보에 반영됩니다. 문의가 접수되면 문의 내역에서
+        상태를 확인하고 후속 대응을 진행할 수 있습니다.
       </p>
       <div class="completion-summary">
         <strong>{{ completedMaterial?.materialName }}</strong>
@@ -24,6 +24,7 @@
         <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
       </div>
     </section>
+      <StandardEvidencePanel />
 
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     <p v-if="isLoading" class="loading-message">등록된 자재를 불러오는 중입니다.</p>
@@ -123,6 +124,7 @@
 </template>
 
 <script setup>
+import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { onMounted, reactive, ref } from "vue";
 import { authState } from "../api/authApi";
 import { getSupplierMaterials, registerSupplierMaterial } from "../api/materialApi";

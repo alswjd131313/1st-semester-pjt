@@ -1,50 +1,90 @@
 <template>
   <section class="page-wrap">
     <div class="page-heading">
-      <p class="eyebrow">Step 2</p>
-      <h1>추천 결과</h1>
+      <p class="eyebrow">PaceFlow Ranking</p>
+      <h1>추천 랭킹</h1>
       <p>
-        본 추천 결과는 자재 규격, 가격, 거리, 과거 납품 이력을 기반으로 산출됩니다.
-        실제 재고와 납품 가능 여부는 공급사에 직접 문의해야 합니다.
+        자재 요청과 별개로 현재 확인 가능한 공급 후보를 차트처럼 보여줍니다.
+        랭킹은 KS 물성 적합도, 납품 신뢰도, 거리, 가격을 함께 반영합니다.
       </p>
     </div>
 
-    <div v-if="request" class="summary-card">
-      <strong>{{ request.materialName }} {{ request.strengthGrade }}</strong>
-      <span>현장 위치: {{ request.siteAddress || "미입력" }}</span>
-      <span>필요 수량: {{ request.requiredQuantity || "미입력" }}</span>
-      <span>{{ request.isUrgent ? "긴급 요청" : "일반 요청" }}</span>
+    <div class="summary-card">
+      <strong>{{ activeRankingLabel }} 랭킹</strong>
+      <span>{{ route.query.keyword ? `검색어: ${route.query.keyword}` : "요청 자재와 무관한 전체 차트" }}</span>
+      <span>나라장터 캐시 · 공급사 등록 · 데모 후보 통합</span>
+      <span>문의 전 후보 탐색용</span>
     </div>
 
-    <p v-if="isLoading" class="loading-message">추천 후보를 불러오는 중입니다.</p>
+    <section v-if="!isLoading" class="ranking-overview" aria-label="PaceFlow 추천 랭킹 기준">
+      <div>
+        <p class="eyebrow">Ranking Basis</p>
+        <h2>TOP 후보를 점수순으로 정렬했습니다</h2>
+        <span>동일 자재 검색 목록이 아니라, 현장 문의 우선순위를 계산한 랭킹입니다.</span>
+      </div>
+      <dl class="ranking-criteria">
+        <div>
+          <dt>KS 물성 적합도</dt>
+          <dd>45%</dd>
+        </div>
+        <div>
+          <dt>납품 신뢰도</dt>
+          <dd>30%</dd>
+        </div>
+        <div>
+          <dt>현장 거리</dt>
+          <dd>15%</dd>
+        </div>
+        <div>
+          <dt>가격 경쟁력</dt>
+          <dd>10%</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section v-if="!isLoading" class="ranking-tabs" aria-label="추천 랭킹 자재 구분">
+      <button
+        v-for="tab in rankingTabs"
+        :key="tab.id"
+        type="button"
+        :class="{ active: activeRankingTab === tab.id }"
+        @click="activeRankingTab = tab.id"
+      >
+        <strong>{{ tab.label }}</strong>
+        <span>{{ tab.description }}</span>
+      </button>
+    </section>
+
+    <p v-if="isLoading" class="loading-message">추천 랭킹을 계산하는 중입니다.</p>
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
     <KakaoMap
-      v-if="!isLoading && request?.siteLat && request?.siteLng"
-      :site="{ latitude: request.siteLat, longitude: request.siteLng, address: request.siteAddress }"
-      :suppliers="recommendations"
+      v-if="!isLoading"
+      :site="rankingMapSite"
+      :suppliers="displayedRecommendations"
     />
 
     <section v-if="!isLoading" class="recommendation-toolbar" aria-label="추천 결과 필터와 정렬">
       <div>
-        <strong>{{ filteredRecommendations.length }}개 후보</strong>
-        <span>{{ activeFilterLabel }}</span>
+        <strong>TOP {{ displayedRecommendations.length }} 추천 후보</strong>
+        <span>{{ activeRankingLabel }} · {{ activeFilterLabel }}</span>
       </div>
 
       <label>
-        정렬 기준
+        랭킹 보기
         <select v-model="sortOption">
-          <option value="score">최종 점수 높은순</option>
-          <option value="distance">거리 가까운순</option>
-          <option value="price">단가 낮은순</option>
-          <option value="delivery">납품 이력 많은순</option>
+          <option value="score">종합 추천순</option>
+          <option value="spec">규격 신뢰도순</option>
+          <option value="distance">긴급 납품순</option>
+          <option value="price">단가 우선순</option>
+          <option value="delivery">납품 신뢰도순</option>
         </select>
       </label>
 
       <div class="filter-toggles">
         <label>
           <input v-model="hideApprovalRequired" type="checkbox" />
-          감리 승인 필요 제외
+          국제 규격/감리 승인 필요 제외
         </label>
         <label>
           <input v-model="registeredOnly" type="checkbox" />
@@ -55,22 +95,47 @@
       <button type="button" class="secondary-button" @click="resetFilters">초기화</button>
     </section>
 
+    <StandardEvidencePanel
+      v-if="activeRankingTab !== 'all'"
+      :material="activeRankingEvidenceText"
+      :category="activeRankingLabel"
+      :limit="1"
+    />
+
     <div v-if="!isLoading" class="recommendation-grid">
       <article
-        v-for="(item, index) in filteredRecommendations"
+        v-for="item in displayedRecommendations"
         :key="`${item.supplierName}-${item.materialName}-${item.standard}`"
         class="recommendation-card"
       >
         <div class="card-topline">
-          <span class="rank-badge">{{ index + 1 }}순위</span>
+          <span class="rank-badge">TOP {{ item.displayRank }}</span>
+          <span class="ranking-role-badge">{{ getRankingLabel(item) }}</span>
+          <span class="material-type-badge">{{ getMaterialTypeLabel(item) }}</span>
           <span v-if="item.isRegisteredSupplier" class="source-badge">등록 공급사</span>
+          <span v-if="item.dataSourceLabel" :class="['data-source-badge', item.dataSource]">
+            {{ item.dataSourceLabel }}
+          </span>
+          <span v-if="item.specSourceLabel" class="spec-source-badge">
+            {{ item.specSourceLabel }}
+          </span>
           <span :class="['approval-badge', { warn: item.approvalRequired }]">
             {{ item.approvalRequired ? "감리 승인 필요" : "승인 리스크 낮음" }}
           </span>
         </div>
 
         <h2>{{ item.supplierName }}</h2>
+        <p class="ranking-intent">{{ getCardSummary(item) }}</p>
         <p class="material-line">{{ item.materialName }} · {{ item.standard }}</p>
+
+        <div class="ranking-signal-panel" aria-label="랭킹 핵심 점수">
+          <strong>{{ item.totalScore }}점</strong>
+          <span>KS 적합도 {{ getMaterialFitScore(item) }}</span>
+          <span>신뢰도 {{ item.reliabilityScore }}</span>
+          <span>{{ getDistanceSignal(item) }}</span>
+          <span :class="['confidence-signal', getMatchSignalClass(item)]">{{ getMatchConfidenceLabel(item) }}</span>
+          <span :class="['match-signal', getMatchSignalClass(item)]">{{ getMatchSignalLabel(item) }}</span>
+        </div>
 
         <dl class="score-list">
           <div>
@@ -79,14 +144,14 @@
           </div>
           <div>
             <dt>거리</dt>
-            <dd>{{ item.distanceKm }}km</dd>
+            <dd>{{ getDistanceLabel(item) }}</dd>
           </div>
           <div>
             <dt>납품 이력</dt>
             <dd>{{ item.deliveryCount }}회</dd>
           </div>
           <div>
-            <dt>최종 점수</dt>
+            <dt>랭킹 점수</dt>
             <dd>{{ item.totalScore }}점</dd>
           </div>
         </dl>
@@ -97,23 +162,39 @@
         </div>
 
         <div class="score-bars">
+          <span>물성 {{ getMaterialFitScore(item) }}</span>
           <span>가격 {{ item.priceScore }}</span>
           <span>거리 {{ item.distanceScore }}</span>
           <span>신뢰도 {{ item.reliabilityScore }}</span>
         </div>
 
-        <p class="reason">{{ item.reason }}</p>
+        <div v-if="item.hardFilterEvidence?.length" class="hard-filter-strip" aria-label="Hard Filter 요약">
+          <span
+            v-for="evidence in item.hardFilterEvidence.slice(0, 3)"
+            :key="`${item.supplierName}-${evidence.label}`"
+          >
+            {{ evidence.label }} {{ evidence.status }}
+          </span>
+        </div>
+
+        <div class="standard-evidence-strip" aria-label="KS 물성 근거 요약">
+          <strong>{{ getStandardEvidence(item).category }} · {{ getStandardEvidence(item).standard }}</strong>
+          <span>{{ getCompactEvidenceText(item) }}</span>
+        </div>
 
         <div class="card-actions">
           <button type="button" class="secondary-button" @click="openDetail(item)">상세 보기</button>
-          <button type="button" class="primary-button" @click="openInquiry(item)">문의하기</button>
+          <button type="button" class="secondary-button" @click="openInquiry(item, 'general')">문의하기</button>
+          <button type="button" class="urgent-button" @click="openInquiry(item, 'urgent')">
+            긴급 납품 요청
+          </button>
         </div>
       </article>
     </div>
 
-    <div v-if="!isLoading && !filteredRecommendations.length" class="empty-state">
-      <strong>조건에 맞는 추천 후보가 없습니다.</strong>
-      <p>필터를 줄이거나 초기화한 뒤 다시 확인해보세요.</p>
+    <div v-if="!isLoading && !displayedRecommendations.length" class="empty-state">
+      <strong>랭킹에 표시할 추천 후보가 없습니다.</strong>
+      <p>필터를 줄이거나 다른 자재 탭을 선택해보세요.</p>
       <button type="button" class="primary-button" @click="resetFilters">필터 초기화</button>
     </div>
 
@@ -132,11 +213,15 @@
         >
           <div class="modal-header">
             <div>
-              <p class="eyebrow">Recommendation Detail</p>
+              <p class="eyebrow">Ranking Detail</p>
               <h2 id="recommendation-detail-title">
-                {{ selectedRecommendation.supplierName }}
+                TOP {{ selectedRecommendation.displayRank || selectedRecommendation.rank }} · {{ selectedRecommendation.supplierName }}
               </h2>
-              <span>{{ selectedRecommendation.materialName }} · {{ selectedRecommendation.standard }}</span>
+              <span>
+                {{ getMaterialTypeLabel(selectedRecommendation) }} ·
+                {{ selectedRecommendation.materialName }} ·
+                {{ selectedRecommendation.standard }}
+              </span>
             </div>
             <button type="button" class="icon-button" aria-label="상세 닫기" @click="closeDetail">
               ×
@@ -145,11 +230,11 @@
 
           <div class="detail-score-panel">
             <div>
-              <span>최종 점수</span>
+              <span>랭킹 점수</span>
               <strong>{{ selectedRecommendation.totalScore }}점</strong>
             </div>
             <p>
-              가격, 거리, 과거 납품 이력을 기준으로 문의 우선순위를 산출했습니다.
+              {{ getRankingSummary(selectedRecommendation) }} 가격, 거리, 납품 이력, KS 물성 적합도를 함께 반영했습니다.
             </p>
           </div>
 
@@ -158,12 +243,20 @@
               <h3>공급 조건</h3>
               <dl class="detail-list">
                 <div>
+                  <dt>자재 분류</dt>
+                  <dd>{{ getMaterialTypeLabel(selectedRecommendation) }}</dd>
+                </div>
+                <div>
                   <dt>최근 단가</dt>
                   <dd>{{ selectedRecommendation.price }}</dd>
                 </div>
                 <div>
                   <dt>현장 거리</dt>
-                  <dd>{{ selectedRecommendation.distanceKm }}km</dd>
+                  <dd>{{ getDistanceLabel(selectedRecommendation) }}</dd>
+                </div>
+                <div v-if="selectedRecommendation.locationBasis && selectedRecommendation.locationBasis !== 'supplier_address'">
+                  <dt>위치 기준</dt>
+                  <dd>{{ getLocationBasisLabel(selectedRecommendation) }}</dd>
                 </div>
                 <div>
                   <dt>납품 이력</dt>
@@ -181,12 +274,22 @@
             </article>
 
             <article>
-              <h3>점수 분석</h3>
+              <h3>랭킹 산정 근거</h3>
+              <div class="match-basis-box">
+                <span>규격 판단</span>
+                <strong>{{ getMatchSignalLabel(selectedRecommendation) }}</strong>
+                <p>{{ getMatchSignalDescription(selectedRecommendation) }}</p>
+              </div>
               <div class="score-breakdown">
                 <div>
-                  <span>가격 점수</span>
-                  <strong>{{ selectedRecommendation.priceScore }}</strong>
-                  <meter min="0" max="100" :value="selectedRecommendation.priceScore" />
+                  <span>물성 적합도</span>
+                  <strong>{{ getMaterialFitScore(selectedRecommendation) }}</strong>
+                  <meter min="0" max="100" :value="getMaterialFitScore(selectedRecommendation)" />
+                </div>
+                <div>
+                  <span>신뢰도 점수</span>
+                  <strong>{{ selectedRecommendation.reliabilityScore }}</strong>
+                  <meter min="0" max="100" :value="selectedRecommendation.reliabilityScore" />
                 </div>
                 <div>
                   <span>거리 점수</span>
@@ -194,12 +297,34 @@
                   <meter min="0" max="100" :value="selectedRecommendation.distanceScore" />
                 </div>
                 <div>
-                  <span>신뢰도 점수</span>
-                  <strong>{{ selectedRecommendation.reliabilityScore }}</strong>
-                  <meter min="0" max="100" :value="selectedRecommendation.reliabilityScore" />
+                  <span>가격 점수</span>
+                  <strong>{{ selectedRecommendation.priceScore }}</strong>
+                  <meter min="0" max="100" :value="selectedRecommendation.priceScore" />
                 </div>
               </div>
             </article>
+          </div>
+
+          <div class="detail-note">
+            <h3>단가 트렌드</h3>
+            <div class="price-trend-panel">
+              <div class="trend-summary">
+                <span>최근 단가</span>
+                <strong>{{ selectedRecommendation.price }}</strong>
+                <p>{{ getPriceTrendSummary(selectedRecommendation) }}</p>
+              </div>
+              <div v-if="getPriceTrendBars(selectedRecommendation).length" class="trend-chart" aria-label="최근 단가 추이">
+                <div
+                  v-for="point in getPriceTrendBars(selectedRecommendation)"
+                  :key="point.label"
+                  class="trend-bar-item"
+                >
+                  <span>{{ point.display }}</span>
+                  <i :style="{ height: `${point.height}%` }" />
+                  <small>{{ point.label }}</small>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="detail-note">
@@ -215,7 +340,47 @@
           </div>
 
           <div class="detail-note">
+            <h3>Hard Filter 통과 근거</h3>
+            <div class="hard-filter-grid">
+              <article
+                v-for="evidence in getHardFilterEvidence(selectedRecommendation)"
+                :key="evidence.label"
+                :class="{ warn: isHardFilterWarning(evidence) }"
+              >
+                <span>{{ evidence.label }}</span>
+                <strong>{{ evidence.status }}</strong>
+                <p>{{ evidence.description }}</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="detail-note">
+            <h3>KS·규격 근거</h3>
+            <div class="standard-detail-grid">
+              <article>
+                <span>적용 기준</span>
+                <strong>{{ getStandardEvidence(selectedRecommendation).standard }}</strong>
+                <p>{{ getStandardEvidence(selectedRecommendation).title }}</p>
+              </article>
+              <article>
+                <span>규격 근거</span>
+                <strong>{{ getMaterialTypeLabel(selectedRecommendation) }}</strong>
+                <p>{{ getStandardEvidence(selectedRecommendation).specificationBasis }}</p>
+              </article>
+              <article>
+                <span>승인 리스크</span>
+                <strong>{{ selectedRecommendation.approvalRequired ? "검토 필요" : "낮음" }}</strong>
+                <p>{{ getStandardEvidence(selectedRecommendation).approvalRisk }}</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="detail-note">
             <h3>물성 비교</h3>
+            <div class="property-summary">
+              <strong>{{ getPropertySummary(selectedRecommendation).passed }}개 기준 통과</strong>
+              <span>{{ getPropertySummary(selectedRecommendation).message }}</span>
+            </div>
             <div class="property-table" role="table" aria-label="물성 비교표">
               <div class="property-row property-head" role="row">
                 <span>항목</span>
@@ -243,19 +408,23 @@
           </div>
 
           <div class="detail-note">
-            <h3>점수 근거</h3>
+            <h3>랭킹 점수 근거</h3>
             <div class="evidence-grid">
               <article>
-                <strong>가격 {{ selectedRecommendation.priceScore }}점</strong>
-                <p>{{ getScoreEvidence(selectedRecommendation).price }}</p>
+                <strong>물성 {{ getMaterialFitScore(selectedRecommendation) }}점</strong>
+                <p>{{ getScoreEvidence(selectedRecommendation).materialFit }}</p>
+              </article>
+              <article>
+                <strong>신뢰도 {{ selectedRecommendation.reliabilityScore }}점</strong>
+                <p>{{ getScoreEvidence(selectedRecommendation).reliability }}</p>
               </article>
               <article>
                 <strong>거리 {{ selectedRecommendation.distanceScore }}점</strong>
                 <p>{{ getScoreEvidence(selectedRecommendation).distance }}</p>
               </article>
               <article>
-                <strong>신뢰도 {{ selectedRecommendation.reliabilityScore }}점</strong>
-                <p>{{ getScoreEvidence(selectedRecommendation).reliability }}</p>
+                <strong>가격 {{ selectedRecommendation.priceScore }}점</strong>
+                <p>{{ getScoreEvidence(selectedRecommendation).price }}</p>
               </article>
             </div>
           </div>
@@ -265,6 +434,16 @@
               {{ selectedRecommendation.approvalRequired ? "감리 승인 확인 필요" : "승인 리스크 낮음" }}
             </strong>
             <p>{{ getApprovalRiskNote(selectedRecommendation) }}</p>
+            <ul class="approval-checklist">
+              <li
+                v-for="risk in getApprovalChecklist(selectedRecommendation)"
+                :key="risk.label"
+              >
+                <span>{{ risk.label }}</span>
+                <strong>{{ risk.status }}</strong>
+                <small>{{ risk.description }}</small>
+              </li>
+            </ul>
           </div>
 
           <div class="modal-actions">
@@ -292,8 +471,8 @@
         >
           <div class="modal-header">
             <div>
-              <p class="eyebrow">Supplier Inquiry</p>
-              <h2 id="supplier-inquiry-title">공급사 문의하기</h2>
+              <p class="eyebrow">{{ inquiryMode === 'urgent' ? 'Urgent Delivery Request' : 'Supplier Inquiry' }}</p>
+              <h2 id="supplier-inquiry-title">{{ inquiryModalTitle }}</h2>
               <span>
                 {{ selectedInquirySupplier.supplierName }} ·
                 {{ selectedInquirySupplier.materialName }}
@@ -306,11 +485,13 @@
           </div>
 
           <div class="inquiry-summary">
-            <strong>문의 전 확인</strong>
-            <p>
-              PaceFlow는 문의 우선순위를 추천합니다. 실제 재고, 견적, 납품 가능 여부는
-              공급사 확인 후 확정됩니다.
-            </p>
+            <strong>{{ inquirySummaryTitle }}</strong>
+            <p>{{ inquirySummaryMessage }}</p>
+            <ul v-if="inquiryMode === 'urgent'" class="urgent-request-list">
+              <li>요청 자재와 필요 수량을 공급사에 우선 확인 요청합니다.</li>
+              <li>납품 가능 여부, 최종 단가, 운송 조건은 공급사 답변 후 확정됩니다.</li>
+              <li>구매 확정이나 결제 처리는 포함하지 않습니다.</li>
+            </ul>
           </div>
 
           <form class="inquiry-form" @submit.prevent="submitInquiry">
@@ -335,7 +516,7 @@
               <textarea
                 v-model.trim="inquiryForm.message"
                 rows="4"
-                placeholder="현장 조건, 하차 가능 시간, 대체 가능 범위 등을 남겨주세요."
+                :placeholder="inquiryMode === 'urgent' ? '예: 오늘 중 납품 가능 여부, 하차 가능 시간, 대체 허용 범위를 확인해주세요.' : '현장 조건, 하차 가능 시간, 대체 가능 범위 등을 남겨주세요.'"
               />
             </label>
 
@@ -344,8 +525,12 @@
 
             <div class="modal-actions full-field">
               <button type="button" class="secondary-button" @click="closeInquiry">취소</button>
-              <button type="submit" class="primary-button" :disabled="isInquirySubmitting">
-                {{ isInquirySubmitting ? "문의 저장 중" : "문의 저장하기" }}
+              <button
+                type="submit"
+                :class="inquiryMode === 'urgent' ? 'urgent-button' : 'primary-button'"
+                :disabled="isInquirySubmitting"
+              >
+                {{ submitButtonLabel }}
               </button>
             </div>
           </form>
@@ -356,7 +541,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
   createSupplierInquiry,
@@ -364,18 +550,29 @@ import {
   getRecommendations,
 } from "../api/materialApi";
 import KakaoMap from "../components/KakaoMap.vue";
+import {
+  getMatchedStandardEvidenceForMaterial,
+  getPrimaryStandardEvidenceForMaterial,
+} from "../data/standardEvidenceData";
+import {
+  getMaterialSubtype,
+  getMaterialTaxonomyByEvidenceId,
+  materialTaxonomy,
+} from "../data/materialTaxonomyData";
 
 const route = useRoute();
 const request = ref(null);
 const recommendations = ref([]);
 const selectedRecommendation = ref(null);
 const selectedInquirySupplier = ref(null);
+const inquiryMode = ref("general");
 const inquiryStatus = ref("");
 const inquiryErrorMessage = ref("");
 const isLoading = ref(false);
 const isInquirySubmitting = ref(false);
 const errorMessage = ref("");
 const sortOption = ref("score");
+const activeRankingTab = ref("all");
 const hideApprovalRequired = ref(false);
 const registeredOnly = ref(false);
 const inquiryForm = reactive({
@@ -386,15 +583,53 @@ const inquiryForm = reactive({
   message: "",
 });
 
-onMounted(loadRecommendations);
+onMounted(() => {
+  syncRankingTabFromKeyword();
+  loadRecommendations();
+});
+
+watch(hideApprovalRequired, () => {
+  loadRecommendations();
+});
+
+watch(
+  () => route.query.keyword,
+  () => {
+    syncRankingTabFromKeyword();
+  },
+);
+
+const rankingTabs = [
+  { id: "all", label: "전체 TOP", description: "자재 구분 없이 종합 점수순" },
+  ...materialTaxonomy,
+];
+
+const rankedRecommendations = computed(() =>
+  recommendations.value.map((item) => ({
+    ...item,
+    materialFitScore: getMaterialFitScore(item),
+    totalScore: calculateRankingScore(item),
+  })),
+);
 
 const filteredRecommendations = computed(() => {
-  return recommendations.value
+  const activeTab = rankingTabs.find((tab) => tab.id === activeRankingTab.value);
+  return rankedRecommendations.value
+    .filter((item) =>
+      activeRankingTab.value === "all" || activeTab?.evidenceIds?.includes(getStandardEvidence(item).id),
+    )
     .filter((item) => !hideApprovalRequired.value || !item.approvalRequired)
     .filter((item) => !registeredOnly.value || item.isRegisteredSupplier)
     .slice()
     .sort((a, b) => compareRecommendations(a, b));
 });
+
+const displayedRecommendations = computed(() =>
+  filteredRecommendations.value.map((item, index) => ({
+    ...item,
+    displayRank: index + 1,
+  })),
+);
 
 const activeFilterLabel = computed(() => {
   const filters = [];
@@ -407,23 +642,313 @@ const activeFilterLabel = computed(() => {
     filters.push("등록 공급사");
   }
 
-  return filters.length ? filters.join(" · ") : "전체 후보를 표시 중입니다.";
+  return filters.length ? filters.join(" · ") : "종합 추천 랭킹을 표시 중입니다.";
 });
+
+const activeRankingLabel = computed(() =>
+  rankingTabs.find((tab) => tab.id === activeRankingTab.value)?.label || "전체 TOP",
+);
+
+const activeRankingEvidenceText = computed(() => {
+  if (activeRankingTab.value === "all") {
+    return "";
+  }
+
+  return activeRankingLabel.value;
+});
+
+const rankingMapSite = computed(() => ({
+  latitude: request.value?.siteLat || 37.5447,
+  longitude: request.value?.siteLng || 127.0558,
+  address: request.value?.siteAddress || "서울 성동구 기준",
+}));
+
+function getRankingLabel(item) {
+  if (item.displayRank === 1 || item.rank === 1) {
+    return item.approvalRequired ? "검토형 1위" : "종합 1위 추천";
+  }
+
+  if (item.approvalRequired) {
+    return "승인 검토 후보";
+  }
+
+  if (Number(item.distanceScore || 0) >= 90) {
+    return "긴급 납품 후보";
+  }
+
+  if (Number(item.priceScore || 0) >= 92) {
+    return "단가 우위 후보";
+  }
+
+  if (Number(item.reliabilityScore || 0) >= 88) {
+    return "납품 신뢰 후보";
+  }
+
+  return "비교 문의 후보";
+}
+
+function getRankingSummary(item) {
+  if (item.approvalRequired) {
+    return "물성 조건은 맞지만 승인 리스크를 함께 확인해야 하는 비교 후보입니다.";
+  }
+
+  if (Number(item.distanceScore || 0) >= 90) {
+    return "현장 접근성이 좋아 긴급 문의 우선순위가 높은 후보입니다.";
+  }
+
+  if (Number(item.priceScore || 0) >= 92) {
+    return "후보군 대비 단가 경쟁력이 높은 비교 견적 후보입니다.";
+  }
+
+  if (Number(item.reliabilityScore || 0) >= 88) {
+    return "납품 이력이 안정적이라 반복 공급 가능성을 우선 확인할 후보입니다.";
+  }
+
+  return "가격, 거리, 납품 이력을 종합해 후순위 비교 대상으로 표시한 후보입니다.";
+}
+
+function getCardSummary(item) {
+  if (item.reason && item.dataSource !== "narajangteo") {
+    return item.reason;
+  }
+
+  return getRankingSummary(item);
+}
+
+function getMaterialTypeLabel(item) {
+  const evidence = getStandardEvidence(item);
+  const group = getMaterialTaxonomyByEvidenceId(evidence.id);
+  if (!group) return evidence.category;
+
+  const subtype = getMaterialSubtype(
+    [item?.materialName, item?.standard, item?.strengthGrade].filter(Boolean).join(" "),
+    group.id,
+  );
+  return subtype ? `${group.label} · ${subtype}` : group.label;
+}
+
+function getCompactEvidenceText(item) {
+  const evidence = getStandardEvidence(item);
+  return `핵심 검토: ${evidence.metrics.slice(0, 3).join(" · ")}`;
+}
+
+function getMaterialFitScore(item) {
+  if (Number.isFinite(Number(item.materialFitScore))) {
+    return Number(item.materialFitScore);
+  }
+
+  if (item.approvalRequired) {
+    return 78;
+  }
+
+  const rows = item.propertyComparison?.length ? item.propertyComparison : getStandardEvidence(item).propertyChecks;
+  const passed = rows.filter((row) => row.passed !== false).length;
+  const ratio = rows.length ? passed / rows.length : 1;
+  return Math.round(86 + ratio * 12);
+}
+
+function calculateRankingScore(item) {
+  const materialFitScore = getMaterialFitScore(item);
+  const reliabilityScore = Number(item.reliabilityScore || 0);
+  const distanceScore = Number(item.distanceScore || 0);
+  const priceScore = Number(item.priceScore || 0);
+
+  return Math.round(
+    materialFitScore * 0.45 +
+      reliabilityScore * 0.3 +
+      distanceScore * 0.15 +
+      priceScore * 0.1,
+  );
+}
+
+function syncRankingTabFromKeyword() {
+  const keywordEvidence = getMatchedStandardEvidenceForMaterial(route.query.keyword || "");
+  activeRankingTab.value = getMaterialTaxonomyByEvidenceId(keywordEvidence?.id)?.id || "all";
+}
+
+const inquiryModalTitle = computed(() =>
+  inquiryMode.value === "urgent" ? "긴급 납품 요청" : "공급사 문의하기",
+);
+
+const inquirySummaryTitle = computed(() =>
+  inquiryMode.value === "urgent" ? "긴급 요청 전 확인" : "문의 전 확인",
+);
+
+const inquirySummaryMessage = computed(() =>
+  inquiryMode.value === "urgent"
+    ? "긴급 납품 요청은 구매 확정이 아니라, 공급사에 재고와 납품 가능 여부를 우선 확인하는 빠른 요청입니다."
+    : "PaceFlow는 문의 우선순위를 추천합니다. 실제 재고, 견적, 납품 가능 여부는 공급사 확인 후 확정됩니다.",
+);
+
+const submitButtonLabel = computed(() => {
+  if (isInquirySubmitting.value) {
+    return inquiryMode.value === "urgent" ? "긴급 요청 저장 중" : "문의 저장 중";
+  }
+
+  return inquiryMode.value === "urgent" ? "긴급 요청 저장하기" : "문의 저장하기";
+});
+
+const requestEvidenceText = computed(() =>
+  [
+    request.value?.materialName,
+    request.value?.standard,
+    request.value?.strengthGrade,
+    request.value?.category,
+  ]
+    .filter(Boolean)
+    .join(" "),
+);
 
 function compareRecommendations(a, b) {
   if (sortOption.value === "distance") {
-    return Number(a.distanceKm) - Number(b.distanceKm);
+    return compareNumber(getDistanceConfidenceScore(b), getDistanceConfidenceScore(a), "asc") ||
+      compareNumber(getSortableDistance(a), getSortableDistance(b), "asc") ||
+      compareNumber(b.totalScore, a.totalScore, "asc");
   }
 
   if (sortOption.value === "price") {
-    return parsePrice(a.price) - parsePrice(b.price);
+    return compareNumber(parsePrice(a.price), parsePrice(b.price), "asc") || compareNumber(b.totalScore, a.totalScore, "asc");
   }
 
   if (sortOption.value === "delivery") {
-    return Number(b.deliveryCount || 0) - Number(a.deliveryCount || 0);
+    return compareNumber(b.deliveryCount, a.deliveryCount, "asc") || compareNumber(b.totalScore, a.totalScore, "asc");
   }
 
-  return Number(b.totalScore || 0) - Number(a.totalScore || 0);
+  if (sortOption.value === "spec") {
+    return compareNumber(getMatchConfidenceScore(b), getMatchConfidenceScore(a), "asc") ||
+      compareNumber(getMaterialFitScore(b), getMaterialFitScore(a), "asc") ||
+      compareNumber(b.totalScore, a.totalScore, "asc");
+  }
+
+  return compareNumber(b.totalScore, a.totalScore, "asc") || compareNumber(getSortableDistance(a), getSortableDistance(b), "asc");
+}
+
+function getSortableDistance(item) {
+  const distance = Number(item.distanceKm);
+  return Number.isFinite(distance) ? distance : Number.MAX_SAFE_INTEGER;
+}
+
+function hasActualSupplierDistance(item) {
+  return item.locationBasis === "supplier_address" && Number.isFinite(Number(item.distanceKm));
+}
+
+function getDistanceConfidenceScore(item) {
+  if (hasActualSupplierDistance(item)) {
+    return 2;
+  }
+
+  if (item.locationBasis === "contract_agency_estimated") {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getDistanceLabel(item) {
+  const distance = Number(item.distanceKm);
+  if (hasActualSupplierDistance(item)) {
+    return `${distance}km`;
+  }
+
+  if (item.locationBasis === "contract_agency_estimated") {
+    return "공급사 거리 확인 필요";
+  }
+
+  return item.distanceLabel || "거리 확인 필요";
+}
+
+function getDistanceSignal(item) {
+  const distance = Number(item.distanceKm);
+  if (hasActualSupplierDistance(item)) {
+    return `거리 ${distance}km`;
+  }
+
+  if (item.locationBasis === "contract_agency_estimated") {
+    return "계약기관 위치 추정";
+  }
+
+  return "거리 확인 필요";
+}
+
+function getMatchSignalLabel(item) {
+  if (item.specSourceLabel) {
+    return item.specSourceLabel;
+  }
+
+  if (item.dataSource === "narajangteo") {
+    return "계약 이력 기반";
+  }
+
+  return "KS 수동 DB";
+}
+
+function getMatchSignalClass(item) {
+  const label = getMatchSignalLabel(item);
+  if (label.includes("품명") || label.includes("규격 매칭")) {
+    return "high";
+  }
+  if (label.includes("대표")) {
+    return "medium";
+  }
+  if (label.includes("계약 이력")) {
+    return "review";
+  }
+  return "standard";
+}
+
+function getMatchConfidenceScore(item) {
+  const label = getMatchSignalLabel(item);
+  if (label.includes("품명") || label.includes("규격 매칭")) {
+    return 3;
+  }
+  if (label.includes("대표")) {
+    return 2;
+  }
+  if (label.includes("계약 이력")) {
+    return 1;
+  }
+  return 2;
+}
+
+function getMatchConfidenceLabel(item) {
+  const score = getMatchConfidenceScore(item);
+  if (score >= 3) {
+    return "규격 신뢰도 높음";
+  }
+  if (score === 2) {
+    return "규격 신뢰도 보통";
+  }
+  return "규격 확인 필요";
+}
+
+function getMatchSignalDescription(item) {
+  const evidence = getScoreEvidence(item).materialFit;
+  if (evidence) {
+    return evidence;
+  }
+
+  return `${getStandardEvidence(item).standard} 기준의 물성·규격 적합도를 랭킹에 반영했습니다.`;
+}
+
+function getLocationBasisLabel(item) {
+  if (item.locationBasis === "supplier_address") {
+    return "공급사 등록 주소 기준";
+  }
+
+  if (item.locationBasis === "contract_agency_estimated") {
+    return `${item.locationLabel || "계약기관"} 기준 추정`;
+  }
+
+  return "좌표 확인 필요";
+}
+
+function compareNumber(left, right, direction = "asc") {
+  const leftValue = Number(left);
+  const rightValue = Number(right);
+  const normalizedLeft = Number.isFinite(leftValue) ? leftValue : Number.MAX_SAFE_INTEGER;
+  const normalizedRight = Number.isFinite(rightValue) ? rightValue : Number.MAX_SAFE_INTEGER;
+  const result = normalizedLeft - normalizedRight;
+  return direction === "desc" ? -result : result;
 }
 
 function parsePrice(value) {
@@ -446,20 +971,117 @@ function getPropertyComparison(item) {
     return item.propertyComparison;
   }
 
+  return getStandardEvidence(item).propertyChecks;
+}
+
+function getPropertySummary(item) {
+  const rows = getPropertyComparison(item);
+  const passed = rows.filter((row) => row.passed).length;
+  const hasCarbon = rows.some((row) => row.label.includes("탄소"));
+
+  return {
+    passed,
+    message: hasCarbon
+      ? "항복강도·인장강도·연신율은 기준 이상, 탄소당량은 기준 이하 조건으로 확인합니다."
+      : `${getStandardEvidence(item).category} 기준 자재와 추천 자재의 주요 물성치를 비교합니다.`,
+  };
+}
+
+function getPriceTrendBars(item) {
+  const values = getPriceTrendValues(item);
+  if (!values.length) {
+    return [];
+  }
+
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = Math.max(1, max - min);
+  const labels = item.trendLabels?.length === values.length
+    ? item.trendLabels
+    : values.map((_, index) => `${index + 1}월`);
+
+  return values.map((value, index) => ({
+    label: labels[index],
+    value,
+    display: formatShortPrice(value),
+    height: 34 + ((value - min) / range) * 66,
+  }));
+}
+
+function getPriceTrendValues(item) {
+  if (item.priceTrend?.length) {
+    return item.priceTrend.map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  }
+
+  const price = parsePrice(item.price);
+  if (!Number.isFinite(price) || price === Number.MAX_SAFE_INTEGER) {
+    return [];
+  }
+
+  return [1.07, 1.045, 1.025, 1.015, 0.995, 1].map((ratio) => Math.round(price * ratio));
+}
+
+function getPriceTrendSummary(item) {
+  const values = getPriceTrendValues(item);
+  if (values.length < 2) {
+    return "단가 이력 데이터가 충분하지 않아 현재 등록 단가 기준으로 표시합니다.";
+  }
+
+  const first = values[0];
+  const latest = values[values.length - 1];
+  const diffRate = ((latest - first) / first) * 100;
+  const direction = diffRate <= 0 ? "하락" : "상승";
+  return `최근 기준 ${Math.abs(diffRate).toFixed(1)}% ${direction} 흐름입니다. 실제 견적은 공급사 문의로 확정해야 합니다.`;
+}
+
+function formatShortPrice(value) {
+  const price = Number(value);
+  if (!Number.isFinite(price)) {
+    return "-";
+  }
+
+  if (price >= 10000) {
+    return `${(price / 10000).toFixed(price % 10000 === 0 ? 0 : 1)}만`;
+  }
+
+  return price.toLocaleString();
+}
+
+function getHardFilterEvidence(item) {
+  if (item.hardFilterEvidence?.length) {
+    return item.hardFilterEvidence;
+  }
+
+  const evidence = getStandardEvidence(item);
   return [
-    { label: "항복강도", original: "400 MPa", candidate: "확인 필요", standard: ">= 400 MPa", passed: true },
-    { label: "인장강도", original: "560 MPa", candidate: "확인 필요", standard: ">= 560 MPa", passed: true },
-    { label: "연신율", original: "16%", candidate: "확인 필요", standard: ">= 16%", passed: true },
-    { label: "탄소당량", original: "0.50", candidate: "확인 필요", standard: "<= 0.60", passed: true },
+    ...evidence.filters.slice(0, 3).map((description, index) => ({
+      label: evidence.metrics[index] || "검증 항목",
+      status: "확인",
+      description,
+    })),
+    {
+      label: "승인 리스크",
+      status: item.approvalRequired ? "승인 확인" : "낮음",
+      description: evidence.approvalRisk,
+    },
   ];
+}
+
+function isHardFilterWarning(evidence) {
+  return ["승인", "문의", "확인 필요"].some((keyword) => evidence.status?.includes(keyword));
 }
 
 function getScoreEvidence(item) {
   return {
+    materialFit:
+      item.scoreEvidence?.materialFit ||
+      `${getStandardEvidence(item).standard} 기준의 물성·규격 적합도를 가장 높은 비중으로 반영했습니다.`,
     price: item.scoreEvidence?.price || `${item.price} 기준으로 가격 점수 ${item.priceScore}점을 부여했습니다.`,
     distance:
       item.scoreEvidence?.distance ||
-      `현장 기준 ${item.distanceKm}km 거리로 거리 점수 ${item.distanceScore}점을 부여했습니다.`,
+      (Number.isFinite(Number(item.distanceKm))
+        ? `현장 기준 ${item.distanceKm}km 거리로 거리 점수 ${item.distanceScore}점을 부여했습니다.`
+        : "공급사 좌표가 없어 거리 점수는 보수적으로 반영했습니다."),
     reliability:
       item.scoreEvidence?.reliability ||
       `과거 납품 이력 ${item.deliveryCount}회를 기준으로 신뢰도 점수 ${item.reliabilityScore}점을 부여했습니다.`,
@@ -472,8 +1094,53 @@ function getApprovalRiskNote(item) {
   }
 
   return item.approvalRequired
-    ? "국제 규격 또는 강도 상향 자재는 구조 검토와 감리 승인 여부를 확인해야 합니다."
-    : "동일 규격 기준으로 우선 검토 가능한 후보입니다. 최종 납품 가능 여부는 공급사 문의가 필요합니다.";
+    ? getStandardEvidence(item).approvalRisk
+    : `${getStandardEvidence(item).standard} 기준으로 우선 검토 가능한 후보입니다. 최종 납품 가능 여부는 공급사 문의가 필요합니다.`;
+}
+
+function getApprovalChecklist(item) {
+  if (item.approvalChecklist?.length) {
+    return item.approvalChecklist;
+  }
+
+  return item.approvalRequired
+    ? [
+        { label: "국제 규격", status: "승인 확인", description: "ASTM/JIS 등 동등 규격 자료 확인이 필요합니다." },
+        { label: "구조 검토", status: "검토 필요", description: "강도 상향 또는 규격 변경 시 구조 영향 여부를 확인하세요." },
+        { label: "감리 승인", status: "필요", description: "현장 적용 전 승인 절차를 확인해야 합니다." },
+      ]
+    : [
+        { label: "규격 일치", status: "낮음", description: "동일 계열 규격 후보로 우선 문의가 가능합니다." },
+        { label: "물성 기준", status: "통과", description: "Hard Filter 기준을 통과한 후보입니다." },
+        { label: "현장 확인", status: "필요", description: "최종 납품 서류와 재고 여부는 공급사에 확인하세요." },
+      ];
+}
+
+function getStandardEvidence(item) {
+  const itemText = [
+    item?.materialName,
+    item?.standard,
+    item?.strengthGrade,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const itemEvidence = getMatchedStandardEvidenceForMaterial(itemText);
+
+  if (itemEvidence) {
+    return itemEvidence;
+  }
+
+  const fallbackText = [
+    itemText,
+    request.value?.materialName,
+    request.value?.standard,
+    request.value?.strengthGrade,
+    request.value?.category,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return getPrimaryStandardEvidenceForMaterial(fallbackText);
 }
 
 function openDetail(item) {
@@ -484,17 +1151,28 @@ function closeDetail() {
   selectedRecommendation.value = null;
 }
 
-function openInquiry(item) {
+function openInquiry(item, mode = "general") {
   selectedInquirySupplier.value = item;
+  inquiryMode.value = mode;
   inquiryStatus.value = "";
   inquiryErrorMessage.value = "";
   inquiryForm.quantity = request.value?.requiredQuantity || "";
+  inquiryForm.desiredDate = request.value?.requiredDate || "";
+  inquiryForm.message = mode === "urgent" ? buildUrgentMessage(item) : "";
   selectedRecommendation.value = null;
 }
 
 function closeInquiry() {
   selectedInquirySupplier.value = null;
+  inquiryMode.value = "general";
   inquiryStatus.value = "";
+}
+
+function buildUrgentMessage(item) {
+  const material = request.value?.materialName || item.materialName || "요청 자재";
+  const quantity = request.value?.requiredQuantity || "필요 수량";
+  const siteAddress = request.value?.siteAddress || "현장 주소";
+  return `${material} ${quantity} 긴급 납품 가능 여부를 확인하고 싶습니다. 현장 주소는 ${siteAddress}입니다. 실제 재고, 최종 단가, 가능한 납품 시간을 회신 부탁드립니다.`;
 }
 
 async function submitInquiry() {
@@ -506,6 +1184,8 @@ async function submitInquiry() {
       requestId: route.query.requestId,
       requestMaterial: request.value,
       supplier: selectedInquirySupplier.value,
+      requestType: inquiryMode.value,
+      priority: inquiryMode.value === "urgent" ? "high" : "normal",
       requesterName: inquiryForm.requesterName,
       contact: inquiryForm.contact,
       quantity: inquiryForm.quantity,
@@ -513,7 +1193,9 @@ async function submitInquiry() {
       message: inquiryForm.message,
     });
 
-    inquiryStatus.value = `${inquiry.id} 문의가 임시 저장되었습니다. 실제 전송 API가 연결되면 이 흐름을 그대로 사용할 수 있습니다.`;
+    inquiryStatus.value = inquiryMode.value === "urgent"
+      ? `${inquiry.id} 긴급 납품 요청이 저장되었습니다. 공급사 확인 후 가능 여부가 업데이트됩니다.`
+      : `${inquiry.id} 문의가 저장되었습니다. 공급사 확인 후 문의 상태가 업데이트됩니다.`;
     inquiryForm.message = "";
   } catch {
     inquiryErrorMessage.value = "공급사 문의를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
@@ -527,7 +1209,10 @@ async function loadRecommendations() {
     isLoading.value = true;
     errorMessage.value = "";
     request.value = await getLatestMaterialRequest();
-    recommendations.value = await getRecommendations(route.query.requestId);
+    recommendations.value = await getRecommendations(route.query.requestId, {
+      includeInternational: !hideApprovalRequired.value,
+      keyword: route.query.keyword || "",
+    });
   } catch {
     errorMessage.value = "추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
   } finally {

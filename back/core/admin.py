@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import Material, MaterialSpec, RegulationMapping, Supplier, SupplyHistory, Demand
+from .models import (
+    Material,
+    MaterialSpec,
+    RegulationMapping,
+    Supplier,
+    SupplyHistory,
+    Demand,
+    SupplierMaterialRegistration,
+)
 
 
 class MaterialSpecInline(admin.StackedInline):
@@ -14,9 +22,9 @@ class RegulationMappingInline(admin.StackedInline):
 
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
-    list_display  = ["name", "ks_code", "ks_grade", "diameter", "category", "is_seismic", "is_weldable"]
-    list_filter   = ["category", "ks_grade", "is_seismic"]
-    search_fields = ["name", "ks_code", "ks_grade"]
+    list_display  = ["name", "material_group", "material_subtype", "ks_code", "ks_grade", "diameter", "category", "is_seismic", "is_weldable"]
+    list_filter   = ["material_group", "material_subtype", "category", "ks_grade", "is_seismic"]
+    search_fields = ["name", "ks_code", "ks_grade", "material_subtype"]
     inlines       = [MaterialSpecInline, RegulationMappingInline]
 
 
@@ -41,6 +49,13 @@ class SupplyHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(Demand)
 class DemandAdmin(admin.ModelAdmin):
-    list_display  = ["site_name", "material", "quantity", "deadline", "created_at"]
+    list_display  = ["site_name", "owner", "material", "quantity", "deadline", "created_at"]
     list_filter   = ["deadline"]
-    search_fields = ["site_name"]
+    search_fields = ["site_name", "owner__email"]
+
+
+@admin.register(SupplierMaterialRegistration)
+class SupplierMaterialRegistrationAdmin(admin.ModelAdmin):
+    list_display = ["supplier_name", "owner", "material_name", "standard", "recent_price", "created_at"]
+    list_filter = ["created_at"]
+    search_fields = ["supplier_name", "owner__email", "material_name", "standard"]

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator
 
@@ -18,6 +19,36 @@ class Material(models.Model):
         ("non_structural", "비구조재"),
     ]
 
+    MATERIAL_GROUP_CHOICES = [
+        ("rebar", "철근"),
+        ("shape_steel", "형강·강재"),
+        ("cement", "시멘트"),
+        ("insulation", "단열재"),
+        ("electrical_conduit", "전기 배관재"),
+    ]
+
+    MATERIAL_SUBTYPE_CHOICES = [
+        ("deformed_rebar", "이형철근"),
+        ("round_rebar", "원형철근"),
+        ("h_beam", "H형강"),
+        ("angle", "ㄱ형강"),
+        ("channel", "ㄷ형강"),
+        ("square_tube", "각형강관"),
+        ("steel_plate", "강판"),
+        ("ordinary_portland", "보통 포틀랜드 시멘트"),
+        ("blast_furnace_slag", "고로슬래그 시멘트"),
+        ("high_early_strength", "조강 포틀랜드 시멘트"),
+        ("eps", "EPS"),
+        ("xps", "XPS"),
+        ("glass_wool", "글라스울"),
+        ("rigid_polyurethane", "경질 우레탄폼"),
+        ("rigid_conduit", "경질 전선관"),
+        ("flexible_conduit", "가요 전선관"),
+        ("cd_conduit", "CD관"),
+        ("pf_conduit", "PF관"),
+        ("other", "기타/검토 필요"),
+    ]
+
     name       = models.CharField(max_length=100, verbose_name="자재명")
     ks_code    = models.CharField(max_length=50,  verbose_name="KS 규격 번호")   # 예: KS D 3504
     ks_grade   = models.CharField(max_length=50,  verbose_name="KS 등급",   blank=True)  # 예: SD400
@@ -27,6 +58,20 @@ class Material(models.Model):
         choices=CATEGORY_CHOICES,
         default="structural",
         verbose_name="시공 분류",
+    )
+    material_group = models.CharField(
+        max_length=30,
+        choices=MATERIAL_GROUP_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="자재 대분류",
+    )
+    material_subtype = models.CharField(
+        max_length=30,
+        choices=MATERIAL_SUBTYPE_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="세부 품목",
     )
     is_seismic = models.BooleanField(default=False, verbose_name="내진 구조 적용 가능")
     is_weldable = models.BooleanField(default=False, verbose_name="용접 시공 가능")
@@ -266,6 +311,14 @@ class Demand(models.Model):
     MVP에서는 내부 집계 용도. 추후 공급사 알림 연동 예정.
     """
 
+    owner      = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="demands",
+        verbose_name="요청자 계정",
+    )
     site_name  = models.CharField(max_length=200, verbose_name="현장명")
     site_lat   = models.DecimalField(
         max_digits=9, decimal_places=6,
@@ -296,3 +349,46 @@ class Demand(models.Model):
 
     def __str__(self):
         return f"{self.site_name} / {self.material} / {self.deadline}"
+
+
+# ──────────────────────────────────────────
+# 7. 공급사 직접 등록 자재 (MVP)
+# ──────────────────────────────────────────
+
+class SupplierMaterialRegistration(models.Model):
+    """
+    공급사 회원이 직접 등록한 취급 자재.
+    나라장터 이력과 별도로 MVP 화면에서 공급사별 등록 데이터를 구분한다.
+    """
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="supplier_material_registrations",
+        verbose_name="등록 공급사 계정",
+    )
+    supplier_name = models.CharField(max_length=200, verbose_name="공급사명")
+    contact = models.CharField(max_length=30, blank=True, verbose_name="연락처")
+    address = models.TextField(blank=True, verbose_name="주소")
+    zip_no = models.CharField(max_length=10, blank=True, verbose_name="우편번호")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="위도")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="경도")
+    main_materials = models.CharField(max_length=200, blank=True, verbose_name="주요 취급 자재")
+    material_name = models.CharField(max_length=100, verbose_name="자재명")
+    standard = models.CharField(max_length=100, blank=True, verbose_name="KS 규격")
+    strength_grade = models.CharField(max_length=50, blank=True, verbose_name="강도 등급")
+    recent_price = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="최근 단가")
+    service_area = models.CharField(max_length=200, blank=True, verbose_name="납품 가능 지역")
+    distance_km = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="거리")
+    delivery_count = models.PositiveIntegerField(default=0, verbose_name="과거 납품 횟수")
+    note = models.TextField(blank=True, verbose_name="비고")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "supplier_material_registrations"
+        ordering = ["-created_at"]
+        verbose_name = "공급사 직접 등록 자재"
+        verbose_name_plural = "공급사 직접 등록 자재 목록"
+
+    def __str__(self):
+        return f"{self.supplier_name} / {self.material_name}"

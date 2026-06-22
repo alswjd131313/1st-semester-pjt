@@ -82,6 +82,7 @@
         <RouterLink class="dock-link" :to="dockLink.to">{{ dockLink.label }}</RouterLink>
       </form>
     </section>
+      <StandardEvidencePanel />
 
     <section class="value-strip section-observe">
       <div class="section-heading center-heading">
@@ -222,7 +223,7 @@
         <h2>지금 바로 대체 자재를 검색하고, 최적의 공급사 후보를 확인해보세요.</h2>
       </div>
       <div>
-        <RouterLink class="primary-button" to="/request">대체 자재 찾기</RouterLink>
+        <RouterLink class="primary-button" to="/recommendations">대체 자재 찾기</RouterLink>
         <RouterLink class="secondary-button" to="/supplier-register">공급사 등록하기</RouterLink>
       </div>
     </section>
@@ -230,6 +231,7 @@
 </template>
 
 <script setup>
+import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
@@ -429,7 +431,7 @@ async function loadRoleSummary() {
 function submitSearch() {
   const query = keyword.value ? { keyword: keyword.value } : {};
   router.push({
-    path: isSupplier.value ? "/recommendations" : "/request",
+    path: "/recommendations",
     query,
   });
 }

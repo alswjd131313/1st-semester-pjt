@@ -1,11 +1,19 @@
 from rest_framework import serializers
-from .models import Material, MaterialSpec, RegulationMapping, Supplier, SupplyHistory, Demand
+from .models import (
+    Material,
+    MaterialSpec,
+    RegulationMapping,
+    Supplier,
+    SupplyHistory,
+    Demand,
+    SupplierMaterialRegistration,
+)
 
 
 class MaterialSpecSerializer(serializers.ModelSerializer):
     class Meta:
         model = MaterialSpec
-        exclude = ["id", "material", "source"]
+        exclude = ["id", "material"]
 
 
 class RegulationMappingSerializer(serializers.ModelSerializer):
@@ -22,7 +30,8 @@ class MaterialListSerializer(serializers.ModelSerializer):
         model = Material
         fields = [
             "id", "name", "ks_code", "ks_grade", "diameter",
-            "category", "category_display", "is_seismic", "is_weldable",
+            "category", "category_display", "material_group", "material_subtype",
+            "is_seismic", "is_weldable",
         ]
 
 
@@ -36,7 +45,8 @@ class MaterialDetailSerializer(serializers.ModelSerializer):
         model = Material
         fields = [
             "id", "name", "ks_code", "ks_grade", "diameter",
-            "category", "category_display", "is_seismic", "is_weldable",
+            "category", "category_display", "material_group", "material_subtype",
+            "is_seismic", "is_weldable",
             "spec", "regulation",
         ]
 
@@ -46,7 +56,7 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = [
             "id", "name", "address", "phone",
-            "latitude", "longitude",
+            "latitude", "longitude", "source",
         ]
 
 
@@ -69,6 +79,7 @@ class RecommendationSerializer(serializers.Serializer):
     supply_count       = serializers.IntegerField()
     distance_km        = serializers.FloatField()
     approval_warning   = serializers.CharField(allow_null=True)
+    data_source        = serializers.CharField(required=False, allow_blank=True)
 
 
 class AlternativeResponseSerializer(serializers.Serializer):
@@ -99,12 +110,28 @@ class PriceTrendSerializer(serializers.Serializer):
 
 class DemandSerializer(serializers.ModelSerializer):
     material_name = serializers.CharField(source="material.__str__", read_only=True)
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
 
     class Meta:
         model = Demand
         fields = [
             "id", "site_name", "site_lat", "site_lng",
+            "owner_email",
             "material", "material_name",
             "quantity", "deadline", "memo", "created_at",
         ]
-        read_only_fields = ["id", "created_at", "material_name"]
+        read_only_fields = ["id", "created_at", "material_name", "owner_email"]
+
+
+class SupplierMaterialRegistrationSerializer(serializers.ModelSerializer):
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
+
+    class Meta:
+        model = SupplierMaterialRegistration
+        fields = [
+            "id", "owner_email", "supplier_name", "contact", "address", "zip_no",
+            "latitude", "longitude", "main_materials", "material_name", "standard",
+            "strength_grade", "recent_price", "service_area", "distance_km",
+            "delivery_count", "note", "created_at",
+        ]
+        read_only_fields = ["id", "owner_email", "created_at"]

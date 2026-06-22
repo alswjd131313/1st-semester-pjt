@@ -24,6 +24,7 @@
           <span :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
             {{ inquiry.supplier?.approvalRequired ? "승인 확인 필요" : "일반 문의" }}
           </span>
+          <span v-if="isUrgentInquiry(inquiry)" class="urgent-badge">긴급 납품 요청</span>
         </div>
 
         <h2>{{ inquiry.supplier?.supplierName || "공급사 미지정" }}</h2>
@@ -35,6 +36,11 @@
         <div class="detail-note">
           <h3>문의 메모</h3>
           <p>{{ inquiry.message || "별도 문의 메모가 없습니다." }}</p>
+        </div>
+
+        <div v-if="isUrgentInquiry(inquiry)" class="urgent-request-note detail-urgent-note">
+          <strong>긴급 확인 항목</strong>
+          <span>재고 보유 여부, 오늘/내일 납품 가능 시간, 운송 조건, 최종 단가를 우선 확인해야 합니다.</span>
         </div>
 
         <div v-if="isSupplier" class="status-actions detail-status-actions">
@@ -54,6 +60,10 @@
       <section class="detail-page-card">
         <h2>문의 정보</h2>
         <dl class="detail-list">
+          <div>
+            <dt>요청 유형</dt>
+            <dd>{{ isUrgentInquiry(inquiry) ? "긴급 납품 요청" : "일반 문의" }}</dd>
+          </div>
           <div>
             <dt>담당자</dt>
             <dd>{{ inquiry.requesterName }}</dd>
@@ -189,6 +199,10 @@ async function loadInquiry() {
 
 function getStatusLabel(status) {
   return inquiryStatuses.find((item) => item.value === status)?.label || "문의 접수";
+}
+
+function isUrgentInquiry(inquiry) {
+  return inquiry?.requestType === "urgent" || inquiry?.priority === "high" || String(inquiry?.id || "").startsWith("URG");
 }
 
 function formatDate(value) {

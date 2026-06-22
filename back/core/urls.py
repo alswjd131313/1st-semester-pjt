@@ -5,6 +5,8 @@ urlpatterns = [
     # 주소 검색 / 좌표 변환
     path("addresses/search/", views.search_addresses, name="address-search"),
     path("addresses/geocode/", views.geocode_address, name="address-geocode"),
+    path("narajangteo/contracts/", views.narajangteo_contracts, name="narajangteo-contracts"),
+    path("narajangteo/cached-contracts/", views.cached_narajangteo_contracts, name="narajangteo-cached-contracts"),
 
     # 자재 검색
     path("materials/", views.MaterialListView.as_view(), name="material-list"),
@@ -17,4 +19,8 @@ urlpatterns = [
 
     # 수요 등록
     path("demands/", views.DemandCreateView.as_view(), name="demand-create"),
+
+    # 공급사 직접 등록 자재
+    path("supplier-materials/", views.SupplierMaterialRegistrationListCreateView.as_view(), name="supplier-material-list-create"),
+    path("supplier-materials/public/", views.PublicSupplierMaterialRegistrationListView.as_view(), name="supplier-material-public-list"),
 ]
