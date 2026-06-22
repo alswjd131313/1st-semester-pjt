@@ -97,98 +97,54 @@
       <button type="button" class="secondary-button" @click="resetFilters">초기화</button>
     </section>
 
-    <StandardEvidencePanel
-      v-if="activeRankingTab !== 'all'"
-      :material="activeRankingEvidenceText"
-      :category="activeRankingLabel"
-      :limit="1"
-    />
-
-    <div v-if="!isLoading" class="recommendation-grid">
+    <div v-if="!isLoading" class="recommendation-list">
       <article
         v-for="item in displayedRecommendations"
         :key="`${item.supplierName}-${item.materialName}-${item.standard}`"
-        class="recommendation-card"
+        class="rec-row"
         @click="selectSupplierForRoute(item)"
       >
-        <div class="card-topline">
-          <span class="rank-badge">TOP {{ item.displayRank }}</span>
-          <span class="ranking-role-badge">{{ getRankingLabel(item) }}</span>
-          <span class="material-type-badge">{{ getMaterialTypeLabel(item) }}</span>
-          <span v-if="item.isRegisteredSupplier" class="source-badge">등록 공급사</span>
-          <span v-if="item.dataSourceLabel" :class="['data-source-badge', item.dataSource]">
-            {{ item.dataSourceLabel }}
-          </span>
-          <span v-if="item.specSourceLabel" class="spec-source-badge">
-            {{ item.specSourceLabel }}
-          </span>
-          <span :class="['approval-badge', { warn: isApprovalReviewRequired(item) }]">
-            {{ getApprovalRiskLabel(item) }}
-          </span>
+        <div class="rec-rank">
+          <span class="rank-num">{{ item.displayRank }}</span>
         </div>
 
-        <h2>{{ item.supplierName }}</h2>
-        <p class="ranking-intent">{{ getCardSummary(item) }}</p>
-        <p class="material-line">{{ item.materialName }} · {{ item.standard }}</p>
-
-        <div class="ranking-signal-panel" aria-label="랭킹 핵심 점수">
-          <strong>{{ item.totalScore }}점</strong>
-          <span>KS 적합도 {{ getMaterialFitScore(item) }}</span>
-          <span>신뢰도 {{ item.reliabilityScore }}</span>
-          <span>{{ getDistanceSignal(item) }}</span>
-          <span :class="['confidence-signal', getMatchSignalClass(item)]">{{ getMatchConfidenceLabel(item) }}</span>
-          <span :class="['match-signal', getMatchSignalClass(item)]">{{ getMatchSignalLabel(item) }}</span>
-        </div>
-
-        <dl class="score-list">
-          <div>
-            <dt>최근 단가</dt>
-            <dd>{{ item.price }}</dd>
+        <div class="rec-main">
+          <div class="rec-name-row">
+            <h2>{{ item.supplierName }}</h2>
+            <span v-if="item.approvalRequired" class="badge-warn">감리 승인 필요</span>
+            <span v-if="item.isRegisteredSupplier" class="badge-reg">등록 공급사</span>
           </div>
-          <div>
-            <dt>거리</dt>
-            <dd>{{ getDistanceLabel(item) }}</dd>
+          <p class="rec-material">{{ item.materialName }} · {{ item.standard }}</p>
+          <div class="rec-signal-row">
+            <span>{{ getRankingLabel(item) }}</span>
+            <span>{{ getMaterialTypeLabel(item) }}</span>
+            <span :class="getMatchSignalClass(item)">{{ getMatchConfidenceLabel(item) }}</span>
           </div>
-          <div>
-            <dt>납품 이력</dt>
-            <dd>{{ item.deliveryCount }}회</dd>
+        </div>
+
+        <div class="rec-metrics">
+          <div class="metric-item">
+            <span>종합 점수</span>
+            <strong>{{ item.totalScore }}점</strong>
           </div>
-          <div>
-            <dt>랭킹 점수</dt>
-            <dd>{{ item.totalScore }}점</dd>
+          <div class="metric-item">
+            <span>단가</span>
+            <strong>{{ item.price }}</strong>
           </div>
-        </dl>
-
-        <div v-if="item.contact || item.serviceArea" class="supplier-meta">
-          <span v-if="item.contact">연락처 {{ item.contact }}</span>
-          <span v-if="item.serviceArea">납품 가능 {{ item.serviceArea }}</span>
+          <div class="metric-item">
+            <span>거리</span>
+            <strong>{{ getDistanceLabel(item) }}</strong>
+          </div>
+          <div class="metric-item">
+            <span>납품 이력</span>
+            <strong>{{ item.deliveryCount }}회</strong>
+          </div>
         </div>
 
-        <div class="score-bars">
-          <span>물성 {{ getMaterialFitScore(item) }}</span>
-          <span>가격 {{ item.priceScore }}</span>
-          <span>거리 {{ getDistanceScoreLabel(item) }}</span>
-          <span>신뢰도 {{ item.reliabilityScore }}</span>
-        </div>
-
-        <div v-if="item.hardFilterEvidence?.length" class="hard-filter-strip" aria-label="Hard Filter 요약">
-          <span
-            v-for="evidence in item.hardFilterEvidence.slice(0, 3)"
-            :key="`${item.supplierName}-${evidence.label}`"
-          >
-            {{ evidence.label }} {{ evidence.status }}
-          </span>
-        </div>
-
-        <div class="standard-evidence-strip" aria-label="KS 물성 근거 요약">
-          <strong>{{ getStandardEvidence(item).category }} · {{ getStandardEvidence(item).standard }}</strong>
-          <span>{{ getEvidenceVerificationLabel(item) }} · {{ getCompactEvidenceText(item) }}</span>
-        </div>
-
-        <div class="card-actions">
-          <button type="button" class="secondary-button" @click.stop="openDetail(item)">상세 보기</button>
-          <button type="button" class="secondary-button" @click.stop="openInquiry(item, 'general')">문의하기</button>
-          <button type="button" class="urgent-button" @click.stop="openInquiry(item, 'urgent')">
+        <div class="rec-actions">
+          <button type="button" class="btn-detail" @click.stop="openDetail(item)">상세 보기</button>
+          <button type="button" class="btn-inquiry" @click.stop="openInquiry(item, 'general')">문의하기</button>
+          <button type="button" class="btn-urgent" @click.stop="openInquiry(item, 'urgent')">
             긴급 납품 요청
           </button>
         </div>
@@ -549,7 +505,6 @@
 </template>
 
 <script setup>
-import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
@@ -636,7 +591,7 @@ const filteredRecommendations = computed(() => {
 });
 
 const displayedRecommendations = computed(() =>
-  filteredRecommendations.value.map((item, index) => ({
+  filteredRecommendations.value.slice(0, 5).map((item, index) => ({
     ...item,
     displayRank: index + 1,
   })),
