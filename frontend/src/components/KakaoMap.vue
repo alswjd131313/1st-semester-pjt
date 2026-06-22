@@ -23,16 +23,23 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 const props = defineProps({
   site: { type: Object, default: () => ({}) },
   suppliers: { type: Array, default: () => [] },
+  selectedSupplier: { type: Object, default: null },
 });
+const emit = defineEmits(["select-supplier"]);
 
 const mapElement = ref(null);
 const errorMessage = ref("");
 let renderSequence = 0;
+let mapInstance = null;
+let activeInfoWindow = null;
+let activePolyline = null;
+let renderedMarkers = [];
+let supplierMarkers = new Map();
 const validSuppliers = computed(() =>
   props.suppliers.filter((supplier) => isKoreaMapCoordinate(supplier.latitude, supplier.longitude)),
 );
@@ -45,12 +52,21 @@ const estimatedSupplierCount = computed(() =>
 
 onMounted(renderMap);
 watch(() => [props.site, props.suppliers], renderMap, { deep: true });
+watch(() => props.selectedSupplier, renderSelectedSupplier, { deep: true });
+onBeforeUnmount(() => {
+  renderSequence += 1;
+  clearRenderedMap();
+});
 
 async function renderMap() {
   const currentRender = ++renderSequence;
   await nextTick();
   try {
     await loadKakaoMapSdk();
+    if (currentRender !== renderSequence || !mapElement.value) {
+      return;
+    }
+
     const kakao = window.kakao;
     const siteLat = Number(props.site.latitude);
     const siteLng = Number(props.site.longitude);
@@ -60,21 +76,31 @@ async function renderMap() {
     }
 
     errorMessage.value = "";
+    clearRenderedMap();
     const sitePosition = new kakao.maps.LatLng(siteLat, siteLng);
     const map = new kakao.maps.Map(mapElement.value, { center: sitePosition, level: 7 });
+    mapInstance = map;
     const bounds = new kakao.maps.LatLngBounds();
     addMarker(kakao, map, sitePosition, `현장 · ${props.site.address || "선택 주소"}`, "site");
     bounds.extend(sitePosition);
 
     validSuppliers.value.forEach((supplier) => {
       const position = new kakao.maps.LatLng(Number(supplier.latitude), Number(supplier.longitude));
-      addMarker(kakao, map, position, getSupplierMarkerText(supplier), getSupplierMarkerVariant(supplier));
+      addMarker(
+        kakao,
+        map,
+        position,
+        getSupplierMarkerText(supplier),
+        getSupplierMarkerVariant(supplier),
+        supplier,
+      );
       bounds.extend(position);
     });
 
     if (validSuppliers.value.length) {
       map.setBounds(bounds);
     }
+    renderSelectedSupplier();
 
     window.setTimeout(() => detectMapAuthorizationFailure(currentRender), 1800);
   } catch (error) {
@@ -107,16 +133,23 @@ function detectMapAuthorizationFailure(currentRender) {
 }
 
 function getSupplierMarkerText(supplier) {
-  const distance = Number(supplier.distanceKm);
-  if (supplier.locationBasis === "supplier_address" && Number.isFinite(distance)) {
-    return `${supplier.supplierName} · 공급사 위치 · ${distance}km`;
+  const distanceM = Number(supplier.routeDistanceM ?? supplier.route_distance_m);
+  const durationSec = Number(supplier.routeDurationSec ?? supplier.route_duration_sec);
+  if (Number.isFinite(distanceM) && distanceM > 0 && Number.isFinite(durationSec) && durationSec > 0) {
+    const minutes = Math.max(1, Math.round(durationSec / 60));
+    const distanceKm = (distanceM / 1000).toFixed(1);
+    return `${supplier.supplierName} · 차량 기준 약 ${minutes}분 · ${distanceKm}km`;
+  }
+
+  if (supplier.locationBasis === "supplier_address") {
+    return `${supplier.supplierName} · 공급사 위치 · ${supplier.routeNote || "거리 정보 확인 필요"}`;
   }
 
   if (supplier.locationBasis === "contract_agency_estimated") {
-    return `${supplier.supplierName} · 계약기관 추정 위치`;
+    return `${supplier.supplierName} · 계약기관 추정 위치 · ${supplier.routeNote || "거리 정보 확인 필요"}`;
   }
 
-  return `${supplier.supplierName} · 좌표 확인`;
+  return `${supplier.supplierName} · 공급사 위치 · 거리 정보 확인 필요`;
 }
 
 function getSupplierMarkerVariant(supplier) {
@@ -131,16 +164,106 @@ function getSupplierMarkerVariant(supplier) {
   return "unknown";
 }
 
-function addMarker(kakao, map, position, text, variant = "actual") {
+function addMarker(kakao, map, position, text, variant = "actual", supplier = null) {
   const marker = new kakao.maps.Marker({
     map,
     position,
     image: createMarkerImage(kakao, variant),
   });
-  const infoWindow = new kakao.maps.InfoWindow({
-    content: `<div class="map-info-window">${text}</div>`,
+  renderedMarkers.push(marker);
+  if (supplier) {
+    supplierMarkers.set(getSupplierKey(supplier), marker);
+  }
+  kakao.maps.event.addListener(marker, "click", () => {
+    clearActiveSelection();
+    showInfoWindow(kakao, map, marker, text);
+    if (supplier) {
+      emit("select-supplier", supplier);
+    }
   });
-  kakao.maps.event.addListener(marker, "click", () => infoWindow.open(map, marker));
+}
+
+function renderSelectedSupplier() {
+  if (!mapInstance || !window.kakao?.maps || !props.selectedSupplier) {
+    return;
+  }
+  const marker = supplierMarkers.get(getSupplierKey(props.selectedSupplier));
+  if (!marker) {
+    clearActiveSelection();
+    return;
+  }
+
+  const kakao = window.kakao;
+  clearActiveSelection();
+  showInfoWindow(kakao, mapInstance, marker, getSupplierMarkerText(props.selectedSupplier));
+
+  const routePath = Array.isArray(props.selectedSupplier.routePath)
+    ? props.selectedSupplier.routePath
+        .map((point) => ({ lat: Number(point.lat), lng: Number(point.lng) }))
+        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+    : [];
+  if (props.selectedSupplier.routeStatus !== "success" || routePath.length < 2) {
+    return;
+  }
+
+  const path = routePath.map((point) => new kakao.maps.LatLng(point.lat, point.lng));
+  activePolyline = new kakao.maps.Polyline({
+    path,
+    strokeWeight: 5,
+    strokeColor: "#1559e8",
+    strokeOpacity: 0.85,
+    strokeStyle: "solid",
+  });
+  activePolyline.setMap(mapInstance);
+
+  const bounds = new kakao.maps.LatLngBounds();
+  path.forEach((point) => bounds.extend(point));
+  mapInstance.setBounds(bounds);
+}
+
+function showInfoWindow(kakao, map, marker, text) {
+  activeInfoWindow = new kakao.maps.InfoWindow({
+    content: `<div class="map-info-window">${escapeMapText(text)}</div>`,
+  });
+  activeInfoWindow.open(map, marker);
+}
+
+function getSupplierKey(supplier) {
+  return [
+    supplier.dataSource || "",
+    supplier.id || supplier.candidateId || "",
+    supplier.supplierName || "",
+    supplier.materialName || "",
+    supplier.standard || "",
+  ].join("|");
+}
+
+function escapeMapText(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function clearActiveSelection() {
+  if (activeInfoWindow) {
+    activeInfoWindow.close();
+    activeInfoWindow = null;
+  }
+  if (activePolyline) {
+    activePolyline.setMap(null);
+    activePolyline = null;
+  }
+}
+
+function clearRenderedMap() {
+  clearActiveSelection();
+  renderedMarkers.forEach((marker) => marker.setMap(null));
+  renderedMarkers = [];
+  supplierMarkers.clear();
+  mapInstance = null;
 }
 
 function createMarkerImage(kakao, variant) {

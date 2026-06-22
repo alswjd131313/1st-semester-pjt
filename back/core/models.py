@@ -154,6 +154,140 @@ class MaterialSpec(models.Model):
 
 
 # ──────────────────────────────────────────
+# 2-1. KS 표준 및 조건부 검증 기준
+# ──────────────────────────────────────────
+
+class KSStandard(models.Model):
+    """추천 근거로 사용하는 KS 표준의 메타데이터."""
+
+    VERIFICATION_CHOICES = [
+        ("verified", "구조화 완료"),
+        ("partial", "일부 구조화"),
+        ("needs_source", "기준 자료 보강 필요"),
+    ]
+
+    code = models.CharField(max_length=30, verbose_name="표준 번호")
+    revision = models.CharField(max_length=10, verbose_name="개정 연도")
+    title = models.CharField(max_length=200, verbose_name="표준명")
+    material_group = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_GROUP_CHOICES,
+        db_index=True,
+        verbose_name="자재 대분류",
+    )
+    material_subtype = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_SUBTYPE_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="세부 품목",
+    )
+    scope_note = models.TextField(blank=True, verbose_name="적용 범위 요약")
+    verification_status = models.CharField(
+        max_length=20,
+        choices=VERIFICATION_CHOICES,
+        default="partial",
+        verbose_name="구조화 상태",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ks_standards"
+        ordering = ["code", "-revision"]
+        constraints = [
+            models.UniqueConstraint(fields=["code", "revision"], name="unique_ks_standard_revision"),
+        ]
+        verbose_name = "KS 표준"
+        verbose_name_plural = "KS 표준 목록"
+
+    def __str__(self):
+        return f"{self.code}:{self.revision} {self.title}"
+
+
+class KSRequirement(models.Model):
+    """두께, 재령, 밀도처럼 적용 조건이 달라지는 KS 검증 기준."""
+
+    VALUE_TYPE_CHOICES = [
+        ("minimum", "최솟값"),
+        ("maximum", "최댓값"),
+        ("range", "범위"),
+        ("exact", "일치값"),
+        ("classification", "분류 기준"),
+    ]
+
+    standard = models.ForeignKey(
+        KSStandard,
+        on_delete=models.CASCADE,
+        related_name="requirements",
+        verbose_name="표준",
+    )
+    material_subtype = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_SUBTYPE_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="세부 품목",
+    )
+    grade = models.CharField(max_length=50, blank=True, db_index=True, verbose_name="등급 또는 종류")
+    property_code = models.CharField(max_length=50, db_index=True, verbose_name="물성 코드")
+    property_name = models.CharField(max_length=100, verbose_name="검증 항목")
+    value_type = models.CharField(max_length=20, choices=VALUE_TYPE_CHOICES, verbose_name="기준 유형")
+    min_value = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True, verbose_name="최솟값")
+    max_value = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True, verbose_name="최댓값")
+    text_value = models.CharField(max_length=200, blank=True, verbose_name="분류 또는 표시값")
+    unit = models.CharField(max_length=30, blank=True, verbose_name="단위")
+    condition = models.JSONField(default=dict, blank=True, verbose_name="적용 조건")
+    source_location = models.CharField(max_length=100, blank=True, verbose_name="표·절 위치")
+    display_priority = models.PositiveSmallIntegerField(default=100, verbose_name="표시 우선순위")
+
+    class Meta:
+        db_table = "ks_requirements"
+        ordering = ["standard", "display_priority", "grade", "property_code"]
+        indexes = [
+            models.Index(fields=["material_subtype", "grade"], name="ks_req_subtype_grade_idx"),
+        ]
+        verbose_name = "KS 검증 기준"
+        verbose_name_plural = "KS 검증 기준 목록"
+
+    def __str__(self):
+        return f"{self.standard.code} {self.grade} {self.property_name}".strip()
+
+
+class KSSectionProfile(models.Model):
+    """형강·강관의 공칭 치수와 단면 성능 표."""
+
+    standard = models.ForeignKey(
+        KSStandard,
+        on_delete=models.CASCADE,
+        related_name="section_profiles",
+        verbose_name="표준",
+    )
+    profile_type = models.CharField(max_length=30, db_index=True, verbose_name="단면 종류")
+    designation = models.CharField(max_length=80, verbose_name="호칭 치수")
+    dimensions = models.JSONField(default=dict, blank=True, verbose_name="치수")
+    unit_mass_kg_m = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="단위 무게 (kg/m)")
+    area_cm2 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="단면적 (cm²)")
+    section_properties = models.JSONField(default=dict, blank=True, verbose_name="단면 성능")
+    source_location = models.CharField(max_length=100, blank=True, verbose_name="표·부표 위치")
+
+    class Meta:
+        db_table = "ks_section_profiles"
+        ordering = ["profile_type", "designation"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["standard", "profile_type", "designation"],
+                name="unique_ks_section_profile",
+            ),
+        ]
+        verbose_name = "KS 단면 규격"
+        verbose_name_plural = "KS 단면 규격 목록"
+
+    def __str__(self):
+        return f"{self.standard.code} {self.profile_type} {self.designation}"
+
+
+# ──────────────────────────────────────────
 # 3. 국제 규격 매핑 (자재별 1:1)
 # ──────────────────────────────────────────
 

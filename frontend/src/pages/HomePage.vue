@@ -17,20 +17,20 @@
           <span>공사는 멈추지 않도록</span>
         </h1>
         <p class="hero-description">
-          규격, 물성, 거리, 단가, 납품 이력을 한 번에 비교해 현장에서 먼저 문의할
-          공급사 후보를 정리합니다.
+          부족한 자재를 입력하면 규격, 물성, 거리, 단가, 납품 이력을 비교해 대체 자재와
+          공급사 후보를 추천합니다.
         </p>
         <div class="hero-proof-row" aria-label="추천 기준">
-          <span>물성 기준 검토</span>
+          <span>KS·물성 검증</span>
           <span>거리·단가 비교</span>
-          <span>납품 이력 반영</span>
+          <span>납품 이력 기반 추천</span>
         </div>
       </div>
 
       <aside class="pace-hero-panel">
         <template v-if="!authState.user">
           <span class="panel-label">Start PaceFlow</span>
-          <h2>필요한 역할로 바로 시작하세요.</h2>
+          <h2>대체 자재 추천을 바로 시작하세요.</h2>
           <p>
             요청자는 대체 자재를 찾고, 공급사는 취급 자재와 문의 가능 상태를 관리합니다.
           </p>
@@ -70,19 +70,80 @@
       </aside>
 
       <form class="hero-search-dock" @submit.prevent="submitSearch">
-        <label>
-          <span>자재 검색</span>
-          <input
-            v-model="keyword"
-            type="search"
-            placeholder="예: 철근 SD400 D10, H빔 300x300, 시멘트 1종"
-          />
-        </label>
-        <button type="submit">{{ searchButtonLabel }}</button>
-        <RouterLink class="dock-link" :to="dockLink.to">{{ dockLink.label }}</RouterLink>
+        <div class="search-field">
+          <label for="hero-material-search">자재 검색</label>
+          <div class="search-control-row">
+            <div class="search-input-area">
+              <input
+                id="hero-material-search"
+                v-model="keyword"
+                type="search"
+                placeholder="필요한 자재를 입력하세요"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="material-suggestion-list"
+                :aria-expanded="showSuggestionDropdown"
+                :aria-activedescendant="activeSuggestionId || undefined"
+                @focus="showAvailableSuggestions"
+                @blur="hideSuggestions"
+                @keydown="handleSearchKeydown"
+              />
+              <div
+                v-if="showSuggestionDropdown"
+                id="material-suggestion-list"
+                class="material-suggestion-dropdown"
+                role="listbox"
+              >
+                <button
+                  v-for="(suggestion, index) in materialSuggestions"
+                  :key="`${suggestion.id}-${suggestion.name}-${suggestion.spec}`"
+                  :id="`material-suggestion-${index}`"
+                  :class="{ 'is-active': index === activeSuggestionIndex }"
+                  type="button"
+                  role="option"
+                  :aria-selected="index === activeSuggestionIndex"
+                  @mouseenter="activeSuggestionIndex = index"
+                  @mousedown.prevent="selectSuggestion(suggestion)"
+                >
+                  <span class="suggestion-copy">
+                    <span class="suggestion-main">
+                      <strong>{{ suggestion.name }}</strong>
+                      <small v-if="suggestion.spec">{{ suggestion.spec }}</small>
+                    </span>
+                    <span class="suggestion-meta">
+                      {{ suggestion.material_group }}
+                      <template v-if="suggestion.material_subtype">
+                        · {{ suggestion.material_subtype }}
+                      </template>
+                    </span>
+                  </span>
+                  <span v-if="suggestion.supplier_name" class="suggestion-supply">
+                    {{ suggestion.supplier_name }}
+                  </span>
+                  <span v-else-if="suggestion.available" class="suggestion-supply">
+                    공급 이력 있음
+                  </span>
+                </button>
+              </div>
+            </div>
+            <button type="submit">{{ searchButtonLabel }}</button>
+            <RouterLink class="dock-link" :to="dockLink.to">{{ dockLink.label }}</RouterLink>
+          </div>
+          <div class="search-example-tags" aria-label="자재 검색 예시">
+            <button
+              v-for="example in searchExamples"
+              :key="example"
+              type="button"
+              @click="keyword = example"
+            >
+              {{ example }}
+            </button>
+          </div>
+        </div>
       </form>
     </section>
-      <StandardEvidencePanel />
+      <StandardEvidencePanel class="home-standard-evidence" />
 
     <section class="value-strip section-observe">
       <div class="section-heading center-heading">
@@ -232,10 +293,14 @@
 
 <script setup>
 import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
-import { getSupplierInquiries, getSupplierMaterials } from "../api/materialApi";
+import {
+  getMaterialSuggestions,
+  getSupplierInquiries,
+  getSupplierMaterials,
+} from "../api/materialApi";
 
 const router = useRouter();
 const keyword = ref("");
@@ -243,6 +308,13 @@ const inquiries = ref([]);
 const supplierMaterials = ref([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
+const materialSuggestions = ref([]);
+const suggestionsOpen = ref(false);
+const activeSuggestionIndex = ref(-1);
+const searchExamples = ["철근 SD400 D10", "H형강 300x300", "고로슬래그 시멘트 1종"];
+let suggestionTimer;
+let suggestionRequestId = 0;
+let suppressNextSuggestionFetch = false;
 
 const valueCards = [
   {
@@ -340,7 +412,9 @@ const approvalCount = computed(
   () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
 );
 const roleHeadline = computed(() =>
-  isSupplier.value ? "등록 자재와 문의를 관리하세요." : "요청과 문의 상태를 확인하세요.",
+  isSupplier.value
+    ? "등록 자재와 문의를 관리하세요."
+    : "추천 후보와 문의 상태를 한눈에 관리하세요.",
 );
 const roleDescription = computed(() =>
   isSupplier.value
@@ -380,10 +454,59 @@ const dockLink = computed(() => {
     : { label: "내 문의 내역", to: "/dashboard" };
 });
 const searchButtonLabel = computed(() => (isSupplier.value ? "추천 후보 보기" : "대체 자재 찾기"));
+const showSuggestionDropdown = computed(
+  () => suggestionsOpen.value && materialSuggestions.value.length > 0,
+);
+const activeSuggestionId = computed(() =>
+  activeSuggestionIndex.value >= 0
+    ? `material-suggestion-${activeSuggestionIndex.value}`
+    : "",
+);
+
+watch(keyword, (value) => {
+  if (suppressNextSuggestionFetch) {
+    suppressNextSuggestionFetch = false;
+    return;
+  }
+
+  clearTimeout(suggestionTimer);
+  const query = value.trim();
+  if (!query) {
+    suggestionRequestId += 1;
+    materialSuggestions.value = [];
+    suggestionsOpen.value = false;
+    activeSuggestionIndex.value = -1;
+    return;
+  }
+
+  const requestId = ++suggestionRequestId;
+  suggestionTimer = setTimeout(async () => {
+    try {
+      const suggestions = await getMaterialSuggestions(query);
+      if (requestId !== suggestionRequestId) {
+        return;
+      }
+      materialSuggestions.value = suggestions;
+      suggestionsOpen.value = suggestions.length > 0;
+      activeSuggestionIndex.value = -1;
+    } catch {
+      if (requestId === suggestionRequestId) {
+        materialSuggestions.value = [];
+        suggestionsOpen.value = false;
+        activeSuggestionIndex.value = -1;
+      }
+    }
+  }, 280);
+});
 
 onMounted(() => {
   loadRoleSummary();
   revealObservedSections();
+});
+
+onBeforeUnmount(() => {
+  clearTimeout(suggestionTimer);
+  suggestionRequestId += 1;
 });
 
 function revealObservedSections() {
@@ -429,10 +552,79 @@ async function loadRoleSummary() {
 }
 
 function submitSearch() {
+  suggestionsOpen.value = false;
   const query = keyword.value ? { keyword: keyword.value } : {};
   router.push({
     path: "/recommendations",
     query,
+  });
+}
+
+function showAvailableSuggestions() {
+  if (keyword.value.trim() && materialSuggestions.value.length) {
+    suggestionsOpen.value = true;
+  }
+}
+
+function hideSuggestions() {
+  suggestionsOpen.value = false;
+  activeSuggestionIndex.value = -1;
+}
+
+function selectSuggestion(suggestion) {
+  clearTimeout(suggestionTimer);
+  suggestionRequestId += 1;
+  suppressNextSuggestionFetch = true;
+  keyword.value = [suggestion.name, suggestion.spec].filter(Boolean).join(" ").trim();
+  materialSuggestions.value = [];
+  suggestionsOpen.value = false;
+  activeSuggestionIndex.value = -1;
+}
+
+function handleSearchKeydown(event) {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    moveSuggestion(1);
+    return;
+  }
+
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    moveSuggestion(-1);
+    return;
+  }
+
+  if (event.key === "Enter" && showSuggestionDropdown.value && activeSuggestionIndex.value >= 0) {
+    event.preventDefault();
+    selectSuggestion(materialSuggestions.value[activeSuggestionIndex.value]);
+    return;
+  }
+
+  if (event.key === "Escape" && showSuggestionDropdown.value) {
+    event.preventDefault();
+    suggestionsOpen.value = false;
+    activeSuggestionIndex.value = -1;
+  }
+}
+
+function moveSuggestion(direction) {
+  const suggestionCount = materialSuggestions.value.length;
+  if (!suggestionCount) {
+    return;
+  }
+
+  suggestionsOpen.value = true;
+  if (activeSuggestionIndex.value < 0) {
+    activeSuggestionIndex.value = direction > 0 ? 0 : suggestionCount - 1;
+  } else {
+    activeSuggestionIndex.value =
+      (activeSuggestionIndex.value + direction + suggestionCount) % suggestionCount;
+  }
+
+  nextTick(() => {
+    document
+      .getElementById(activeSuggestionId.value)
+      ?.scrollIntoView({ block: "nearest" });
   });
 }
 </script>

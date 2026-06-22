@@ -1,11 +1,15 @@
 import math
 import re
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from datetime import date, timedelta
 from collections import defaultdict
 
-from django.db.models import Avg, Count, F, Max, Min, Q
+from django.db.models import (
+    Avg, Case, Count, Exists, F, IntegerField, Max, Min,
+    OuterRef, Q, Subquery, When,
+)
 from django.conf import settings
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
@@ -15,12 +19,14 @@ from rest_framework.response import Response
 from .models import Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration
 from .serializers import (
     MaterialListSerializer,
+    MaterialSuggestionSerializer,
     MaterialDetailSerializer,
     AlternativeResponseSerializer,
     PriceTrendSerializer,
     DemandSerializer,
     SupplierMaterialRegistrationSerializer,
 )
+from .services.kakao_directions import get_driving_route
 
 
 JUSO_SEARCH_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
@@ -458,9 +464,96 @@ class MaterialListView(generics.ListAPIView):
         return qs.order_by("id")
 
 
+MATERIAL_SUGGESTION_ALIASES = {
+    "철근": {"groups": ["rebar"]},
+    "H형강": {"subtypes": ["h_beam"]},
+    "H빔": {"subtypes": ["h_beam"]},
+    "형강": {"groups": ["shape_steel"]},
+    "시멘트": {"groups": ["cement"]},
+    "단열재": {"groups": ["insulation"]},
+    "전선관": {"groups": ["electrical_conduit"]},
+    "전기 배관재": {"groups": ["electrical_conduit"]},
+}
+
+
+@api_view(["GET"])
+def material_suggestions(request):
+    query = request.query_params.get("q", "").strip()
+    if not query:
+        return Response([])
+
+    normalized_query = query.casefold()
+    group_codes = {
+        code for code, label in Material.MATERIAL_GROUP_CHOICES
+        if normalized_query in code.casefold() or normalized_query in label.casefold()
+    }
+    subtype_codes = {
+        code for code, label in Material.MATERIAL_SUBTYPE_CHOICES
+        if normalized_query in code.casefold() or normalized_query in label.casefold()
+    }
+    for alias, mapping in MATERIAL_SUGGESTION_ALIASES.items():
+        normalized_alias = alias.casefold()
+        if normalized_query in normalized_alias or normalized_alias in normalized_query:
+            group_codes.update(mapping.get("groups", []))
+            subtype_codes.update(mapping.get("subtypes", []))
+
+    filters = (
+        Q(name__icontains=query)
+        | Q(ks_code__icontains=query)
+        | Q(ks_grade__icontains=query)
+        | Q(diameter__icontains=query)
+        | Q(supply_histories__supplier__name__icontains=query)
+    )
+    if group_codes:
+        filters |= Q(material_group__in=group_codes)
+    if subtype_codes:
+        filters |= Q(material_subtype__in=subtype_codes)
+
+    recent_history = SupplyHistory.objects.filter(
+        material_id=OuterRef("pk")
+    ).order_by("-contract_date", "-id")
+    queryset = (
+        Material.objects.filter(filters)
+        .annotate(
+            supplier_name=Subquery(recent_history.values("supplier__name")[:1]),
+            available=Exists(recent_history),
+            match_priority=Case(
+                When(name__istartswith=query, then=0),
+                When(ks_grade__istartswith=query, then=1),
+                When(diameter__istartswith=query, then=2),
+                default=3,
+                output_field=IntegerField(),
+            ),
+        )
+        .distinct()
+        .order_by("match_priority", "name", "ks_grade", "diameter")[:8]
+    )
+    return Response(MaterialSuggestionSerializer(queryset, many=True).data)
+
+
 # ══════════════════════════════════════════
 # 2. 대체 공급사 추천 ← 핵심 엔드포인트
 # ══════════════════════════════════════════
+
+
+@api_view(["POST"])
+def driving_route(request):
+    """선택한 현장·공급사 좌표 1건의 차량 경로를 조회한다."""
+    result = get_driving_route(
+        request.data.get("origin_lat"),
+        request.data.get("origin_lng"),
+        request.data.get("destination_lat"),
+        request.data.get("destination_lng"),
+        include_path=True,
+    )
+    return Response({
+        "route_distance_m": result.get("distance_m"),
+        "route_duration_sec": result.get("duration_sec"),
+        "route_status": result.get("status", "failed"),
+        "route_note": result.get("note", "거리 정보 확인 필요"),
+        "route_path": result.get("route_path", []),
+    })
+
 
 @api_view(["POST"])
 def alternative_suppliers(request, material_id: int):
@@ -579,16 +672,31 @@ def alternative_suppliers(request, material_id: int):
             "message": "납품 실적이 있는 공급사가 없습니다.",
         })
 
-    # 반경 필터링 + 거리 계산
+    # 직선거리는 API 호출 후보를 제한하는 용도로만 사용한다.
     candidates = []
-    for (sup_id, mat_id), info in supplier_material_map.items():
+    for info in supplier_material_map.values():
         supplier = info["supplier"]
-        if not supplier.has_coordinates:
-            continue
-        dist = haversine(site_lat, site_lng, supplier.latitude, supplier.longitude)
-        if dist > radius_km:
-            continue
-        candidates.append({**info, "distance_km": dist})
+        straight_distance_km = None
+        if supplier.has_coordinates:
+            straight_distance_km = haversine(
+                site_lat,
+                site_lng,
+                supplier.latitude,
+                supplier.longitude,
+            )
+            if straight_distance_km > radius_km:
+                continue
+
+        candidates.append({
+            **info,
+            "straight_distance_km": straight_distance_km,
+            "route": {
+                "distance_m": None,
+                "duration_sec": None,
+                "status": "missing_coordinates",
+                "note": "거리 정보 확인 필요",
+            },
+        })
 
     if not candidates:
         return Response({
@@ -597,33 +705,117 @@ def alternative_suppliers(request, material_id: int):
             "message": f"반경 {radius_km}km 내 납품 실적 공급사가 없습니다.",
         })
 
+    # 외부 호출 수를 제한하되 가까운 공급사와 납품 이력이 많은 공급사를 우선한다.
+    candidates = sorted(
+        candidates,
+        key=lambda item: (
+            item["straight_distance_km"] is None,
+            item["straight_distance_km"] if item["straight_distance_km"] is not None else float("inf"),
+            -item["supply_count"],
+            float(item["latest_price"]),
+        ),
+    )[:20]
+
+    routable_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["supplier"].has_coordinates
+    ]
+    if routable_candidates:
+        with ThreadPoolExecutor(max_workers=min(5, len(routable_candidates))) as executor:
+            future_map = {
+                executor.submit(
+                    get_driving_route,
+                    candidate["supplier"].latitude,
+                    candidate["supplier"].longitude,
+                    site_lat,
+                    site_lng,
+                ): candidate
+                for candidate in routable_candidates
+            }
+            for future in as_completed(future_map):
+                candidate = future_map[future]
+                try:
+                    candidate["route"] = future.result()
+                except Exception:
+                    candidate["route"] = {
+                        "distance_m": None,
+                        "duration_sec": None,
+                        "status": "api_error",
+                        "note": "거리 정보 확인 필요",
+                    }
+
+    # 실제 차량 경로가 확인된 후보만 차량 거리로 반경을 재확인한다.
+    candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["route"]["status"] != "success"
+        or candidate["route"]["distance_m"] / 1000 <= radius_km
+    ]
+
+    if not candidates:
+        return Response({
+            "original_material": MaterialDetailSerializer(original).data,
+            "recommendations": [],
+            "message": f"차량 경로 기준 반경 {radius_km}km 내 공급사가 없습니다.",
+        })
+
     # ══════════════════════════════
     # STEP 3: 가중치 스코어링
-    # 가격 40% + 거리 30% + 신뢰도(납품횟수) 30%
+    # KS 적합도 45% + 신뢰도 30% + 차량 경로 15% + 가격 10%
+    # 경로 미확인 시 15%를 제외한 나머지 점수를 재정규화한다.
     # ══════════════════════════════
     all_prices       = [float(c["latest_price"]) for c in candidates]
     all_counts       = [c["supply_count"]  for c in candidates]
-    all_distances    = [c["distance_km"]   for c in candidates]
+    successful_routes = [
+        c["route"]
+        for c in candidates
+        if c["route"]["status"] == "success"
+    ]
 
     min_price     = min(all_prices)
     max_count     = max(all_counts)
-    max_distance  = max(all_distances) if max(all_distances) > 0 else 1
+    min_route_distance = min(
+        (route["distance_m"] for route in successful_routes),
+        default=None,
+    )
+    min_route_duration = min(
+        (route["duration_sec"] for route in successful_routes),
+        default=None,
+    )
 
     for c in candidates:
         price     = float(c["latest_price"])
         count     = c["supply_count"]
-        distance  = c["distance_km"]
+        route = c["route"]
 
-        price_score      = (min_price / price)          * 0.4
-        distance_score   = (1 - distance / max_distance) * 0.3   # 가까울수록 높은 점수
-        reliability_score = (count / max_count)          * 0.3
+        material_fit_score = 100.0
+        price_score = (min_price / price) * 100
+        reliability_score = (count / max_count) * 100
+        route_score = None
+        if route["status"] == "success":
+            distance_component = (min_route_distance / max(route["distance_m"], 1)) * 100
+            duration_component = (min_route_duration / max(route["duration_sec"], 1)) * 100
+            route_score = (distance_component + duration_component) / 2
 
-        c["total_score"] = round(price_score + distance_score + reliability_score, 4)
+        weighted_score = (
+            material_fit_score * 0.45
+            + reliability_score * 0.30
+            + price_score * 0.10
+        )
+        known_weight = 0.85
+        if route_score is not None:
+            weighted_score += route_score * 0.15
+            known_weight += 0.15
+
+        c["total_score"] = round(weighted_score / known_weight, 2)
         c["scores"] = {
-            "price_score":        round(price_score, 4),
-            "distance_score":     round(distance_score, 4),
-            "reliability_score":  round(reliability_score, 4),
-            "total":              c["total_score"],
+            "material_fit_score": round(material_fit_score),
+            "price_score": round(price_score),
+            "distance_score": round(route_score) if route_score is not None else None,
+            "route_score": round(route_score) if route_score is not None else None,
+            "reliability_score": round(reliability_score),
+            "total": c["total_score"],
         }
 
     # 점수 내림차순 정렬 → 상위 3개
@@ -656,7 +848,19 @@ def alternative_suppliers(request, material_id: int):
             "scores":           c["scores"],
             "latest_unit_price": c["latest_price"],
             "supply_count":     c["supply_count"],
-            "distance_km":      round(c["distance_km"], 2),
+            "distance_km": (
+                round(c["route"]["distance_m"] / 1000, 2)
+                if c["route"]["status"] == "success"
+                else (
+                    round(c["straight_distance_km"], 2)
+                    if c["straight_distance_km"] is not None
+                    else None
+                )
+            ),
+            "route_distance_m": c["route"].get("distance_m"),
+            "route_duration_sec": c["route"].get("duration_sec"),
+            "route_status": c["route"].get("status", "api_error"),
+            "route_note": c["route"].get("note", "거리 정보 확인 필요"),
             "approval_warning": approval_warning,
             "data_source":      c.get("data_source", ""),
         })

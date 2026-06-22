@@ -35,6 +35,26 @@ class MaterialListSerializer(serializers.ModelSerializer):
         ]
 
 
+class MaterialSuggestionSerializer(serializers.ModelSerializer):
+    """메인 검색창 자동완성에 필요한 최소 자재 정보."""
+
+    spec = serializers.SerializerMethodField()
+    material_group = serializers.CharField(source="get_material_group_display", read_only=True)
+    material_subtype = serializers.CharField(source="get_material_subtype_display", read_only=True)
+    supplier_name = serializers.CharField(read_only=True, allow_null=True)
+    available = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Material
+        fields = [
+            "id", "name", "spec", "material_group", "material_subtype",
+            "supplier_name", "available",
+        ]
+
+    def get_spec(self, obj):
+        return " ".join(part for part in (obj.ks_grade, obj.diameter) if part).strip()
+
+
 class MaterialDetailSerializer(serializers.ModelSerializer):
     """자재 상세용 (물성치 + 규격 매핑 포함)"""
     spec       = MaterialSpecSerializer(read_only=True)
@@ -77,7 +97,11 @@ class RecommendationSerializer(serializers.Serializer):
 
     latest_unit_price  = serializers.DecimalField(max_digits=15, decimal_places=2, allow_null=True)
     supply_count       = serializers.IntegerField()
-    distance_km        = serializers.FloatField()
+    distance_km        = serializers.FloatField(allow_null=True)
+    route_distance_m   = serializers.IntegerField(allow_null=True, required=False)
+    route_duration_sec = serializers.IntegerField(allow_null=True, required=False)
+    route_status       = serializers.CharField(required=False)
+    route_note         = serializers.CharField(required=False)
     approval_warning   = serializers.CharField(allow_null=True)
     data_source        = serializers.CharField(required=False, allow_blank=True)
 

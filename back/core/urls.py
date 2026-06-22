@@ -7,9 +7,11 @@ urlpatterns = [
     path("addresses/geocode/", views.geocode_address, name="address-geocode"),
     path("narajangteo/contracts/", views.narajangteo_contracts, name="narajangteo-contracts"),
     path("narajangteo/cached-contracts/", views.cached_narajangteo_contracts, name="narajangteo-cached-contracts"),
+    path("routes/driving/", views.driving_route, name="driving-route"),
 
     # 자재 검색
     path("materials/", views.MaterialListView.as_view(), name="material-list"),
+    path("materials/suggest/", views.material_suggestions, name="material-suggestions"),
 
     # 대체 공급사 추천 (핵심)
     path("materials/<int:material_id>/alternatives/", views.alternative_suppliers,name="alternatives"),
