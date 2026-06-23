@@ -68,7 +68,13 @@ import { authState, logoutUser } from "../api/authApi";
 const router = useRouter();
 const route = useRoute();
 const isSupplier = computed(() => authState.user?.role === "supplier");
-const myPageRouteNames = ["mypage", "supplier-mypage", "supplier-profile", "inquiries", "inquiry-detail", "inquiry-edit"];
+const inquiryRouteNames = ["inquiries", "inquiry-detail", "inquiry-edit"];
+const myPageRouteNames = computed(() => [
+  "mypage",
+  "supplier-mypage",
+  "supplier-profile",
+  ...(!isSupplier.value ? inquiryRouteNames : []),
+]);
 const navItems = computed(() => [
   ...(isSupplier.value
     ? [
@@ -78,9 +84,9 @@ const navItems = computed(() => [
           activeRoutes: ["supplier-profile"],
         },
         {
-          name: "supplier-dashboard",
+          name: "inquiries",
           label: "받은 요청",
-          activeRoutes: ["supplier-dashboard"],
+          activeRoutes: inquiryRouteNames,
         },
       ]
     : [{

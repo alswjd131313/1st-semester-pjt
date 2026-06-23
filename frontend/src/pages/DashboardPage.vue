@@ -2,9 +2,9 @@
   <section class="page-wrap">
     <div class="page-heading dashboard-heading">
       <div>
-        <p class="eyebrow">Dashboard</p>
+        <p class="eyebrow">{{ isSupplier ? "Supplier Requests" : "Dashboard" }}</p>
         <h1>{{ dashboardTitle }}</h1>
-        <p>공급사 문의와 커뮤니티 대화 요청을 한 곳에서 확인하고, 후속 상태를 관리합니다.</p>
+        <p>{{ dashboardDescription }}</p>
       </div>
     </div>
 
@@ -13,7 +13,26 @@
       <button type="button" :class="{ active: activeTab === 'community' }" @click="activeTab = 'community'">커뮤니티 대화 요청</button>
     </div>
 
-    <div v-if="activeTab === 'supplier'" class="dashboard-stats">
+    <div v-if="activeTab === 'supplier' && isSupplier" class="dashboard-stats">
+      <article>
+        <span>전체 요청</span>
+        <strong>{{ inquiries.length }}건</strong>
+      </article>
+      <article>
+        <span>확인 대기</span>
+        <strong>{{ waitingCount }}건</strong>
+      </article>
+      <article>
+        <span>확인 중</span>
+        <strong>{{ reviewingCount }}건</strong>
+      </article>
+      <article>
+        <span>납품 가능</span>
+        <strong>{{ availableCount }}건</strong>
+      </article>
+    </div>
+
+    <div v-else-if="activeTab === 'supplier'" class="dashboard-stats">
       <article>
         <span>저장된 문의</span>
         <strong>{{ inquiries.length }}건</strong>
@@ -32,12 +51,24 @@
       </article>
     </div>
 
+    <div v-if="activeTab === 'supplier' && isSupplier" class="supplier-status-filters" aria-label="문의 상태 필터">
+      <button
+        v-for="filter in supplierStatusFilters"
+        :key="filter.value"
+        type="button"
+        :class="{ active: supplierStatusFilter === filter.value }"
+        @click="supplierStatusFilter = filter.value"
+      >
+        {{ filter.label }}
+      </button>
+    </div>
+
     <p v-if="activeTab === 'supplier' && isLoading" class="loading-message">문의 내역을 불러오는 중입니다.</p>
     <p v-if="activeTab === 'supplier' && errorMessage" class="error-message">{{ errorMessage }}</p>
 
-    <div v-if="activeTab === 'supplier' && !isLoading && inquiries.length" class="inquiry-list">
+    <div v-if="activeTab === 'supplier' && !isLoading && displayedInquiries.length" class="inquiry-list">
       <article
-        v-for="inquiry in inquiries"
+        v-for="inquiry in displayedInquiries"
         :key="inquiry.id"
         class="inquiry-card"
         role="link"
@@ -50,24 +81,49 @@
           <span :class="['status-badge', inquiry.status]">
             {{ getStatusLabel(inquiry.status) }}
           </span>
-          <span :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
+          <span v-if="!isSupplier" :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
             {{ inquiry.supplier?.approvalRequired ? "승인 확인 필요" : "일반 문의" }}
           </span>
-          <span v-if="isUrgentInquiry(inquiry)" class="urgent-badge">긴급 납품 요청</span>
+          <span v-if="!isSupplier && isUrgentInquiry(inquiry)" class="urgent-badge">긴급 납품 요청</span>
         </div>
 
         <div class="inquiry-card-header">
-          <div>
+          <div v-if="isSupplier">
+            <h2>{{ getMaterialName(inquiry) }}</h2>
+            <p v-if="getMaterialStandard(inquiry)" class="material-line">{{ getMaterialStandard(inquiry) }}</p>
+          </div>
+          <div v-else>
             <h2>{{ inquiry.supplier?.supplierName || "공급사 미지정" }}</h2>
             <p class="material-line">
               {{ inquiry.supplier?.materialName || "자재 미지정" }}
               <span v-if="inquiry.supplier?.standard">· {{ inquiry.supplier.standard }}</span>
             </p>
           </div>
-          <span class="inquiry-date">{{ formatDate(inquiry.createdAt) }}</span>
+          <span class="inquiry-date">
+            {{ formatDate(isSupplier ? (inquiry.statusUpdatedAt || inquiry.createdAt) : inquiry.createdAt) }}
+          </span>
         </div>
 
-        <dl class="score-list">
+        <dl v-if="isSupplier" class="score-list supplier-request-details">
+          <div v-if="getRequesterName(inquiry)">
+            <dt>요청자</dt>
+            <dd>{{ getRequesterName(inquiry) }}</dd>
+          </div>
+          <div v-if="getQuantity(inquiry)">
+            <dt>요청 수량</dt>
+            <dd>{{ getQuantity(inquiry) }}</dd>
+          </div>
+          <div v-if="inquiry.desiredDate">
+            <dt>희망 납기</dt>
+            <dd>{{ inquiry.desiredDate }}</dd>
+          </div>
+          <div v-if="getSiteAddress(inquiry)">
+            <dt>현장 위치</dt>
+            <dd>{{ getSiteAddress(inquiry) }}</dd>
+          </div>
+        </dl>
+
+        <dl v-else class="score-list">
           <div>
             <dt>담당자</dt>
             <dd>{{ inquiry.requesterName }}</dd>
@@ -88,16 +144,19 @@
 
         <p v-if="inquiry.message" class="reason">{{ inquiry.message }}</p>
 
-        <div v-if="isUrgentInquiry(inquiry)" class="urgent-request-note">
+        <div v-if="!isSupplier && isUrgentInquiry(inquiry)" class="urgent-request-note">
           <strong>우선 확인 필요</strong>
           <span>재고 보유 여부, 최종 단가, 가능한 납품 시간을 빠르게 확인해야 하는 요청입니다.</span>
         </div>
 
         <div class="inquiry-footer">
-          <span>상태 변경: {{ formatDate(inquiry.statusUpdatedAt) }}</span>
+          <span>
+            {{ isSupplier ? "최근 상태 변경" : "상태 변경" }}:
+            {{ formatDate(isSupplier ? (inquiry.statusUpdatedAt || inquiry.createdAt) : inquiry.statusUpdatedAt) }}
+          </span>
           <div v-if="isSupplier" class="status-actions" aria-label="문의 상태 변경">
             <button
-              v-for="status in inquiryStatuses"
+            v-for="status in supplierActionStatuses"
               :key="status.value"
               type="button"
               :class="['status-action', { active: inquiry.status === status.value }]"
@@ -115,9 +174,15 @@
     </div>
 
     <div v-else-if="activeTab === 'supplier' && !isLoading" class="empty-state">
-      <strong>아직 저장된 문의가 없습니다.</strong>
-      <p>추천 결과에서 공급사 후보의 문의하기 버튼을 눌러 첫 문의를 저장해보세요.</p>
-      <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
+      <template v-if="isSupplier">
+        <strong>{{ supplierStatusFilter === "all" ? "아직 받은 요청이 없습니다." : "해당 상태의 요청이 없습니다." }}</strong>
+        <p>요청자가 보낸 자재 문의가 접수되면 이곳에서 확인할 수 있습니다.</p>
+      </template>
+      <template v-else>
+        <strong>아직 저장된 문의가 없습니다.</strong>
+        <p>추천 결과에서 공급사 후보의 문의하기 버튼을 눌러 첫 문의를 저장해보세요.</p>
+        <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
+      </template>
     </div>
 
     <template v-if="activeTab === 'community'">
@@ -170,18 +235,56 @@ const communityError = ref("");
 const isLoading = ref(false);
 const errorMessage = ref("");
 const updatingInquiryId = ref("");
-const inquiryStatuses = [
-  { value: "received", label: "문의 접수" },
+const supplierStatusFilter = ref("all");
+const statusLabels = {
+  received: "접수됨",
+  pending: "확인 대기",
+  reviewing: "확인 중",
+  quoted: "납품 가능",
+  accepted: "납품 가능",
+  need_more_info: "추가 확인 필요",
+  rejected: "거절",
+  unavailable: "납품 불가",
+};
+const requesterStatusLabels = {
+  received: "문의 접수",
+  reviewing: "확인 중",
+  quoted: "견적 가능",
+  unavailable: "불가",
+};
+const supplierStatusFilters = [
+  { value: "all", label: "전체", statuses: [] },
+  { value: "waiting", label: "확인 대기", statuses: ["received", "pending"] },
+  { value: "reviewing", label: "확인 중", statuses: ["reviewing"] },
+  { value: "available", label: "납품 가능", statuses: ["quoted", "accepted"] },
+  { value: "need_more_info", label: "추가 확인 필요", statuses: ["need_more_info"] },
+  { value: "rejected", label: "거절", statuses: ["rejected", "unavailable"] },
+];
+const supplierActionStatuses = [
+  { value: "pending", label: "확인 대기" },
   { value: "reviewing", label: "확인 중" },
-  { value: "quoted", label: "견적 가능" },
-  { value: "unavailable", label: "불가" },
+  { value: "accepted", label: "납품 가능" },
+  { value: "need_more_info", label: "추가 확인 필요" },
+  { value: "rejected", label: "거절" },
 ];
 
 const dashboardTitle = computed(() =>
-  authState.user?.role === "supplier" ? "공급사 문의 내역" : "내 문의 내역",
+  authState.user?.role === "supplier" ? "받은 요청" : "내 문의 내역",
 );
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
+const dashboardDescription = computed(() =>
+  isSupplier.value
+    ? "요청자가 보낸 자재 문의를 확인하고 상태를 관리합니다."
+    : "공급사 문의와 커뮤니티 대화 요청을 한 곳에서 확인하고, 후속 상태를 관리합니다.",
+);
+const displayedInquiries = computed(() => {
+  if (!isSupplier.value || supplierStatusFilter.value === "all") {
+    return inquiries.value;
+  }
+  const filter = supplierStatusFilters.find((item) => item.value === supplierStatusFilter.value);
+  return inquiries.value.filter((inquiry) => filter?.statuses.includes(inquiry.status));
+});
 
 function openInquiry(inquiryId) {
   router.push(`/inquiries/${inquiryId}`);
@@ -193,6 +296,18 @@ const approvalCount = computed(
 
 const quotedCount = computed(
   () => inquiries.value.filter((inquiry) => inquiry.status === "quoted").length,
+);
+
+const waitingCount = computed(
+  () => inquiries.value.filter((inquiry) => ["received", "pending"].includes(inquiry.status)).length,
+);
+
+const reviewingCount = computed(
+  () => inquiries.value.filter((inquiry) => inquiry.status === "reviewing").length,
+);
+
+const availableCount = computed(
+  () => inquiries.value.filter((inquiry) => ["quoted", "accepted"].includes(inquiry.status)).length,
 );
 
 const urgentCount = computed(
@@ -262,7 +377,30 @@ async function loadInquiries() {
 }
 
 function getStatusLabel(status) {
-  return inquiryStatuses.find((item) => item.value === status)?.label || "문의 접수";
+  if (!isSupplier.value) {
+    return requesterStatusLabels[status] || "문의 접수";
+  }
+  return statusLabels[status] || "접수됨";
+}
+
+function getMaterialName(inquiry) {
+  return inquiry.requestMaterial?.materialName || inquiry.supplier?.materialName || inquiry.material_name || "요청 자재";
+}
+
+function getMaterialStandard(inquiry) {
+  return inquiry.requestMaterial?.strengthGrade || inquiry.supplier?.standard || inquiry.standard || inquiry.spec || "";
+}
+
+function getQuantity(inquiry) {
+  return inquiry.quantity || inquiry.requestMaterial?.requiredQuantity || "";
+}
+
+function getSiteAddress(inquiry) {
+  return inquiry.requestMaterial?.siteAddress || inquiry.siteAddress || inquiry.site_address || "";
+}
+
+function getRequesterName(inquiry) {
+  return inquiry.requesterCompany || inquiry.companyName || inquiry.requesterName || "";
 }
 
 function isUrgentInquiry(inquiry) {
@@ -284,5 +422,6 @@ function formatDate(value) {
 </script>
 
 <style scoped>
+.supplier-status-filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}.supplier-status-filters button{border:1px solid #d7e3f5;border-radius:999px;padding:9px 14px;color:#51627e;background:#fff;font-weight:800;cursor:pointer}.supplier-status-filters button.active{border-color:#1559e8;color:#1559e8;background:#edf4ff}.supplier-request-details dd{overflow-wrap:anywhere}
 .inquiry-type-tabs{display:flex;gap:8px;margin:22px 0}.inquiry-type-tabs button{border:1px solid #d7e3f5;border-radius:999px;padding:11px 17px;color:#51627e;background:#fff;font-weight:900;cursor:pointer}.inquiry-type-tabs button.active{border-color:#1559e8;color:#fff;background:#1559e8}.community-request-list{display:grid;gap:14px}.community-request-card{border:1px solid #dbe6f8;border-radius:22px;padding:22px;background:#fff;box-shadow:0 14px 40px rgba(31,61,115,.08)}.community-request-topline,.community-request-card footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.community-request-topline>span:first-child{color:#1559e8;font-size:12px;font-weight:900}.community-request-status{border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900}.community-request-status.pending{color:#9a5b00;background:#fff2cc}.community-request-status.confirmed{color:#047857;background:#dcf8ed}.community-request-status.rejected{color:#b42318;background:#fee7e7}.community-request-card h2{margin:14px 0 7px;color:#102a56;font-size:20px}.community-request-target{color:#65748d;font-size:13px}.community-request-message{border-radius:14px;padding:14px;color:#40506a;background:#f5f8fd;line-height:1.6}.community-request-card footer{margin-top:14px;color:#8492a8;font-size:12px}.community-request-card footer>a{color:#1559e8;font-weight:900}.community-request-actions{display:flex;gap:7px;margin-left:auto}.community-request-actions button{border:0;border-radius:9px;padding:8px 10px;color:#fff;background:#1559e8;cursor:pointer;font-weight:800}.community-request-actions .reject{color:#b42318;background:#fee7e7}@media(max-width:650px){.community-request-card footer{align-items:flex-start;flex-direction:column}.community-request-actions{margin-left:0}}
 </style>
