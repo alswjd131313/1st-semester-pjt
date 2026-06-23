@@ -61,7 +61,7 @@
     <KakaoMap
       v-if="!isLoading"
       :site="rankingMapSite"
-      :suppliers="displayedRecommendations"
+      :suppliers="mapRecommendations"
       :selected-supplier="selectedMapSupplier"
       @select-supplier="selectSupplierForRoute"
     />
@@ -529,6 +529,7 @@ const request = ref(null);
 const recommendations = ref([]);
 const selectedRouteSupplier = ref(null);
 const selectedRoute = ref(null);
+const routeResultCache = new Map();
 const selectedRecommendation = ref(null);
 const selectedInquirySupplier = ref(null);
 const inquiryMode = ref("general");
@@ -597,6 +598,12 @@ const displayedRecommendations = computed(() =>
   })),
 );
 
+const mapRecommendations = computed(() =>
+  filteredRecommendations.value
+    .filter((item) => hasKoreaCoordinate(item.latitude, item.longitude))
+    .slice(0, 30),
+);
+
 const activeFilterLabel = computed(() => {
   const filters = [];
 
@@ -630,9 +637,13 @@ const selectedMapSupplier = computed(() =>
 );
 
 const rankingMapSite = computed(() => ({
-  latitude: request.value?.siteLat || 37.5447,
-  longitude: request.value?.siteLng || 127.0558,
-  address: request.value?.siteAddress || "서울 성동구 기준",
+  latitude: hasKoreaCoordinate(request.value?.siteLat, request.value?.siteLng)
+    ? Number(request.value.siteLat)
+    : null,
+  longitude: hasKoreaCoordinate(request.value?.siteLat, request.value?.siteLng)
+    ? Number(request.value.siteLng)
+    : null,
+  address: request.value?.siteAddress || "현장 주소 확인 필요",
 }));
 
 function getRankingLabel(item) {
@@ -891,6 +902,16 @@ function getRouteCandidateKey(item) {
   ].join("|");
 }
 
+function getRouteCacheKey(item) {
+  return [
+    Number(request.value?.siteLat).toFixed(6),
+    Number(request.value?.siteLng).toFixed(6),
+    Number(item?.latitude).toFixed(6),
+    Number(item?.longitude).toFixed(6),
+    getRouteCandidateKey(item),
+  ].join("|");
+}
+
 function hasKoreaCoordinate(latitude, longitude) {
   if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
     return false;
@@ -920,9 +941,16 @@ async function selectSupplierForRoute(item) {
       routeDistanceM: null,
       routeDurationSec: null,
       routeStatus: "unavailable",
-      routeNote: "현장 위치 정보 확인 필요",
+      routeNote: "자재 요청에서 현장 주소를 먼저 선택해 주세요.",
       routePath: [],
     };
+    return;
+  }
+
+  const cacheKey = getRouteCacheKey(item);
+  const cachedRoute = routeResultCache.get(cacheKey);
+  if (cachedRoute) {
+    selectedRoute.value = cachedRoute;
     return;
   }
 
@@ -942,6 +970,9 @@ async function selectSupplierForRoute(item) {
     });
     if (currentRequest === routeRequestSequence) {
       selectedRoute.value = result;
+      if (result.routeStatus === "success") {
+        routeResultCache.set(cacheKey, result);
+      }
     }
   } catch {
     if (currentRequest === routeRequestSequence) {
@@ -1338,6 +1369,8 @@ async function loadRecommendations() {
   try {
     isLoading.value = true;
     errorMessage.value = "";
+    selectedRouteSupplier.value = null;
+    selectedRoute.value = null;
     request.value = await getLatestMaterialRequest();
     recommendations.value = await getRecommendations(route.query.requestId, {
       includeInternational: !hideApprovalRequired.value,

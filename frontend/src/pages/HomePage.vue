@@ -19,48 +19,6 @@
         </div>
       </div>
 
-      <aside class="pace-hero-panel">
-        <template v-if="!authState.user">
-          <span class="panel-label">Start PaceFlow</span>
-          <h2>대체 자재 추천을 바로 시작하세요.</h2>
-          <p>
-            요청자는 대체 자재를 찾고, 공급사는 취급 자재와 문의 가능 상태를 관리합니다.
-          </p>
-          <div class="panel-action-stack">
-            <RouterLink class="primary-button" to="/login?role=requester">
-              요청자로 시작
-            </RouterLink>
-            <RouterLink class="secondary-button" to="/login?role=supplier">
-              공급사로 시작
-            </RouterLink>
-          </div>
-        </template>
-
-        <template v-else>
-          <span class="panel-label">{{ roleLabel }} Workspace</span>
-          <h2>{{ roleHeadline }}</h2>
-          <p>{{ roleDescription }}</p>
-          <p v-if="isLoading" class="loading-message">요약 정보를 불러오는 중입니다.</p>
-          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-
-          <div class="compact-stat-row">
-            <article v-for="item in roleStats" :key="item.label">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </article>
-          </div>
-
-          <div class="panel-action-stack compact">
-            <RouterLink class="primary-button" :to="primaryRoleAction.to">
-              {{ primaryRoleAction.label }}
-            </RouterLink>
-            <RouterLink class="secondary-button" :to="secondaryRoleAction.to">
-              {{ secondaryRoleAction.label }}
-            </RouterLink>
-          </div>
-        </template>
-      </aside>
-
       <form class="hero-search-dock" @submit.prevent="submitSearch">
         <div class="search-field">
           <label for="hero-material-search">자재 검색</label>
@@ -288,18 +246,10 @@ import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
-import {
-  getMaterialSuggestions,
-  getSupplierInquiries,
-  getSupplierMaterials,
-} from "../api/materialApi";
+import { getMaterialSuggestions } from "../api/materialApi";
 
 const router = useRouter();
 const keyword = ref("");
-const inquiries = ref([]);
-const supplierMaterials = ref([]);
-const isLoading = ref(false);
-const errorMessage = ref("");
 const materialSuggestions = ref([]);
 const suggestionsOpen = ref(false);
 const activeSuggestionIndex = ref(-1);
@@ -399,43 +349,6 @@ const scopeItems = [
 ];
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
-const roleLabel = computed(() => (isSupplier.value ? "Supplier" : "Requester"));
-const approvalCount = computed(
-  () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
-);
-const roleHeadline = computed(() =>
-  isSupplier.value
-    ? "등록 자재와 문의를 관리하세요."
-    : "추천 후보와 문의 상태를 한눈에 관리하세요.",
-);
-const roleDescription = computed(() =>
-  isSupplier.value
-    ? "취급 자재를 등록하고 접수 문의의 공급 가능 여부를 업데이트할 수 있습니다."
-    : "새 자재 요청을 등록하고 추천 후보에 남긴 문의 상태를 이어서 확인할 수 있습니다.",
-);
-const roleStats = computed(() => {
-  if (isSupplier.value) {
-    return [
-      { label: "등록 자재", value: `${supplierMaterials.value.length}개` },
-      { label: "접수 문의", value: `${inquiries.value.length}건` },
-    ];
-  }
-
-  return [
-    { label: "저장 문의", value: `${inquiries.value.length}건` },
-    { label: "승인 확인", value: `${approvalCount.value}건` },
-  ];
-});
-const primaryRoleAction = computed(() =>
-  isSupplier.value
-    ? { label: "취급 자재 등록", to: "/supplier-register" }
-    : { label: "자재 요청하기", to: "/request" },
-);
-const secondaryRoleAction = computed(() =>
-  isSupplier.value
-    ? { label: "문의 관리", to: "/dashboard" }
-    : { label: "문의 내역", to: "/dashboard" },
-);
 const dockLink = computed(() => {
   if (!authState.user) {
     return { label: "공급사 등록 안내", to: "/login?role=supplier" };
@@ -492,7 +405,6 @@ watch(keyword, (value) => {
 });
 
 onMounted(() => {
-  loadRoleSummary();
   revealObservedSections();
 });
 
@@ -521,26 +433,6 @@ function revealObservedSections() {
   );
 
   sections.forEach((section) => observer.observe(section));
-}
-
-async function loadRoleSummary() {
-  if (!authState.user) {
-    return;
-  }
-
-  try {
-    isLoading.value = true;
-    errorMessage.value = "";
-    inquiries.value = await getSupplierInquiries();
-
-    if (isSupplier.value) {
-      supplierMaterials.value = await getSupplierMaterials();
-    }
-  } catch {
-    errorMessage.value = "요약 정보를 불러오지 못했습니다.";
-  } finally {
-    isLoading.value = false;
-  }
 }
 
 function submitSearch() {

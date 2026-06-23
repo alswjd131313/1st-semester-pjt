@@ -27,8 +27,12 @@ export async function createMaterialRequest(payload) {
       createdAt: new Date().toISOString(),
       backendMaterialId: material.id,
       ...payload,
-      siteLat: payload.siteLat || DEFAULT_SITE_LAT,
-      siteLng: payload.siteLng || DEFAULT_SITE_LNG,
+      siteLat: payload.siteLat !== null && payload.siteLat !== "" && Number.isFinite(Number(payload.siteLat))
+        ? Number(payload.siteLat)
+        : null,
+      siteLng: payload.siteLng !== null && payload.siteLng !== "" && Number.isFinite(Number(payload.siteLng))
+        ? Number(payload.siteLng)
+        : null,
     };
     const { data } = await apiClient.post(buildApiUrl("/api/v1/demands/"), toBackendDemand(request));
     const savedRequest = { ...request, backendDemandId: data.id };
@@ -160,7 +164,30 @@ function normalizeRecommendationRanking(items, requestId) {
       specSourceLabel: item.specSourceLabel || "KS 수동 DB",
       routeStatus: item.routeStatus || "not_requested",
       routeNote: item.routeNote || "거리 정보 확인 필요",
+      locationBasis: normalizeRecommendationLocationBasis(item),
     }));
+}
+
+function normalizeRecommendationLocationBasis(item) {
+  if (item.locationBasis && item.locationBasis !== "unknown") {
+    return item.locationBasis;
+  }
+
+  const latitude = Number(item.latitude);
+  const longitude = Number(item.longitude);
+  const hasCoordinates = Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= 32
+    && latitude <= 39
+    && longitude >= 124
+    && longitude <= 132;
+  if (!hasCoordinates) {
+    return "unknown";
+  }
+
+  return item.isRegisteredSupplier || item.dataSource === "supplier_registered"
+    ? "supplier_address"
+    : "reference_estimated";
 }
 
 async function getBackendAlternativeRecommendations(request, requestId, options) {
@@ -406,8 +433,6 @@ export async function updateSupplierInquiryStatus(inquiryId, status) {
   return updateMockSupplierInquiryStatus(inquiryId, status);
 }
 
-const DEFAULT_SITE_LAT = 37.5447;
-const DEFAULT_SITE_LNG = 127.0558;
 
 async function findBackendMaterial(payload) {
   const { data } = await apiClient.get(buildApiUrl("/api/v1/materials/"), {
@@ -1052,6 +1077,9 @@ function createRecommendationFromSupplier(item, index) {
     address: item.address,
     latitude: item.latitude,
     longitude: item.longitude,
+    locationBasis: item.latitude != null && item.longitude != null
+      ? "supplier_address"
+      : "unknown",
     serviceArea: item.serviceArea,
     isRegisteredSupplier: true,
   };
