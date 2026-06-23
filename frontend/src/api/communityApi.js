@@ -12,6 +12,11 @@ export async function getCommunityPost(postId) {
   return data;
 }
 
+export async function getCommunityProfile(profileId) {
+  const { data } = await apiClient.get(buildApiUrl(`/api/v1/community/profiles/${profileId}/`));
+  return data;
+}
+
 export async function createCommunityPost(payload) {
   const { data } = await apiClient.post(buildApiUrl("/api/v1/community/posts/"), payload);
   return data;

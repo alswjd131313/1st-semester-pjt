@@ -13,8 +13,9 @@ from django.db.models import (
     OuterRef, Q, Subquery, When,
 )
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from rest_framework import generics, status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated, SAFE_METHODS
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -1001,6 +1002,32 @@ class PublicSupplierMaterialRegistrationListView(generics.ListAPIView):
 class IsCommunityAuthorOrReadOnly(BasePermission):
     def has_object_permission(self, request, view, obj):
         return request.method in SAFE_METHODS or obj.author == request.user
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def community_public_profile(request, user_id):
+    author = generics.get_object_or_404(
+        get_user_model().objects.select_related("profile").filter(
+            community_posts__display_mode="profile",
+        ).distinct(),
+        pk=user_id,
+    )
+    profile = getattr(author, "profile", None)
+    role_labels = {"requester": "현장 자재 담당자", "supplier": "공급사 담당자"}
+    name = author.first_name or author.username or "PaceFlow 사용자"
+    return Response({
+        "id": author.id,
+        "display_name": name,
+        "affiliation": getattr(profile, "company_name", ""),
+        "role": role_labels.get(getattr(profile, "role", ""), "PaceFlow 사용자"),
+        "project_name": "",
+        "avatar_text": (name[:2] or "PF").upper(),
+        "community_post_count": author.community_posts.filter(display_mode="profile").count(),
+        "received_contact_request_count": author.received_community_contact_requests.filter(
+            post__display_mode="profile",
+        ).count(),
+    })
 
 
 class CommunityPostListCreateView(generics.ListCreateAPIView):

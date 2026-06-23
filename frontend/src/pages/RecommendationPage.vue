@@ -143,10 +143,7 @@
 
         <div class="rec-actions">
           <button type="button" class="btn-detail" @click.stop="openDetail(item)">상세 보기</button>
-          <button type="button" class="btn-inquiry" @click.stop="openInquiry(item, 'general')">문의하기</button>
-          <button type="button" class="btn-urgent" @click.stop="openInquiry(item, 'urgent')">
-            긴급 납품 요청
-          </button>
+          <button type="button" class="btn-inquiry" @click.stop="openInquiry(item)">공급사 문의</button>
         </div>
       </article>
     </div>
@@ -413,7 +410,7 @@
           <div class="modal-actions">
             <button type="button" class="secondary-button" @click="closeDetail">닫기</button>
             <button type="button" class="primary-button" @click="openInquiry(selectedRecommendation)">
-              문의하기
+              공급사 문의
             </button>
           </div>
         </section>
@@ -435,8 +432,8 @@
         >
           <div class="modal-header">
             <div>
-              <p class="eyebrow">{{ inquiryMode === 'urgent' ? 'Urgent Delivery Request' : 'Supplier Inquiry' }}</p>
-              <h2 id="supplier-inquiry-title">{{ inquiryModalTitle }}</h2>
+              <p class="eyebrow">Supplier Inquiry</p>
+              <h2 id="supplier-inquiry-title">공급사 문의</h2>
               <span>
                 {{ selectedInquirySupplier.supplierName }} ·
                 {{ selectedInquirySupplier.materialName }}
@@ -449,13 +446,8 @@
           </div>
 
           <div class="inquiry-summary">
-            <strong>{{ inquirySummaryTitle }}</strong>
-            <p>{{ inquirySummaryMessage }}</p>
-            <ul v-if="inquiryMode === 'urgent'" class="urgent-request-list">
-              <li>요청 자재와 필요 수량을 공급사에 우선 확인 요청합니다.</li>
-              <li>납품 가능 여부, 최종 단가, 운송 조건은 공급사 답변 후 확정됩니다.</li>
-              <li>구매 확정이나 결제 처리는 포함하지 않습니다.</li>
-            </ul>
+            <strong>문의 전 확인</strong>
+            <p>PaceFlow는 문의 우선순위를 추천합니다. 실제 재고, 견적, 납품 가능 여부는 공급사 확인 후 확정됩니다.</p>
           </div>
 
           <form class="inquiry-form" @submit.prevent="submitInquiry">
@@ -480,7 +472,7 @@
               <textarea
                 v-model.trim="inquiryForm.message"
                 rows="4"
-                :placeholder="inquiryMode === 'urgent' ? '예: 오늘 중 납품 가능 여부, 하차 가능 시간, 대체 허용 범위를 확인해주세요.' : '현장 조건, 하차 가능 시간, 대체 가능 범위 등을 남겨주세요.'"
+                placeholder="희망 납기, 긴급 여부, 현장 조건 등을 남겨주세요."
               />
             </label>
 
@@ -491,7 +483,7 @@
               <button type="button" class="secondary-button" @click="closeInquiry">취소</button>
               <button
                 type="submit"
-                :class="inquiryMode === 'urgent' ? 'urgent-button' : 'primary-button'"
+                class="primary-button"
                 :disabled="isInquirySubmitting"
               >
                 {{ submitButtonLabel }}
@@ -506,7 +498,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   createSupplierInquiry,
   getDrivingRoute,
@@ -525,6 +517,7 @@ import {
 } from "../data/materialTaxonomyData";
 
 const route = useRoute();
+const router = useRouter();
 const request = ref(null);
 const recommendations = ref([]);
 const selectedRouteSupplier = ref(null);
@@ -532,7 +525,6 @@ const selectedRoute = ref(null);
 const routeResultCache = new Map();
 const selectedRecommendation = ref(null);
 const selectedInquirySupplier = ref(null);
-const inquiryMode = ref("general");
 const inquiryStatus = ref("");
 const inquiryErrorMessage = ref("");
 const isLoading = ref(false);
@@ -776,26 +768,8 @@ function syncRankingTabFromKeyword() {
   activeRankingTab.value = getMaterialTaxonomyByEvidenceId(keywordEvidence?.id)?.id || "all";
 }
 
-const inquiryModalTitle = computed(() =>
-  inquiryMode.value === "urgent" ? "긴급 납품 요청" : "공급사 문의하기",
-);
-
-const inquirySummaryTitle = computed(() =>
-  inquiryMode.value === "urgent" ? "긴급 요청 전 확인" : "문의 전 확인",
-);
-
-const inquirySummaryMessage = computed(() =>
-  inquiryMode.value === "urgent"
-    ? "긴급 납품 요청은 구매 확정이 아니라, 공급사에 재고와 납품 가능 여부를 우선 확인하는 빠른 요청입니다."
-    : "PaceFlow는 문의 우선순위를 추천합니다. 실제 재고, 견적, 납품 가능 여부는 공급사 확인 후 확정됩니다.",
-);
-
 const submitButtonLabel = computed(() => {
-  if (isInquirySubmitting.value) {
-    return inquiryMode.value === "urgent" ? "긴급 요청 저장 중" : "문의 저장 중";
-  }
-
-  return inquiryMode.value === "urgent" ? "긴급 요청 저장하기" : "문의 저장하기";
+  return isInquirySubmitting.value ? "문의 요청 보내는 중" : "문의 요청 보내기";
 });
 
 const requestEvidenceText = computed(() =>
@@ -1312,31 +1286,23 @@ function closeDetail() {
   selectedRecommendation.value = null;
 }
 
-function openInquiry(item, mode = "general") {
+function openInquiry(item) {
   selectedInquirySupplier.value = item;
-  inquiryMode.value = mode;
   inquiryStatus.value = "";
   inquiryErrorMessage.value = "";
   inquiryForm.quantity = request.value?.requiredQuantity || "";
   inquiryForm.desiredDate = request.value?.requiredDate || "";
-  inquiryForm.message = mode === "urgent" ? buildUrgentMessage(item) : "";
+  inquiryForm.message = "";
   selectedRecommendation.value = null;
 }
 
 function closeInquiry() {
   selectedInquirySupplier.value = null;
-  inquiryMode.value = "general";
   inquiryStatus.value = "";
 }
 
-function buildUrgentMessage(item) {
-  const material = request.value?.materialName || item.materialName || "요청 자재";
-  const quantity = request.value?.requiredQuantity || "필요 수량";
-  const siteAddress = request.value?.siteAddress || "현장 주소";
-  return `${material} ${quantity} 긴급 납품 가능 여부를 확인하고 싶습니다. 현장 주소는 ${siteAddress}입니다. 실제 재고, 최종 단가, 가능한 납품 시간을 회신 부탁드립니다.`;
-}
-
 async function submitInquiry() {
+  if (isInquirySubmitting.value) return;
   try {
     isInquirySubmitting.value = true;
     inquiryStatus.value = "";
@@ -1345,8 +1311,8 @@ async function submitInquiry() {
       requestId: route.query.requestId,
       requestMaterial: request.value,
       supplier: selectedInquirySupplier.value,
-      requestType: inquiryMode.value,
-      priority: inquiryMode.value === "urgent" ? "high" : "normal",
+      requestType: "general",
+      priority: "normal",
       requesterName: inquiryForm.requesterName,
       contact: inquiryForm.contact,
       quantity: inquiryForm.quantity,
@@ -1354,10 +1320,11 @@ async function submitInquiry() {
       message: inquiryForm.message,
     });
 
-    inquiryStatus.value = inquiryMode.value === "urgent"
-      ? `${inquiry.id} 긴급 납품 요청이 저장되었습니다. 공급사 확인 후 가능 여부가 업데이트됩니다.`
-      : `${inquiry.id} 문의가 저장되었습니다. 공급사 확인 후 문의 상태가 업데이트됩니다.`;
+    inquiryStatus.value = "공급사 문의 요청이 접수되었습니다. 마이페이지 > 문의 내역에서 상태를 확인할 수 있습니다.";
     inquiryForm.message = "";
+    await new Promise((resolve) => window.setTimeout(resolve, 650));
+    closeInquiry();
+    await router.push("/inquiries");
   } catch {
     inquiryErrorMessage.value = "공급사 문의를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
   } finally {

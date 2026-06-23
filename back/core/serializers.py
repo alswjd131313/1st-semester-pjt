@@ -178,6 +178,7 @@ def community_author_payload(user, anonymous=False, alias=""):
     role_labels = {"requester": "현장 자재 담당자", "supplier": "공급사 담당자"}
     name = user.first_name or user.username or "PaceFlow 사용자"
     return {
+        "profile_id": user.id,
         "display_name": name,
         "role": role_labels.get(getattr(profile, "role", ""), "PaceFlow 사용자"),
         "affiliation": getattr(profile, "company_name", ""),

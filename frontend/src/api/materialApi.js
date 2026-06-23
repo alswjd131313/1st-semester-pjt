@@ -263,11 +263,37 @@ export async function getSupplierInquiries() {
 }
 
 export async function getSupplierInquiry(inquiryId) {
-  if (!USE_MOCK_API) {
-    return getStoredSupplierInquiries().find((inquiry) => inquiry.id === inquiryId) || null;
-  }
+  const normalizedId = String(inquiryId ?? "");
+  return getStoredSupplierInquiries().find((inquiry) => String(inquiry.id) === normalizedId) || null;
+}
 
-  return getStoredSupplierInquiries().find((inquiry) => inquiry.id === inquiryId) || null;
+export async function updateSupplierInquiry(inquiryId, updates) {
+  const normalizedId = String(inquiryId ?? "");
+  const inquiries = getStoredSupplierInquiries();
+  const index = inquiries.findIndex((inquiry) => String(inquiry.id) === normalizedId);
+  if (index < 0) return null;
+
+  const current = inquiries[index];
+  const next = {
+    ...current,
+    ...updates,
+    id: current.id,
+    statusUpdatedAt: updates.status && updates.status !== current.status
+      ? new Date().toISOString()
+      : current.statusUpdatedAt,
+  };
+  inquiries.splice(index, 1, next);
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
+  return next;
+}
+
+export async function deleteSupplierInquiry(inquiryId) {
+  const normalizedId = String(inquiryId ?? "");
+  const inquiries = getStoredSupplierInquiries();
+  const remaining = inquiries.filter((inquiry) => String(inquiry.id) !== normalizedId);
+  if (remaining.length === inquiries.length) return false;
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(remaining));
+  return true;
 }
 
 export async function getNarajangteoContracts(keyword, options = {}) {
@@ -991,13 +1017,14 @@ function createMockSupplierInquiry(payload) {
 }
 
 function updateMockSupplierInquiryStatus(inquiryId, status) {
+  const normalizedId = String(inquiryId ?? "");
   const updatedAt = new Date().toISOString();
   const inquiries = getStoredSupplierInquiries().map((inquiry) =>
-    inquiry.id === inquiryId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
+    String(inquiry.id) === normalizedId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
   );
 
   localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
-  return inquiries.find((inquiry) => inquiry.id === inquiryId) || null;
+  return inquiries.find((inquiry) => String(inquiry.id) === normalizedId) || null;
 }
 
 function getStoredSupplierMaterials() {

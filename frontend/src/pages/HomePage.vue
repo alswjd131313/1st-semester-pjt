@@ -365,7 +365,7 @@ const dockLink = computed(() => {
 
   return isSupplier.value
     ? { label: "공급사 자재 등록", to: "/supplier-register" }
-    : { label: "내 문의 내역", to: "/dashboard" };
+    : { label: "내 문의 내역", to: "/inquiries" };
 });
 const searchButtonLabel = computed(() => (isSupplier.value ? "추천 후보 보기" : "대체 자재 찾기"));
 const showSuggestionDropdown = computed(

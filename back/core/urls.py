@@ -32,4 +32,5 @@ urlpatterns = [
     path("community/posts/<int:post_id>/comments/", views.CommunityCommentListCreateView.as_view(), name="community-comment-list-create"),
     path("community/contact-requests/", views.CommunityContactRequestListCreateView.as_view(), name="community-contact-list-create"),
     path("community/contact-requests/<int:pk>/", views.CommunityContactRequestDetailView.as_view(), name="community-contact-detail"),
+    path("community/profiles/<int:user_id>/", views.community_public_profile, name="community-public-profile"),
 ]

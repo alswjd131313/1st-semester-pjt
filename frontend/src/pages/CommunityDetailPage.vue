@@ -71,7 +71,7 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { authState, isLoggedIn } from "../api/authApi";
+import { isLoggedIn } from "../api/authApi";
 import { createCommunityComment, deleteCommunityPost, getCommunityPost } from "../api/communityApi";
 import CommunityAuthorHeader from "../components/CommunityAuthorHeader.vue";
 import CommunityQuestionModal from "../components/CommunityQuestionModal.vue";
@@ -128,11 +128,11 @@ function askQuestion() {
 }
 
 function viewProfile() {
-  if (post.value?.is_owner) {
-    router.push(authState.user?.role === "supplier" ? "/supplier/mypage" : "/mypage");
+  if (post.value?.author?.profile_id && !post.value?.author?.is_anonymous) {
+    router.push(`/profile/${post.value.author.profile_id}`);
     return;
   }
-  showNotice(`${post.value?.author?.display_name || "작성자"}님의 공개 프로필 페이지는 아직 준비 중입니다.`);
+  showNotice("공개 프로필 정보를 확인할 수 없습니다.");
 }
 
 function editPost() {

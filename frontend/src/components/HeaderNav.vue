@@ -39,6 +39,13 @@
               >
                 <span>👤</span> 마이페이지
               </RouterLink>
+              <RouterLink
+                class="dropdown-item"
+                :to="{ name: 'inquiries' }"
+                @click="showDropdown = false"
+              >
+                <span>📋</span> 문의 내역
+              </RouterLink>
               <button type="button" class="dropdown-item dropdown-logout" @click="handleLogout">
                 <span>🚪</span> 로그아웃
               </button>
@@ -61,7 +68,7 @@ import { authState, logoutUser } from "../api/authApi";
 const router = useRouter();
 const route = useRoute();
 const isSupplier = computed(() => authState.user?.role === "supplier");
-const myPageRouteNames = ["mypage", "supplier-mypage", "supplier-profile"];
+const myPageRouteNames = ["mypage", "supplier-mypage", "supplier-profile", "inquiries", "inquiry-detail", "inquiry-edit"];
 const navItems = computed(() => [
   ...(isSupplier.value
     ? [{
@@ -83,11 +90,6 @@ const navItems = computed(() => [
     name: "community",
     label: "커뮤니티",
     activeRoutes: ["community", "community-write", "community-edit", "community-detail"],
-  },
-  {
-    name: "inquiries",
-    label: "문의 내역",
-    activeRoutes: ["inquiries", "inquiry-detail"],
   },
 ]);
 const dropdownWrapRef = ref(null);

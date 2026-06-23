@@ -4,12 +4,8 @@
       <div>
         <p class="eyebrow">Dashboard</p>
         <h1>{{ dashboardTitle }}</h1>
-        <p>
-          추천 결과에서 저장한 공급사 문의를 확인하고, 견적 가능 여부와 후속 상태를
-          역할별로 관리합니다.
-        </p>
+        <p>공급사 문의와 커뮤니티 대화 요청을 한 곳에서 확인하고, 후속 상태를 관리합니다.</p>
       </div>
-      <RouterLink class="primary-button" to="/recommendations">추천 결과로 이동</RouterLink>
     </div>
 
     <div class="inquiry-type-tabs" role="tablist" aria-label="문의 유형">
@@ -40,7 +36,15 @@
     <p v-if="activeTab === 'supplier' && errorMessage" class="error-message">{{ errorMessage }}</p>
 
     <div v-if="activeTab === 'supplier' && !isLoading && inquiries.length" class="inquiry-list">
-      <article v-for="inquiry in inquiries" :key="inquiry.id" class="inquiry-card">
+      <article
+        v-for="inquiry in inquiries"
+        :key="inquiry.id"
+        class="inquiry-card"
+        role="link"
+        tabindex="0"
+        @click="openInquiry(inquiry.id)"
+        @keydown.enter="openInquiry(inquiry.id)"
+      >
         <div class="card-topline">
           <span class="rank-badge">{{ inquiry.id }}</span>
           <span :class="['status-badge', inquiry.status]">
@@ -98,12 +102,12 @@
               type="button"
               :class="['status-action', { active: inquiry.status === status.value }]"
               :disabled="updatingInquiryId === inquiry.id"
-              @click="changeInquiryStatus(inquiry.id, status.value)"
+              @click.stop="changeInquiryStatus(inquiry.id, status.value)"
             >
               {{ status.label }}
             </button>
           </div>
-          <RouterLink class="secondary-button" :to="`/dashboard/${inquiry.id}`">
+          <RouterLink class="secondary-button" :to="`/inquiries/${inquiry.id}`" @click.stop>
             상세 보기
           </RouterLink>
         </div>
@@ -152,11 +156,13 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
 import { getSupplierInquiries, updateSupplierInquiryStatus } from "../api/materialApi";
 import { getCommunityContactRequests, updateCommunityContactRequest } from "../api/communityApi";
 
 const inquiries = ref([]);
+const router = useRouter();
 const activeTab = ref("supplier");
 const communityRequests = ref([]);
 const communityLoading = ref(false);
@@ -176,6 +182,10 @@ const dashboardTitle = computed(() =>
 );
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
+
+function openInquiry(inquiryId) {
+  router.push(`/inquiries/${inquiryId}`);
+}
 
 const approvalCount = computed(
   () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
