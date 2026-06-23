@@ -205,7 +205,7 @@ async function handleLogout() {
 .profile-name {
   font-size: 14px;
   font-weight: 700;
-  color: #334155;
+  color: #fff;
   white-space: nowrap;
   max-width: 120px;
   overflow: hidden;
@@ -275,7 +275,7 @@ async function handleLogout() {
 }
 
 :global(.app-shell:has(.home-page)) .profile-name {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 :global(.app-shell:has(.home-page)) .profile-chevron {

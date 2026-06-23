@@ -130,8 +130,8 @@ function next() { activeIdx.value = (activeIdx.value + 1) % CARDS.length }
 .sep-aside h2 {
   margin: 0;
   color: #102a56;
-  font-size: clamp(24px, 2.8vw, 36px);
-  font-weight: 700;
+  font-size: clamp(28px, 3.2vw, 42px);
+  font-weight: 800;
   line-height: 1.25;
 }
 
