@@ -19,7 +19,7 @@
         </div>
       </div>
 
-      <form class="hero-search-dock" @submit.prevent="submitSearch">
+      <form v-if="!isSupplier" class="hero-search-dock" @submit.prevent="submitSearch">
         <div class="search-field">
           <label for="hero-material-search">자재 검색</label>
           <div class="search-control-row">
@@ -92,6 +92,31 @@
           </div>
         </div>
       </form>
+
+      <section v-else class="hero-search-dock supplier-work-dock" aria-labelledby="supplier-work-title">
+        <div class="supplier-work-copy">
+          <div>
+            <p class="supplier-work-eyebrow">Supplier Workspace</p>
+            <h2 id="supplier-work-title">공급사 업무 바로가기</h2>
+            <p>등록한 취급 자재를 관리하고, 요청자가 보낸 자재 문의에 응답하세요.</p>
+          </div>
+          <div class="supplier-work-actions">
+            <RouterLink class="supplier-action supplier-action-primary" :to="{ name: 'inquiries' }">
+              받은 요청 확인
+            </RouterLink>
+            <RouterLink class="supplier-action supplier-action-secondary" :to="{ name: 'supplier-profile' }">
+              자재 관리하기
+            </RouterLink>
+          </div>
+        </div>
+
+        <div class="supplier-work-stats" aria-label="공급사 업무 현황">
+          <article v-for="stat in supplierStats" :key="stat.label">
+            <span>{{ stat.label }}</span>
+            <strong>{{ stat.value }}{{ stat.unit }}</strong>
+          </article>
+        </div>
+      </section>
     </section>
 
     <section class="value-strip" ref="valueStripRef">
@@ -315,7 +340,11 @@ import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
-import { getMaterialSuggestions } from "../api/materialApi";
+import {
+  getMaterialSuggestions,
+  getSupplierInquiries,
+  getSupplierMaterials,
+} from "../api/materialApi";
 
 const router = useRouter();
 const keyword = ref("");
@@ -431,6 +460,55 @@ const reasonCards = [
 
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
+const supplierStats = ref([
+  { label: "확인 대기 요청", value: 0, unit: "건" },
+  { label: "등록 자재", value: 0, unit: "개" },
+  { label: "응답 완료", value: 0, unit: "건" },
+]);
+const pendingInquiryStatuses = new Set(["pending", "received", "reviewing"]);
+const completedInquiryStatuses = new Set(["accepted", "rejected", "quoted", "unavailable"]);
+
+async function loadSupplierStats() {
+  try {
+    const [inquiryResult, materialResult] = await Promise.all([
+      getSupplierInquiries(),
+      getSupplierMaterials(),
+    ]);
+    const inquiries = Array.isArray(inquiryResult) ? inquiryResult : [];
+    const materials = Array.isArray(materialResult) ? materialResult : [];
+
+    supplierStats.value = [
+      {
+        label: "확인 대기 요청",
+        value: inquiries.filter((item) => pendingInquiryStatuses.has(item?.status)).length,
+        unit: "건",
+      },
+      { label: "등록 자재", value: materials.length, unit: "개" },
+      {
+        label: "응답 완료",
+        value: inquiries.filter((item) => completedInquiryStatuses.has(item?.status)).length,
+        unit: "건",
+      },
+    ];
+  } catch {
+    supplierStats.value = [
+      { label: "확인 대기 요청", value: 0, unit: "건" },
+      { label: "등록 자재", value: 0, unit: "개" },
+      { label: "응답 완료", value: 0, unit: "건" },
+    ];
+  }
+}
+
+watch(
+  isSupplier,
+  (supplierMode) => {
+    if (supplierMode) {
+      loadSupplierStats();
+    }
+  },
+  { immediate: true },
+);
+
 const dockLink = computed(() => {
   if (!authState.user) {
     return { label: "공급사 등록 안내", to: "/login?role=supplier" };
@@ -619,6 +697,137 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.supplier-work-dock {
+  display: grid !important;
+  gap: 22px;
+  padding: 26px 28px 24px !important;
+}
+
+.supplier-work-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+}
+
+.supplier-work-eyebrow {
+  margin: 0 0 7px;
+  color: #1559e8;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.supplier-work-copy h2 {
+  margin: 0;
+  color: #102a56;
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+.supplier-work-copy p:last-child {
+  margin: 9px 0 0;
+  color: #63748d;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.supplier-work-actions {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 10px;
+}
+
+.supplier-action {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 0 22px;
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.supplier-action:hover {
+  transform: translateY(-2px);
+}
+
+.supplier-action-primary {
+  color: #fff;
+  background: linear-gradient(135deg, #1559e8, #1f8df2);
+  box-shadow: 0 10px 24px rgba(21, 89, 232, 0.2);
+}
+
+.supplier-action-secondary {
+  border: 1px solid #c8d8f2;
+  color: #1559e8;
+  background: #fff;
+}
+
+.supplier-action-secondary:hover {
+  border-color: #7ca7e8;
+  box-shadow: 0 8px 20px rgba(36, 81, 142, 0.1);
+}
+
+.supplier-work-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.supplier-work-stats article {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #dce7f7;
+  border-radius: 14px;
+  padding: 15px 18px;
+  background: linear-gradient(145deg, #f8fbff, #f2f7ff);
+}
+
+.supplier-work-stats span {
+  color: #60738e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.supplier-work-stats strong {
+  color: #1559e8;
+  font-size: 21px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+@media (max-width: 820px) {
+  .supplier-work-copy {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .supplier-work-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .supplier-work-dock {
+    padding: 22px 18px !important;
+  }
+
+  .supplier-work-actions,
+  .supplier-work-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── 스크롤 스티키 카드 섹션 ── */
 .value-strip {
   height: 280vh;

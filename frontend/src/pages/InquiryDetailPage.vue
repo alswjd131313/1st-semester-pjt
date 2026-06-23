@@ -9,7 +9,6 @@
         </p>
       </div>
       <div class="detail-heading-actions">
-        <RouterLink class="secondary-button" to="/inquiries">문의 내역으로</RouterLink>
         <RouterLink v-if="inquiry" class="primary-button" :to="`/inquiries/${inquiry.id}/edit`">수정하기</RouterLink>
         <button v-if="inquiry" type="button" class="delete-button" @click="removeInquiry">삭제하기</button>
       </div>
@@ -28,7 +27,7 @@
           <span :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
             {{ inquiry.supplier?.approvalRequired ? "승인 확인 필요" : "일반 문의" }}
           </span>
-          <span v-if="isUrgentInquiry(inquiry)" class="urgent-badge">긴급 납품 요청</span>
+          <span v-if="!isSupplier && isUrgentInquiry(inquiry)" class="urgent-badge">긴급 납품 요청</span>
         </div>
 
         <h2>{{ inquiry.supplier?.supplierName || "공급사 미지정" }}</h2>
@@ -42,7 +41,7 @@
           <p>{{ inquiry.message || "별도 문의 메모가 없습니다." }}</p>
         </div>
 
-        <div v-if="isUrgentInquiry(inquiry)" class="urgent-request-note detail-urgent-note">
+        <div v-if="!isSupplier && isUrgentInquiry(inquiry)" class="urgent-request-note detail-urgent-note">
           <strong>긴급 확인 항목</strong>
           <span>재고 보유 여부, 오늘/내일 납품 가능 시간, 운송 조건, 최종 단가를 우선 확인해야 합니다.</span>
         </div>
@@ -64,7 +63,7 @@
       <section class="detail-page-card">
         <h2>문의 정보</h2>
         <dl class="detail-list">
-          <div>
+          <div v-if="!isSupplier">
             <dt>요청 유형</dt>
             <dd>{{ isUrgentInquiry(inquiry) ? "긴급 납품 요청" : "일반 문의" }}</dd>
           </div>
@@ -164,11 +163,28 @@ const inquiry = ref(null);
 const isLoading = ref(false);
 const isUpdating = ref(false);
 const errorMessage = ref("");
+const statusLabels = {
+  received: "접수됨",
+  pending: "확인 대기",
+  reviewing: "확인 중",
+  quoted: "납품 가능",
+  accepted: "납품 가능",
+  need_more_info: "추가 확인 필요",
+  rejected: "거절",
+  unavailable: "납품 불가",
+};
+const requesterStatusLabels = {
+  received: "문의 접수",
+  reviewing: "확인 중",
+  quoted: "견적 가능",
+  unavailable: "불가",
+};
 const inquiryStatuses = [
-  { value: "received", label: "문의 접수" },
+  { value: "pending", label: "확인 대기" },
   { value: "reviewing", label: "확인 중" },
-  { value: "quoted", label: "견적 가능" },
-  { value: "unavailable", label: "불가" },
+  { value: "accepted", label: "납품 가능" },
+  { value: "need_more_info", label: "추가 확인 필요" },
+  { value: "rejected", label: "거절" },
 ];
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
@@ -213,7 +229,10 @@ async function removeInquiry() {
 }
 
 function getStatusLabel(status) {
-  return inquiryStatuses.find((item) => item.value === status)?.label || "문의 접수";
+  if (!isSupplier.value) {
+    return requesterStatusLabels[status] || "문의 접수";
+  }
+  return statusLabels[status] || "접수됨";
 }
 
 function isUrgentInquiry(inquiry) {

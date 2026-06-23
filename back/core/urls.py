@@ -24,6 +24,7 @@ urlpatterns = [
 
     # 공급사 직접 등록 자재
     path("supplier-materials/", views.SupplierMaterialRegistrationListCreateView.as_view(), name="supplier-material-list-create"),
+    path("supplier-materials/<int:pk>/", views.SupplierMaterialRegistrationDetailView.as_view(), name="supplier-material-detail"),
     path("supplier-materials/public/", views.PublicSupplierMaterialRegistrationListView.as_view(), name="supplier-material-public-list"),
 
     # 커뮤니티 MVP

@@ -71,24 +71,37 @@ import { authState, logoutUser } from "../api/authApi";
 const router = useRouter();
 const route = useRoute();
 const isSupplier = computed(() => authState.user?.role === "supplier");
-const myPageRouteNames = ["mypage", "supplier-mypage", "supplier-profile", "inquiries", "inquiry-detail", "inquiry-edit"];
+const inquiryRouteNames = ["inquiries", "inquiry-detail", "inquiry-edit"];
+const myPageRouteNames = computed(() => [
+  "mypage",
+  "supplier-mypage",
+  "supplier-profile",
+  ...(!isSupplier.value ? inquiryRouteNames : []),
+]);
 const navItems = computed(() => [
   ...(isSupplier.value
-    ? [{
-        name: "supplier-dashboard",
-        label: "공급사 대시보드",
-        activeRoutes: ["supplier-dashboard", "supplier-profile"],
-      }]
+    ? [
+        {
+          name: "supplier-profile",
+          label: "자재 관리",
+          activeRoutes: ["supplier-profile"],
+        },
+        {
+          name: "inquiries",
+          label: "받은 요청",
+          activeRoutes: inquiryRouteNames,
+        },
+      ]
     : [{
         name: "material-request",
         label: "자재 요청",
         activeRoutes: ["material-request"],
       }]),
-  {
-    name: "recommendation",
-    label: "추천 결과",
-    activeRoutes: ["recommendation", "recommendation-detail", "price-trend"],
-  },
+  ...(!isSupplier.value ? [{
+      name: "recommendation",
+      label: "추천 결과",
+      activeRoutes: ["recommendation", "recommendation-detail", "price-trend"],
+    }] : []),
   {
     name: "community",
     label: "커뮤니티",

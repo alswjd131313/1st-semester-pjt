@@ -246,6 +246,19 @@ export async function getSupplierMaterials() {
   return getStoredSupplierMaterials();
 }
 
+export async function deleteSupplierMaterial(materialId) {
+  if (!USE_MOCK_API) {
+    await apiClient.delete(buildApiUrl(`/api/v1/supplier-materials/${materialId}/`));
+    return true;
+  }
+
+  const normalizedId = String(materialId ?? "");
+  const materials = getStoredSupplierMaterials();
+  const remaining = materials.filter((material) => String(material.id) !== normalizedId);
+  localStorage.setItem(SUPPLIER_STORAGE_KEY, JSON.stringify(remaining));
+  return remaining.length !== materials.length;
+}
+
 export async function createSupplierInquiry(payload) {
   if (!USE_MOCK_API) {
     return createMockSupplierInquiry(payload);
@@ -964,11 +977,17 @@ function toBackendSupplierMaterial(payload) {
     zip_no: payload.zipNo,
     latitude: payload.latitude,
     longitude: payload.longitude,
-    main_materials: payload.mainMaterials,
+    main_materials: payload.mainMaterials || payload.materialGroup,
     material_name: payload.materialName,
-    standard: payload.standard,
-    strength_grade: payload.strengthGrade,
+    standard: payload.standard || payload.specification,
+    strength_grade: payload.strengthGrade || payload.ksStandard,
+    material_group: payload.materialGroup,
+    specification: payload.specification,
+    ks_standard: payload.ksStandard,
     recent_price: payload.recentPrice || null,
+    unit: payload.unit,
+    manufacturer: payload.manufacturer,
+    stock_available: payload.stockAvailable !== false,
     service_area: payload.serviceArea,
     distance_km: payload.distanceKm || null,
     delivery_count: payload.deliveryCount || 0,
@@ -990,7 +1009,13 @@ function toFrontendSupplierMaterial(item) {
     materialName: item.material_name,
     standard: item.standard,
     strengthGrade: item.strength_grade,
+    materialGroup: item.material_group || item.main_materials || "",
+    specification: item.specification || item.standard || "",
+    ksStandard: item.ks_standard || item.strength_grade || "",
     recentPrice: item.recent_price === null || item.recent_price === undefined ? "" : Number(item.recent_price),
+    unit: item.unit || "",
+    manufacturer: item.manufacturer || "",
+    stockAvailable: item.stock_available !== false,
     serviceArea: item.service_area,
     distanceKm: item.distance_km === null || item.distance_km === undefined ? "" : Number(item.distance_km),
     deliveryCount: item.delivery_count || 0,

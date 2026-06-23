@@ -10,7 +10,6 @@ import RecommendationDetailPage from "./pages/RecommendationDetailPage.vue";
 import DashboardPage from "./pages/DashboardPage.vue";
 import InquiryDetailPage from "./pages/InquiryDetailPage.vue";
 import InquiryEditPage from "./pages/InquiryEditPage.vue";
-import SupplierDashboardPage from "./pages/SupplierDashboardPage.vue";
 import SupplierProfilePage from "./pages/SupplierProfilePage.vue";
 import MyPage from "./pages/MyPage.vue";
 import SupplierMyPage from "./pages/SupplierMyPage.vue";
@@ -93,7 +92,7 @@ const routes = [
   {
     path: "/supplier/dashboard",
     name: "supplier-dashboard",
-    component: SupplierDashboardPage,
+    redirect: { name: "inquiries" },
     meta: { requiresAuth: true, role: "supplier" },
   },
   {
@@ -152,7 +151,7 @@ router.beforeEach((to) => {
 });
 
 function authRedirectPath() {
-  return hasRole("supplier") ? "/supplier/dashboard" : "/materials/request";
+  return hasRole("supplier") ? "/inquiries" : "/materials/request";
 }
 
 export default router;

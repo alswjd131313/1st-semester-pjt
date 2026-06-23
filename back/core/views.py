@@ -985,6 +985,15 @@ class SupplierMaterialRegistrationListCreateView(generics.ListCreateAPIView):
         serializer.save(owner=self.request.user)
 
 
+class SupplierMaterialRegistrationDetailView(generics.RetrieveDestroyAPIView):
+    """로그인한 공급사가 직접 등록한 자재 한 건을 조회하거나 삭제한다."""
+    serializer_class = SupplierMaterialRegistrationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return self.request.user.supplier_material_registrations.all()
+
+
 class PublicSupplierMaterialRegistrationListView(generics.ListAPIView):
     """
     GET /api/v1/supplier-materials/public/
