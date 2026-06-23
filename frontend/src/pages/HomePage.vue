@@ -56,7 +56,6 @@
         </div>
       </form>
     </section>
-      <StandardEvidencePanel />
 
     <section class="value-strip section-observe">
       <div class="section-heading center-heading">
@@ -159,6 +158,10 @@
       </div>
     </section>
 
+    <div class="sep-home-wrap home-section section-observe">
+      <StandardEvidencePanel />
+    </div>
+
     <section class="recommend-reason-section section-observe">
       <div class="section-heading center-heading">
         <h2>왜 이 공급사를 추천할까요?</h2>
@@ -192,7 +195,7 @@
       </div>
     </section>
 
-    <section class="bottom-cta-section section-observe">
+    <!-- <section class="bottom-cta-section section-observe">
       <div>
         <h2>지금 바로 대체 자재를 검색하고, 최적의 공급사 후보를 확인해보세요.</h2>
       </div>
@@ -200,13 +203,19 @@
         <RouterLink class="primary-button" to="/recommendations">대체 자재 찾기</RouterLink>
         <RouterLink class="secondary-button" to="/supplier-register">공급사 등록하기</RouterLink>
       </div>
-    </section>
+    </section> -->
+
+    <Transition name="top-btn">
+      <button v-if="showTop" class="scroll-top-btn" @click="scrollToTop" aria-label="맨 위로">
+        ↑
+      </button>
+    </Transition>
   </div>
 </template>
 
 <script setup>
 import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
 import { getSupplierInquiries, getSupplierMaterials } from "../api/materialApi";
@@ -406,11 +415,6 @@ const dockLink = computed(() => {
 });
 const searchButtonLabel = computed(() => (isSupplier.value ? "추천 후보 보기" : "대체 자재 찾기"));
 
-onMounted(() => {
-  loadRoleSummary();
-  revealObservedSections();
-});
-
 function revealObservedSections() {
   const sections = document.querySelectorAll(".section-observe");
 
@@ -461,4 +465,61 @@ function submitSearch() {
 function fillTag(text) {
   keyword.value = text;
 }
+
+// 스크롤 상단 버튼
+const showTop = ref(false);
+
+function onScroll() {
+  showTop.value = window.scrollY > 400;
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+onMounted(() => {
+  loadRoleSummary();
+  revealObservedSections();
+  window.addEventListener("scroll", onScroll, { passive: true });
+});
+
+onUnmounted(() => {
+  window.removeEventListener("scroll", onScroll);
+});
 </script>
+
+<style scoped>
+.scroll-top-btn {
+  position: fixed;
+  right: 32px;
+  bottom: 36px;
+  z-index: 90;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1559e8, #1f8df2);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(21, 89, 232, 0.36);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.scroll-top-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(21, 89, 232, 0.44);
+}
+
+.top-btn-enter-active,
+.top-btn-leave-active {
+  transition: opacity 0.22s, transform 0.22s;
+}
+
+.top-btn-enter-from,
+.top-btn-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
+}
+</style>
