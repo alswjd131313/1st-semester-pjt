@@ -38,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { geocodeAddress, searchAddresses } from "../api/addressApi";
 
 const props = defineProps({
@@ -54,6 +54,10 @@ const results = ref([]);
 const isSearching = ref(false);
 const errorMessage = ref("");
 
+watch(() => props.modelValue, (value) => {
+  if (value && value !== keyword.value) keyword.value = value;
+});
+
 async function runSearch() {
   if (keyword.value.length < 2) {
     errorMessage.value = "주소 검색어를 두 글자 이상 입력해 주세요.";
@@ -68,7 +72,7 @@ async function runSearch() {
       errorMessage.value = "검색 결과가 없습니다. 도로명과 건물번호를 함께 입력해 보세요.";
     }
   } catch (error) {
-    errorMessage.value = error.response?.data?.error || "주소 검색에 실패했습니다.";
+    errorMessage.value = error.response?.data?.error || "주소 검색에 실패했습니다. API 키 또는 네트워크 설정을 확인해주세요.";
   } finally {
     isSearching.value = false;
   }
@@ -84,7 +88,7 @@ async function selectAddress(item) {
     emit("update:modelValue", item.roadAddress);
     emit("selected", { ...item, ...coordinates });
   } catch (error) {
-    errorMessage.value = error.response?.data?.error || "선택한 주소의 좌표를 찾지 못했습니다.";
+    errorMessage.value = error.response?.data?.error || "선택한 주소의 좌표를 찾지 못했습니다. API 키 또는 네트워크 설정을 확인해주세요.";
   } finally {
     isSearching.value = false;
   }

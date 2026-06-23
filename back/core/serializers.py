@@ -158,7 +158,8 @@ class SupplierMaterialRegistrationSerializer(serializers.ModelSerializer):
         fields = [
             "id", "owner_email", "supplier_name", "contact", "address", "zip_no",
             "latitude", "longitude", "main_materials", "material_name", "standard",
-            "strength_grade", "recent_price", "service_area", "distance_km",
+            "strength_grade", "material_group", "specification", "ks_standard",
+            "recent_price", "unit", "manufacturer", "stock_available", "service_area", "distance_km",
             "delivery_count", "note", "created_at",
         ]
         read_only_fields = ["id", "owner_email", "created_at"]
