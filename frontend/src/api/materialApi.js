@@ -5,6 +5,19 @@ const REQUEST_STORAGE_KEY = "paceflow_v2_latest_request";
 const SUPPLIER_STORAGE_KEY = "paceflow_v2_supplier_materials";
 const INQUIRY_STORAGE_KEY = "paceflow_v2_supplier_inquiries";
 const DEFAULT_INQUIRY_STATUS = "received";
+const DEFAULT_MATERIAL_SUGGESTIONS = [
+  { id: "fallback-rebar", name: "철근", spec: "SD400 D10", material_group: "철근", material_subtype: "이형철근" },
+  { id: "fallback-h-beam", name: "H형강", spec: "300x300", material_group: "형강·강재", material_subtype: "H형강" },
+  { id: "fallback-angle", name: "ㄱ형강", spec: "", material_group: "형강·강재", material_subtype: "ㄱ형강" },
+  { id: "fallback-channel", name: "ㄷ형강", spec: "", material_group: "형강·강재", material_subtype: "ㄷ형강" },
+  { id: "fallback-square-pipe", name: "각형강관", spec: "", material_group: "형강·강재", material_subtype: "각형강관" },
+  { id: "fallback-steel-plate", name: "강판", spec: "", material_group: "형강·강재", material_subtype: "강판" },
+  { id: "fallback-cement", name: "고로슬래그 시멘트", spec: "1종", material_group: "시멘트", material_subtype: "고로슬래그 시멘트" },
+  { id: "fallback-glass-wool", name: "글라스울", spec: "", material_group: "단열재", material_subtype: "글라스울" },
+  { id: "fallback-conduit", name: "전선관", spec: "", material_group: "전기 배관재", material_subtype: "전선관" },
+  { id: "fallback-cd-conduit", name: "CD관", spec: "", material_group: "전기 배관재", material_subtype: "CD관" },
+  { id: "fallback-pf-conduit", name: "PF관", spec: "", material_group: "전기 배관재", material_subtype: "PF관" },
+];
 
 export async function createMaterialRequest(payload) {
   if (!USE_MOCK_API) {
@@ -14,8 +27,12 @@ export async function createMaterialRequest(payload) {
       createdAt: new Date().toISOString(),
       backendMaterialId: material.id,
       ...payload,
-      siteLat: payload.siteLat || DEFAULT_SITE_LAT,
-      siteLng: payload.siteLng || DEFAULT_SITE_LNG,
+      siteLat: payload.siteLat !== null && payload.siteLat !== "" && Number.isFinite(Number(payload.siteLat))
+        ? Number(payload.siteLat)
+        : null,
+      siteLng: payload.siteLng !== null && payload.siteLng !== "" && Number.isFinite(Number(payload.siteLng))
+        ? Number(payload.siteLng)
+        : null,
     };
     const { data } = await apiClient.post(buildApiUrl("/api/v1/demands/"), toBackendDemand(request));
     const savedRequest = { ...request, backendDemandId: data.id };
@@ -42,11 +59,53 @@ export async function getLatestMaterialRequest() {
   }
 }
 
+export async function getMaterialSuggestions(query) {
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  const loweredQuery = normalizedQuery.toLocaleLowerCase("ko-KR");
+  const fallbackSuggestions = DEFAULT_MATERIAL_SUGGESTIONS.filter((item) =>
+    [item.name, item.spec, item.material_group, item.material_subtype]
+      .join(" ")
+      .toLocaleLowerCase("ko-KR")
+      .includes(loweredQuery),
+  );
+  let backendSuggestions = [];
+
+  if (!USE_MOCK_API) {
+    const { data } = await apiClient.get(buildApiUrl("/api/v1/materials/suggest/"), {
+      params: { q: normalizedQuery },
+    });
+    backendSuggestions = Array.isArray(data) ? data : [];
+  }
+
+  const seen = new Set();
+  return [...backendSuggestions, ...fallbackSuggestions]
+    .filter((item) => {
+      const key = `${item.name || ""}|${item.spec || ""}`.toLocaleLowerCase("ko-KR");
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+}
+
 export async function getRecommendations(requestId, options = {}) {
   if (!USE_MOCK_API) {
+    const latestRequest = options.request || await getLatestMaterialRequest();
+    const backendRecommendations = await getBackendAlternativeRecommendations(
+      latestRequest,
+      requestId,
+      options,
+    );
     const registeredRecommendations = await getPublicSupplierMaterialRecommendations(requestId, 0);
     const narajangteoRecommendations = await getNarajangteoRecommendationCandidates(options.keyword || "", requestId);
     return normalizeRecommendationRanking([
+      ...backendRecommendations,
       ...registeredRecommendations,
       ...narajangteoRecommendations,
       ...recommendationResults,
@@ -65,6 +124,36 @@ export async function getRecommendations(requestId, options = {}) {
   ], requestId);
 }
 
+export async function getDrivingRoute({ originLat, originLng, destinationLat, destinationLng }) {
+  if (USE_MOCK_API) {
+    return {
+      routeDistanceM: null,
+      routeDurationSec: null,
+      routeStatus: "unavailable",
+      routeNote: "거리 정보 확인 필요",
+      routePath: [],
+    };
+  }
+
+  const { data } = await apiClient.post(buildApiUrl("/api/v1/routes/driving/"), {
+    origin_lat: Number(originLat),
+    origin_lng: Number(originLng),
+    destination_lat: Number(destinationLat),
+    destination_lng: Number(destinationLng),
+  });
+  return {
+    routeDistanceM: data.route_distance_m,
+    routeDurationSec: data.route_duration_sec,
+    routeStatus: data.route_status || "failed",
+    routeNote: data.route_note || "거리 정보 확인 필요",
+    routePath: Array.isArray(data.route_path)
+      ? data.route_path
+          .map((point) => ({ lat: Number(point.lat), lng: Number(point.lng) }))
+          .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+      : [],
+  };
+}
+
 function normalizeRecommendationRanking(items, requestId) {
   return dedupeRecommendations(items).map((item, index) => ({
       ...item,
@@ -73,7 +162,57 @@ function normalizeRecommendationRanking(items, requestId) {
       dataSource: item.dataSource || "demo_seed",
       dataSourceLabel: item.dataSourceLabel || getDemoDataSourceLabel(index),
       specSourceLabel: item.specSourceLabel || "KS 수동 DB",
+      routeStatus: item.routeStatus || "not_requested",
+      routeNote: item.routeNote || "거리 정보 확인 필요",
+      locationBasis: normalizeRecommendationLocationBasis(item),
     }));
+}
+
+function normalizeRecommendationLocationBasis(item) {
+  if (item.locationBasis && item.locationBasis !== "unknown") {
+    return item.locationBasis;
+  }
+
+  const latitude = Number(item.latitude);
+  const longitude = Number(item.longitude);
+  const hasCoordinates = Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= 32
+    && latitude <= 39
+    && longitude >= 124
+    && longitude <= 132;
+  if (!hasCoordinates) {
+    return "unknown";
+  }
+
+  return item.isRegisteredSupplier || item.dataSource === "supplier_registered"
+    ? "supplier_address"
+    : "reference_estimated";
+}
+
+async function getBackendAlternativeRecommendations(request, requestId, options) {
+  if (
+    !request?.backendMaterialId
+    || !Number.isFinite(Number(request.siteLat))
+    || !Number.isFinite(Number(request.siteLng))
+  ) {
+    return [];
+  }
+
+  try {
+    const { data } = await apiClient.post(
+      buildApiUrl(`/api/v1/materials/${request.backendMaterialId}/alternatives/`),
+      {
+        site_lat: Number(request.siteLat),
+        site_lng: Number(request.siteLng),
+        include_international: options.includeInternational !== false,
+        radius_km: Number(options.radiusKm || 50),
+      },
+    );
+    return toFrontendRecommendations(data, requestId);
+  } catch {
+    return [];
+  }
 }
 
 async function getPublicSupplierMaterialRecommendations(requestId, startIndex = 0) {
@@ -124,11 +263,37 @@ export async function getSupplierInquiries() {
 }
 
 export async function getSupplierInquiry(inquiryId) {
-  if (!USE_MOCK_API) {
-    return getStoredSupplierInquiries().find((inquiry) => inquiry.id === inquiryId) || null;
-  }
+  const normalizedId = String(inquiryId ?? "");
+  return getStoredSupplierInquiries().find((inquiry) => String(inquiry.id) === normalizedId) || null;
+}
 
-  return getStoredSupplierInquiries().find((inquiry) => inquiry.id === inquiryId) || null;
+export async function updateSupplierInquiry(inquiryId, updates) {
+  const normalizedId = String(inquiryId ?? "");
+  const inquiries = getStoredSupplierInquiries();
+  const index = inquiries.findIndex((inquiry) => String(inquiry.id) === normalizedId);
+  if (index < 0) return null;
+
+  const current = inquiries[index];
+  const next = {
+    ...current,
+    ...updates,
+    id: current.id,
+    statusUpdatedAt: updates.status && updates.status !== current.status
+      ? new Date().toISOString()
+      : current.statusUpdatedAt,
+  };
+  inquiries.splice(index, 1, next);
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
+  return next;
+}
+
+export async function deleteSupplierInquiry(inquiryId) {
+  const normalizedId = String(inquiryId ?? "");
+  const inquiries = getStoredSupplierInquiries();
+  const remaining = inquiries.filter((inquiry) => String(inquiry.id) !== normalizedId);
+  if (remaining.length === inquiries.length) return false;
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(remaining));
+  return true;
 }
 
 export async function getNarajangteoContracts(keyword, options = {}) {
@@ -294,8 +459,6 @@ export async function updateSupplierInquiryStatus(inquiryId, status) {
   return updateMockSupplierInquiryStatus(inquiryId, status);
 }
 
-const DEFAULT_SITE_LAT = 37.5447;
-const DEFAULT_SITE_LNG = 127.0558;
 
 async function findBackendMaterial(payload) {
   const { data } = await apiClient.get(buildApiUrl("/api/v1/materials/"), {
@@ -397,6 +560,10 @@ function toFrontendRecommendations(data, requestId) {
       standard: formatStandard(material),
       price: `${Number(item.latest_unit_price || 0).toLocaleString()}원`,
       distanceKm: item.distance_km,
+      routeDistanceM: item.route_distance_m,
+      routeDurationSec: item.route_duration_sec,
+      routeStatus: item.route_status || "api_error",
+      routeNote: item.route_note || "거리 정보 확인 필요",
       deliveryCount: item.supply_count,
       priceScore: scores.priceScore,
       distanceScore: scores.distanceScore,
@@ -416,7 +583,9 @@ function toFrontendRecommendations(data, requestId) {
       trendLabels: ["1월", "2월", "3월", "4월", "5월", "현재"],
       scoreEvidence: {
         price: `최신 단가 ${Number(item.latest_unit_price || 0).toLocaleString()}원을 기준으로 산정했습니다.`,
-        distance: `현장 좌표와 공급사 좌표 사이 거리 ${item.distance_km}km를 반영했습니다.`,
+        distance: item.route_status === "success"
+          ? `카카오 차량 경로 ${formatRouteDuration(item.route_duration_sec)} · ${formatRouteDistance(item.route_distance_m)}를 반영했습니다.`
+          : item.route_note || "차량 경로가 확인되지 않아 거리 가중치를 제외했습니다.",
         reliability: `납품 이력 ${item.supply_count}회를 신뢰도 점수에 반영했습니다.`,
       },
       approvalChecklist: buildApprovalChecklist(material, approvalRequired, item.approval_warning),
@@ -427,18 +596,43 @@ function toFrontendRecommendations(data, requestId) {
       address: supplier?.address,
       latitude: supplier?.latitude,
       longitude: supplier?.longitude,
+      locationBasis: supplier?.latitude != null && supplier?.longitude != null
+        ? "supplier_address"
+        : "unknown",
       isRegisteredSupplier: false,
     };
   });
 }
 
 function normalizeBackendScores(scores = {}) {
-  return {
-    priceScore: Math.round(Number(scores.price_score || 0) * 250),
-    distanceScore: Math.round(Number(scores.distance_score || 0) * 333.33),
-    reliabilityScore: Math.round(Number(scores.reliability_score || 0) * 333.33),
-    totalScore: Math.round(Number(scores.total || 0) * 100),
+  const normalizeScore = (value, legacyMultiplier = 100) => {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const score = Number(value);
+    if (!Number.isFinite(score)) {
+      return null;
+    }
+    return Math.round(Math.abs(score) <= 1 ? score * legacyMultiplier : score);
   };
+
+  return {
+    materialFitScore: normalizeScore(scores.material_fit_score) ?? 100,
+    priceScore: normalizeScore(scores.price_score, 250) ?? 0,
+    distanceScore: normalizeScore(scores.route_score ?? scores.distance_score, 333.33),
+    reliabilityScore: normalizeScore(scores.reliability_score, 333.33) ?? 0,
+    totalScore: normalizeScore(scores.total) ?? 0,
+  };
+}
+
+function formatRouteDuration(durationSec) {
+  const seconds = Number(durationSec);
+  return Number.isFinite(seconds) ? `약 ${Math.max(1, Math.round(seconds / 60))}분` : "시간 확인 필요";
+}
+
+function formatRouteDistance(distanceM) {
+  const meters = Number(distanceM);
+  return Number.isFinite(meters) ? `${(meters / 1000).toFixed(1)}km` : "거리 확인 필요";
 }
 
 function formatMaterialName(material) {
@@ -823,13 +1017,14 @@ function createMockSupplierInquiry(payload) {
 }
 
 function updateMockSupplierInquiryStatus(inquiryId, status) {
+  const normalizedId = String(inquiryId ?? "");
   const updatedAt = new Date().toISOString();
   const inquiries = getStoredSupplierInquiries().map((inquiry) =>
-    inquiry.id === inquiryId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
+    String(inquiry.id) === normalizedId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
   );
 
   localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
-  return inquiries.find((inquiry) => inquiry.id === inquiryId) || null;
+  return inquiries.find((inquiry) => String(inquiry.id) === normalizedId) || null;
 }
 
 function getStoredSupplierMaterials() {
@@ -909,6 +1104,9 @@ function createRecommendationFromSupplier(item, index) {
     address: item.address,
     latitude: item.latitude,
     longitude: item.longitude,
+    locationBasis: item.latitude != null && item.longitude != null
+      ? "supplier_address"
+      : "unknown",
     serviceArea: item.serviceArea,
     isRegisteredSupplier: true,
   };

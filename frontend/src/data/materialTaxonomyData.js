@@ -13,7 +13,7 @@ export const materialTaxonomy = [
     id: 'shape-steel',
     label: '형강·강재',
     description: 'H형강·앵글·채널·강판 차트',
-    evidenceIds: ['shape-steel', 'structural-steel'],
+    evidenceIds: ['shape-steel', 'structural-steel', 'square-tube'],
     subtypes: [
       { label: 'H형강', keywords: ['h형강', 'h빔', '에이치빔'] },
       { label: 'ㄱ형강', keywords: ['ㄱ형강', '앵글', 'angle'] },
@@ -26,7 +26,7 @@ export const materialTaxonomy = [
     id: 'cement',
     label: '시멘트',
     description: '종류·압축강도 기준 시멘트 차트',
-    evidenceIds: ['cement'],
+    evidenceIds: ['cement', 'blast-furnace-slag-cement'],
     subtypes: [
       { label: '고로슬래그 시멘트', keywords: ['고로슬래그', '슬래그 시멘트'] },
       { label: '조강 포틀랜드 시멘트', keywords: ['조강', '3종'] },
@@ -37,12 +37,13 @@ export const materialTaxonomy = [
     id: 'insulation',
     label: '단열재',
     description: '재료군·열성능 기준 단열재 차트',
-    evidenceIds: ['insulation'],
+    evidenceIds: ['glass-wool-insulation', 'insulation-source-pending'],
     subtypes: [
       { label: 'EPS', keywords: ['eps', '비드법'] },
       { label: 'XPS', keywords: ['xps', '압출법'] },
       { label: '글라스울', keywords: ['글라스울', '유리면'] },
       { label: '경질 우레탄폼', keywords: ['경질 우레탄', '우레탄폼', 'pur'] },
+      { label: 'PF 단열재', keywords: ['단열재 pf', 'pf보드', '페놀폼', 'phenolic foam'] },
     ],
   },
   {

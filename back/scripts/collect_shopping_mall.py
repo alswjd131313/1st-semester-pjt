@@ -7,6 +7,7 @@ import math
 import os
 import re
 import sys
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -36,6 +37,7 @@ KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY", "")
 SUPPORTED_MATERIALS = {
     "형강·강재": {
         "db_name": "H빔",
+        "search_terms": ("H형강", "H빔", "에이치빔"),
         "subtypes": {
             "H형강": ("H형강", "H빔", "에이치빔"),
             "ㄱ형강": ("ㄱ형강", "앵글", "ANGLE"),
@@ -49,6 +51,7 @@ SUPPORTED_MATERIALS = {
     },
     "전기 배관재": {
         "db_name": "전선관",
+        "search_terms": ("전선관", "합성수지제전선관", "가요전선관", "CD관", "PF관"),
         "subtypes": {
             "경질 전선관": ("경질전선관", "합성수지제전선관", "PVC전선관"),
             "가요 전선관": ("가요전선관", "플렉시블전선관"),
@@ -95,12 +98,13 @@ def item_text(item: dict) -> str:
     return " ".join(str(item.get(field, "")) for field in TEXT_FIELDS if item.get(field))
 
 
-def fetch_page(operation: str, page: int) -> dict:
+def fetch_page(operation: str, page: int, search_term: str) -> dict:
     params = {
         "serviceKey": unquote(API_KEY),
         "pageNo": page,
         "numOfRows": API_PAGE_SIZE,
         "inqryDiv": "1",
+        "prdctClsfcNoNm": search_term,
         "type": "json",
     }
     try:
@@ -131,24 +135,58 @@ def parse_page(data: dict) -> tuple[list[dict], int]:
     return [item for item in items if isinstance(item, dict)], int(body.get("totalCount") or 0)
 
 
-def detect_material(item: dict, requested: set[str]) -> tuple[str | None, str, str, str]:
+def detect_material(item: dict, requested: set[str]) -> tuple[str | None, str, str, str, str]:
     normalized = normalize_text(item_text(item))
     for group_name in requested:
         config = SUPPORTED_MATERIALS[group_name]
         if group_name == "전기 배관재" and any(
             normalize_text(keyword) in normalized for keyword in NON_ELECTRICAL_PIPE_KEYWORDS
         ):
-            continue
+            return None, "", "", "", "비전기 배관 품목"
 
         for subtype, keywords in config["subtypes"].items():
             keyword = next(
                 (keyword for keyword in keywords if normalize_text(keyword) in normalized),
                 None,
             )
-            if keyword and subtype in config["mapped_subtypes"]:
-                basis = f"종합쇼핑몰 {group_name}/{subtype} 키워드: {keyword}"
-                return config["db_name"], group_name, subtype, basis
-    return None, "", "", ""
+            if not keyword:
+                continue
+            if subtype not in config["mapped_subtypes"]:
+                return None, "", "", "", "지원 대상 세부품목 아님"
+            basis = f"종합쇼핑몰 {group_name}/{subtype} 키워드: {keyword}"
+            return config["db_name"], group_name, subtype, basis, ""
+    return None, "", "", "", "키워드 적합 품목 아님"
+
+
+def product_key(item: dict) -> str:
+    for field in ("prdctIdntNo", "shopngCntrctNo", "cntrctPrdctNo", "prdctNo"):
+        value = str(item.get(field) or "").strip()
+        if value:
+            return f"{field}:{value}"
+
+    fallback = "|".join(
+        str(item.get(field) or "").strip()
+        for field in (
+            "prdctClsfcNoNm",
+            "dtilPrdctClsfcNoNm",
+            "prdctSpecNm",
+            "cntrctCorpNm",
+            "cntrctDate",
+            "cntrctPrceAmt",
+        )
+    )
+    return f"fallback:{hashlib.sha1(fallback.encode('utf-8')).hexdigest()}"
+
+
+def save_exclusion_reason(item: dict) -> str:
+    if not str(item.get("cntrctCorpNm") or "").strip():
+        return "공급사 정보 없음"
+    if not parse_date(item.get("cntrctDate") or item.get("cntrctBgnDate")):
+        return "계약일 정보 없음"
+    unit_price = parse_decimal(item.get("cntrctPrceAmt") or item.get("orderCalclPrceAmt"))
+    if unit_price is None or unit_price <= 0:
+        return "유효 단가 없음"
+    return ""
 
 
 def material_match_score(material: Material, item: dict) -> int:
@@ -349,54 +387,68 @@ def main() -> None:
         parser.error("--start-page는 1 이상이어야 합니다.")
 
     operation = OPERATIONS[args.operation]
-    first_items, total_count = parse_page(fetch_page(operation, args.start_page))
-    total_pages = math.ceil(total_count / API_PAGE_SIZE) if total_count else 1
-    if args.start_page > total_pages:
-        parser.error(f"--start-page가 전체 페이지 수({total_pages})보다 큽니다.")
-    end_page = (
-        min(total_pages, args.start_page + args.pages - 1)
-        if args.pages > 0
-        else total_pages
-    )
-    pages_to_scan = end_page - args.start_page + 1
-    print(
-        f"{args.operation} 품목 {total_count}건 / {args.start_page}-{end_page}페이지 검사 / "
-        f"예상 API 호출 {pages_to_scan}회"
-    )
+    search_jobs = [
+        (group_name, search_term)
+        for group_name in SUPPORTED_MATERIALS
+        if group_name in requested
+        for search_term in SUPPORTED_MATERIALS[group_name]["search_terms"]
+    ]
+    diagnostics = Counter()
+    exclusion_reasons = Counter()
+    seen_products: set[str] = set()
+    saved = 0
+    previewed = 0
+    rate_limited = False
 
-    seen_products = set()
-    matched = saved = skipped = failed_pages = 0
-
-    def process_items(items: list[dict]) -> None:
-        nonlocal matched, saved, skipped
+    def process_items(items: list[dict], group_name: str, search_term: str) -> None:
+        nonlocal previewed, saved
+        diagnostics["queried"] += len(items)
         for item in items:
-            product_key = str(item.get("prdctIdntNo") or item.get("shopngCntrctNo") or "")
-            if product_key and product_key in seen_products:
+            key = product_key(item)
+            if key in seen_products:
+                diagnostics["duplicates"] += 1
                 continue
-            if product_key:
-                seen_products.add(product_key)
+            seen_products.add(key)
+            diagnostics["unique"] += 1
 
-            material_name, group_name, subtype, relevance_basis = detect_material(item, requested)
+            material_name, detected_group, subtype, relevance_basis, reason = detect_material(
+                item,
+                {group_name},
+            )
             if not material_name:
+                exclusion_reasons[reason] += 1
                 continue
-            materials, match_basis = choose_materials(item, material_name, group_name, subtype)
+            diagnostics["matched"] += 1
+
+            materials, match_basis = choose_materials(
+                item,
+                material_name,
+                detected_group,
+                subtype,
+            )
             if not materials:
-                skipped += 1
+                exclusion_reasons["매핑 가능한 자재 없음"] += 1
                 continue
-            matched += 1
+
+            save_reason = save_exclusion_reason(item)
+            if save_reason:
+                exclusion_reasons[save_reason] += 1
+                continue
+            diagnostics["saveable"] += 1
 
             if args.dry_run:
-                if matched <= args.preview_limit:
+                if previewed < args.preview_limit:
                     print(
-                        f"  [미리보기] {group_name}/{subtype} | {item.get('cntrctCorpNm') or '공급사 미확인'} | "
-                        f"{item.get('prdctClsfcNoNm') or item.get('prdctSpecNm') or '품명 미확인'} | "
-                        f"{', '.join(str(material) for material in materials)}"
+                        f"  [미리보기] {detected_group}/{subtype} | 검색어 {search_term} | "
+                        f"{item.get('cntrctCorpNm')} | "
+                        f"{item.get('prdctClsfcNoNm') or item.get('prdctSpecNm') or '품명 미확인'}"
                     )
+                    previewed += 1
                 continue
 
             supplier = upsert_supplier(item)
             if not supplier:
-                skipped += 1
+                exclusion_reasons["공급사 저장 실패"] += 1
                 continue
             for material in materials:
                 saved += int(
@@ -411,36 +463,86 @@ def main() -> None:
                     )
                 )
 
-    process_items(first_items)
-    completed_pages = 1
-    if pages_to_scan > 1:
+    for group_name, search_term in search_jobs:
+        try:
+            first_items, total_count = parse_page(
+                fetch_page(operation, args.start_page, search_term)
+            )
+            diagnostics["api_calls"] += 1
+        except ApiRateLimitError:
+            rate_limited = True
+            diagnostics["failed_pages"] += 1
+            exclusion_reasons["API 호출 한도"] += 1
+            break
+        except RuntimeError as exc:
+            diagnostics["failed_pages"] += 1
+            exclusion_reasons["API 조회 실패"] += 1
+            print(f"[검색 실패] {group_name}/{search_term}: {exc}")
+            continue
+
+        total_pages = math.ceil(total_count / API_PAGE_SIZE) if total_count else 0
+        if not total_pages or args.start_page > total_pages:
+            print(f"[검색] {group_name}/{search_term}: API 결과 0건")
+            continue
+        end_page = (
+            min(total_pages, args.start_page + args.pages - 1)
+            if args.pages > 0
+            else total_pages
+        )
+        pages_to_scan = end_page - args.start_page + 1
+        print(
+            f"[검색] {group_name}/{search_term}: API {total_count}건 / "
+            f"{args.start_page}-{end_page}페이지"
+        )
+        process_items(first_items, group_name, search_term)
+
+        if pages_to_scan <= 1:
+            continue
         with ThreadPoolExecutor(max_workers=max(1, min(args.workers, 8))) as executor:
             futures = {
-                executor.submit(fetch_page, operation, page): page
+                executor.submit(fetch_page, operation, page, search_term): page
                 for page in range(args.start_page + 1, end_page + 1)
             }
             for future in as_completed(futures):
                 page = futures[future]
                 try:
-                    process_items(parse_page(future.result())[0])
+                    process_items(parse_page(future.result())[0], group_name, search_term)
+                    diagnostics["api_calls"] += 1
                 except ApiRateLimitError:
-                    failed_pages += 1
+                    rate_limited = True
+                    diagnostics["failed_pages"] += 1
+                    exclusion_reasons["API 호출 한도"] += 1
                     for pending in futures:
                         pending.cancel()
-                    print("API 호출 한도에 도달해 남은 페이지 검사를 중단합니다.")
                     break
                 except RuntimeError as exc:
-                    failed_pages += 1
+                    diagnostics["failed_pages"] += 1
+                    exclusion_reasons["API 조회 실패"] += 1
                     print(f"  페이지 {page} 제외: {exc}")
-                completed_pages += 1
-                if completed_pages % 20 == 0 or completed_pages == pages_to_scan:
-                    print(f"진행 {completed_pages}/{pages_to_scan}페이지 / 매칭 {matched}건")
+            if rate_limited:
+                break
+
+    if rate_limited:
+        print("API 호출 한도에 도달해 남은 검색을 중단했습니다.")
 
     mode = "미리보기" if args.dry_run else "수집"
-    print(
-        f"{mode} 완료: 매칭 품목 {matched}건 / 신규 이력 {saved}건 / "
-        f"저장 제외 {skipped}건 / API 실패 {failed_pages}페이지"
+    summary = (
+        f"{mode} 완료: 조회 {diagnostics['queried']}건 / "
+        f"중복 제거 {diagnostics['duplicates']}건 / "
+        f"키워드 적합 {diagnostics['matched']}건 / "
+        f"저장 가능 {diagnostics['saveable']}건"
     )
+    if not args.dry_run:
+        summary += f" / 신규 이력 {saved}건"
+    print(summary)
+    if exclusion_reasons:
+        print(
+            "제외 사유: "
+            + " / ".join(
+                f"{reason} {count}건"
+                for reason, count in exclusion_reasons.most_common()
+            )
+        )
 
 
 if __name__ == "__main__":

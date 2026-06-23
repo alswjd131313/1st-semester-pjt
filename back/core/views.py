@@ -1,26 +1,42 @@
 import math
 import re
 import requests
+import secrets
+import string
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from datetime import date, timedelta
 from collections import defaultdict
 
-from django.db.models import Avg, Count, F, Max, Min, Q
+from django.db.models import (
+    Avg, Case, Count, Exists, F, IntegerField, Max, Min,
+    OuterRef, Q, Subquery, When,
+)
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from rest_framework import generics, status
-from rest_framework.decorators import api_view
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated, SAFE_METHODS
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .models import Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration
+from .models import (
+    Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration,
+    CommunityPost, CommunityComment, CommunityContactRequest,
+)
 from .serializers import (
     MaterialListSerializer,
+    MaterialSuggestionSerializer,
     MaterialDetailSerializer,
     AlternativeResponseSerializer,
     PriceTrendSerializer,
     DemandSerializer,
     SupplierMaterialRegistrationSerializer,
+    CommunityPostSerializer,
+    CommunityCommentSerializer,
+    CommunityContactRequestSerializer,
 )
+from .services.kakao_directions import get_driving_route
 
 
 JUSO_SEARCH_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
@@ -458,9 +474,96 @@ class MaterialListView(generics.ListAPIView):
         return qs.order_by("id")
 
 
+MATERIAL_SUGGESTION_ALIASES = {
+    "철근": {"groups": ["rebar"]},
+    "H형강": {"subtypes": ["h_beam"]},
+    "H빔": {"subtypes": ["h_beam"]},
+    "형강": {"groups": ["shape_steel"]},
+    "시멘트": {"groups": ["cement"]},
+    "단열재": {"groups": ["insulation"]},
+    "전선관": {"groups": ["electrical_conduit"]},
+    "전기 배관재": {"groups": ["electrical_conduit"]},
+}
+
+
+@api_view(["GET"])
+def material_suggestions(request):
+    query = request.query_params.get("q", "").strip()
+    if not query:
+        return Response([])
+
+    normalized_query = query.casefold()
+    group_codes = {
+        code for code, label in Material.MATERIAL_GROUP_CHOICES
+        if normalized_query in code.casefold() or normalized_query in label.casefold()
+    }
+    subtype_codes = {
+        code for code, label in Material.MATERIAL_SUBTYPE_CHOICES
+        if normalized_query in code.casefold() or normalized_query in label.casefold()
+    }
+    for alias, mapping in MATERIAL_SUGGESTION_ALIASES.items():
+        normalized_alias = alias.casefold()
+        if normalized_query in normalized_alias or normalized_alias in normalized_query:
+            group_codes.update(mapping.get("groups", []))
+            subtype_codes.update(mapping.get("subtypes", []))
+
+    filters = (
+        Q(name__icontains=query)
+        | Q(ks_code__icontains=query)
+        | Q(ks_grade__icontains=query)
+        | Q(diameter__icontains=query)
+        | Q(supply_histories__supplier__name__icontains=query)
+    )
+    if group_codes:
+        filters |= Q(material_group__in=group_codes)
+    if subtype_codes:
+        filters |= Q(material_subtype__in=subtype_codes)
+
+    recent_history = SupplyHistory.objects.filter(
+        material_id=OuterRef("pk")
+    ).order_by("-contract_date", "-id")
+    queryset = (
+        Material.objects.filter(filters)
+        .annotate(
+            supplier_name=Subquery(recent_history.values("supplier__name")[:1]),
+            available=Exists(recent_history),
+            match_priority=Case(
+                When(name__istartswith=query, then=0),
+                When(ks_grade__istartswith=query, then=1),
+                When(diameter__istartswith=query, then=2),
+                default=3,
+                output_field=IntegerField(),
+            ),
+        )
+        .distinct()
+        .order_by("match_priority", "name", "ks_grade", "diameter")[:8]
+    )
+    return Response(MaterialSuggestionSerializer(queryset, many=True).data)
+
+
 # ══════════════════════════════════════════
 # 2. 대체 공급사 추천 ← 핵심 엔드포인트
 # ══════════════════════════════════════════
+
+
+@api_view(["POST"])
+def driving_route(request):
+    """선택한 현장·공급사 좌표 1건의 차량 경로를 조회한다."""
+    result = get_driving_route(
+        request.data.get("origin_lat"),
+        request.data.get("origin_lng"),
+        request.data.get("destination_lat"),
+        request.data.get("destination_lng"),
+        include_path=True,
+    )
+    return Response({
+        "route_distance_m": result.get("distance_m"),
+        "route_duration_sec": result.get("duration_sec"),
+        "route_status": result.get("status", "failed"),
+        "route_note": result.get("note", "거리 정보 확인 필요"),
+        "route_path": result.get("route_path", []),
+    })
+
 
 @api_view(["POST"])
 def alternative_suppliers(request, material_id: int):
@@ -579,16 +682,31 @@ def alternative_suppliers(request, material_id: int):
             "message": "납품 실적이 있는 공급사가 없습니다.",
         })
 
-    # 반경 필터링 + 거리 계산
+    # 직선거리는 API 호출 후보를 제한하는 용도로만 사용한다.
     candidates = []
-    for (sup_id, mat_id), info in supplier_material_map.items():
+    for info in supplier_material_map.values():
         supplier = info["supplier"]
-        if not supplier.has_coordinates:
-            continue
-        dist = haversine(site_lat, site_lng, supplier.latitude, supplier.longitude)
-        if dist > radius_km:
-            continue
-        candidates.append({**info, "distance_km": dist})
+        straight_distance_km = None
+        if supplier.has_coordinates:
+            straight_distance_km = haversine(
+                site_lat,
+                site_lng,
+                supplier.latitude,
+                supplier.longitude,
+            )
+            if straight_distance_km > radius_km:
+                continue
+
+        candidates.append({
+            **info,
+            "straight_distance_km": straight_distance_km,
+            "route": {
+                "distance_m": None,
+                "duration_sec": None,
+                "status": "missing_coordinates",
+                "note": "거리 정보 확인 필요",
+            },
+        })
 
     if not candidates:
         return Response({
@@ -597,33 +715,117 @@ def alternative_suppliers(request, material_id: int):
             "message": f"반경 {radius_km}km 내 납품 실적 공급사가 없습니다.",
         })
 
+    # 외부 호출 수를 제한하되 가까운 공급사와 납품 이력이 많은 공급사를 우선한다.
+    candidates = sorted(
+        candidates,
+        key=lambda item: (
+            item["straight_distance_km"] is None,
+            item["straight_distance_km"] if item["straight_distance_km"] is not None else float("inf"),
+            -item["supply_count"],
+            float(item["latest_price"]),
+        ),
+    )[:20]
+
+    routable_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["supplier"].has_coordinates
+    ]
+    if routable_candidates:
+        with ThreadPoolExecutor(max_workers=min(5, len(routable_candidates))) as executor:
+            future_map = {
+                executor.submit(
+                    get_driving_route,
+                    candidate["supplier"].latitude,
+                    candidate["supplier"].longitude,
+                    site_lat,
+                    site_lng,
+                ): candidate
+                for candidate in routable_candidates
+            }
+            for future in as_completed(future_map):
+                candidate = future_map[future]
+                try:
+                    candidate["route"] = future.result()
+                except Exception:
+                    candidate["route"] = {
+                        "distance_m": None,
+                        "duration_sec": None,
+                        "status": "api_error",
+                        "note": "거리 정보 확인 필요",
+                    }
+
+    # 실제 차량 경로가 확인된 후보만 차량 거리로 반경을 재확인한다.
+    candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["route"]["status"] != "success"
+        or candidate["route"]["distance_m"] / 1000 <= radius_km
+    ]
+
+    if not candidates:
+        return Response({
+            "original_material": MaterialDetailSerializer(original).data,
+            "recommendations": [],
+            "message": f"차량 경로 기준 반경 {radius_km}km 내 공급사가 없습니다.",
+        })
+
     # ══════════════════════════════
     # STEP 3: 가중치 스코어링
-    # 가격 40% + 거리 30% + 신뢰도(납품횟수) 30%
+    # KS 적합도 45% + 신뢰도 30% + 차량 경로 15% + 가격 10%
+    # 경로 미확인 시 15%를 제외한 나머지 점수를 재정규화한다.
     # ══════════════════════════════
     all_prices       = [float(c["latest_price"]) for c in candidates]
     all_counts       = [c["supply_count"]  for c in candidates]
-    all_distances    = [c["distance_km"]   for c in candidates]
+    successful_routes = [
+        c["route"]
+        for c in candidates
+        if c["route"]["status"] == "success"
+    ]
 
     min_price     = min(all_prices)
     max_count     = max(all_counts)
-    max_distance  = max(all_distances) if max(all_distances) > 0 else 1
+    min_route_distance = min(
+        (route["distance_m"] for route in successful_routes),
+        default=None,
+    )
+    min_route_duration = min(
+        (route["duration_sec"] for route in successful_routes),
+        default=None,
+    )
 
     for c in candidates:
         price     = float(c["latest_price"])
         count     = c["supply_count"]
-        distance  = c["distance_km"]
+        route = c["route"]
 
-        price_score      = (min_price / price)          * 0.4
-        distance_score   = (1 - distance / max_distance) * 0.3   # 가까울수록 높은 점수
-        reliability_score = (count / max_count)          * 0.3
+        material_fit_score = 100.0
+        price_score = (min_price / price) * 100
+        reliability_score = (count / max_count) * 100
+        route_score = None
+        if route["status"] == "success":
+            distance_component = (min_route_distance / max(route["distance_m"], 1)) * 100
+            duration_component = (min_route_duration / max(route["duration_sec"], 1)) * 100
+            route_score = (distance_component + duration_component) / 2
 
-        c["total_score"] = round(price_score + distance_score + reliability_score, 4)
+        weighted_score = (
+            material_fit_score * 0.45
+            + reliability_score * 0.30
+            + price_score * 0.10
+        )
+        known_weight = 0.85
+        if route_score is not None:
+            weighted_score += route_score * 0.15
+            known_weight += 0.15
+
+        c["total_score"] = round(weighted_score / known_weight, 2)
         c["scores"] = {
-            "price_score":        round(price_score, 4),
-            "distance_score":     round(distance_score, 4),
-            "reliability_score":  round(reliability_score, 4),
-            "total":              c["total_score"],
+            "material_fit_score": round(material_fit_score),
+            "price_score": round(price_score),
+            "distance_score": round(route_score) if route_score is not None else None,
+            "route_score": round(route_score) if route_score is not None else None,
+            "reliability_score": round(reliability_score),
+            "total": c["total_score"],
         }
 
     # 점수 내림차순 정렬 → 상위 3개
@@ -656,7 +858,19 @@ def alternative_suppliers(request, material_id: int):
             "scores":           c["scores"],
             "latest_unit_price": c["latest_price"],
             "supply_count":     c["supply_count"],
-            "distance_km":      round(c["distance_km"], 2),
+            "distance_km": (
+                round(c["route"]["distance_m"] / 1000, 2)
+                if c["route"]["status"] == "success"
+                else (
+                    round(c["straight_distance_km"], 2)
+                    if c["straight_distance_km"] is not None
+                    else None
+                )
+            ),
+            "route_distance_m": c["route"].get("distance_m"),
+            "route_duration_sec": c["route"].get("duration_sec"),
+            "route_status": c["route"].get("status", "api_error"),
+            "route_note": c["route"].get("note", "거리 정보 확인 필요"),
             "approval_warning": approval_warning,
             "data_source":      c.get("data_source", ""),
         })
@@ -779,3 +993,153 @@ class PublicSupplierMaterialRegistrationListView(generics.ListAPIView):
     """
     serializer_class = SupplierMaterialRegistrationSerializer
     queryset = SupplierMaterialRegistration.objects.select_related("owner").all()
+
+
+# ══════════════════════════════════════════
+# 6. 커뮤니티 MVP
+# ══════════════════════════════════════════
+
+class IsCommunityAuthorOrReadOnly(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return request.method in SAFE_METHODS or obj.author == request.user
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def community_public_profile(request, user_id):
+    author = generics.get_object_or_404(
+        get_user_model().objects.select_related("profile").filter(
+            community_posts__display_mode="profile",
+        ).distinct(),
+        pk=user_id,
+    )
+    profile = getattr(author, "profile", None)
+    role_labels = {"requester": "현장 자재 담당자", "supplier": "공급사 담당자"}
+    name = author.first_name or author.username or "PaceFlow 사용자"
+    return Response({
+        "id": author.id,
+        "display_name": name,
+        "affiliation": getattr(profile, "company_name", ""),
+        "role": role_labels.get(getattr(profile, "role", ""), "PaceFlow 사용자"),
+        "project_name": "",
+        "avatar_text": (name[:2] or "PF").upper(),
+        "community_post_count": author.community_posts.filter(display_mode="profile").count(),
+        "received_contact_request_count": author.received_community_contact_requests.filter(
+            post__display_mode="profile",
+        ).count(),
+    })
+
+
+class CommunityPostListCreateView(generics.ListCreateAPIView):
+    serializer_class = CommunityPostSerializer
+
+    def get_queryset(self):
+        queryset = CommunityPost.objects.select_related("author", "author__profile").annotate(
+            comment_count=Count("comments")
+        )
+        post_type = self.request.query_params.get("type", "").strip()
+        return queryset.filter(post_type=post_type) if post_type else queryset
+
+    def get_permissions(self):
+        return [IsAuthenticated()] if self.request.method == "POST" else [AllowAny()]
+
+    def perform_create(self, serializer):
+        display_mode = serializer.validated_data.get("display_mode", "profile")
+        alias = ""
+        if display_mode == "anonymous":
+            alphabet = string.ascii_uppercase + string.digits
+            alias = "익명" + "".join(secrets.choice(alphabet) for _ in range(5))
+        serializer.save(author=self.request.user, anonymous_alias=alias)
+
+
+class CommunityPostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CommunityPostSerializer
+    permission_classes = [IsCommunityAuthorOrReadOnly]
+    queryset = CommunityPost.objects.select_related("author", "author__profile").prefetch_related(
+        "comments__author", "comments__author__profile"
+    ).annotate(comment_count=Count("comments"))
+
+    def perform_update(self, serializer):
+        post = self.get_object()
+        display_mode = serializer.validated_data.get("display_mode", post.display_mode)
+        alias = post.anonymous_alias
+        if display_mode == "anonymous" and not alias:
+            alphabet = string.ascii_uppercase + string.digits
+            alias = "익명" + "".join(secrets.choice(alphabet) for _ in range(5))
+        elif display_mode == "profile":
+            alias = ""
+        serializer.save(author=post.author, anonymous_alias=alias)
+
+
+class CommunityCommentListCreateView(generics.ListCreateAPIView):
+    serializer_class = CommunityCommentSerializer
+
+    def get_queryset(self):
+        return CommunityComment.objects.filter(post_id=self.kwargs["post_id"]).select_related(
+            "author", "author__profile"
+        )
+
+    def get_permissions(self):
+        return [IsAuthenticated()] if self.request.method == "POST" else [AllowAny()]
+
+    def perform_create(self, serializer):
+        post = generics.get_object_or_404(CommunityPost, pk=self.kwargs["post_id"])
+        display_mode = serializer.validated_data.get("display_mode", "profile")
+        alias = ""
+        if display_mode == "anonymous":
+            alias = CommunityComment.objects.filter(
+                post=post,
+                author=self.request.user,
+                display_mode="anonymous",
+            ).exclude(anonymous_alias="").values_list("anonymous_alias", flat=True).first() or ""
+            if not alias:
+                alphabet = string.ascii_uppercase + string.digits
+                alias = "익명" + "".join(secrets.choice(alphabet) for _ in range(5))
+        serializer.save(post=post, author=self.request.user, anonymous_alias=alias)
+
+
+class CommunityContactRequestListCreateView(generics.ListCreateAPIView):
+    serializer_class = CommunityContactRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return CommunityContactRequest.objects.filter(
+            Q(requester=self.request.user) | Q(recipient=self.request.user)
+        ).select_related(
+            "post", "post__author", "post__author__profile", "requester", "requester__profile"
+        )
+
+    def perform_create(self, serializer):
+        post = serializer.validated_data["post"]
+        if post.author == self.request.user:
+            raise ValidationError({"post": "본인 게시글에는 질문 요청을 보낼 수 없습니다."})
+        serializer.save(requester=self.request.user, recipient=post.author, status="pending")
+
+
+class CommunityContactRequestDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = CommunityContactRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return CommunityContactRequest.objects.filter(
+            Q(requester=self.request.user) | Q(recipient=self.request.user)
+        ).select_related(
+            "post", "post__author", "post__author__profile", "requester", "requester__profile"
+        )
+
+    def perform_update(self, serializer):
+        contact_request = self.get_object()
+        if contact_request.recipient != self.request.user:
+            raise ValidationError({"status": "작성자만 요청 상태를 변경할 수 있습니다."})
+        next_status = serializer.validated_data.get("status", contact_request.status)
+        if next_status not in {"pending", "confirmed", "rejected"}:
+            raise ValidationError({"status": "올바르지 않은 상태입니다."})
+        serializer.save()
+
+    def update(self, request, *args, **kwargs):
+        if set(request.data.keys()) - {"status"}:
+            return Response(
+                {"error": "커뮤니티 대화 요청에서는 상태만 변경할 수 있습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)

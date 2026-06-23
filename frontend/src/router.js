@@ -9,12 +9,17 @@ import RecommendationPage from "./pages/RecommendationPage.vue";
 import RecommendationDetailPage from "./pages/RecommendationDetailPage.vue";
 import DashboardPage from "./pages/DashboardPage.vue";
 import InquiryDetailPage from "./pages/InquiryDetailPage.vue";
+import InquiryEditPage from "./pages/InquiryEditPage.vue";
 import SupplierDashboardPage from "./pages/SupplierDashboardPage.vue";
 import SupplierProfilePage from "./pages/SupplierProfilePage.vue";
 import MyPage from "./pages/MyPage.vue";
 import SupplierMyPage from "./pages/SupplierMyPage.vue";
 import SignupSuccessPage from "./pages/SignupSuccessPage.vue";
 import PriceTrendPage from "./pages/PriceTrendPage.vue";
+import CommunityPage from "./pages/CommunityPage.vue";
+import CommunityWritePage from "./pages/CommunityWritePage.vue";
+import CommunityDetailPage from "./pages/CommunityDetailPage.vue";
+import CommunityProfilePage from "./pages/CommunityProfilePage.vue";
 
 const routes = [
   { path: "/", name: "home", component: HomePage },
@@ -46,6 +51,22 @@ const routes = [
     meta: { requiresAuth: true },
   },
 
+  // 커뮤니티
+  { path: "/community", name: "community", component: CommunityPage },
+  {
+    path: "/community/new",
+    name: "community-write",
+    component: CommunityWritePage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/community/:id/edit",
+    name: "community-edit",
+    component: CommunityWritePage,
+    meta: { requiresAuth: true },
+  },
+  { path: "/community/:id", name: "community-detail", component: CommunityDetailPage },
+
   // 문의
   {
     path: "/inquiries",
@@ -59,6 +80,14 @@ const routes = [
     component: InquiryDetailPage,
     meta: { requiresAuth: true },
   },
+  {
+    path: "/inquiries/:id/edit",
+    name: "inquiry-edit",
+    component: InquiryEditPage,
+    meta: { requiresAuth: true },
+  },
+
+  { path: "/profile/:id", name: "community-profile", component: CommunityProfilePage },
 
   // 공급사
   {

@@ -8,11 +8,7 @@
           저장된 문의의 요청 정보, 공급사 후보, 상태를 한 화면에서 확인합니다.
         </p>
       </div>
-      <div class="detail-heading-actions">
-        <RouterLink class="secondary-button" to="/inquiries">문의 내역으로</RouterLink>
-        <RouterLink v-if="inquiry" class="primary-button" :to="`/inquiries/${inquiry.id}/edit`">수정하기</RouterLink>
-        <button v-if="inquiry" type="button" class="delete-button" @click="removeInquiry">삭제하기</button>
-      </div>
+      <RouterLink class="secondary-button" to="/dashboard">문의 내역으로</RouterLink>
     </div>
 
     <p v-if="isLoading" class="loading-message">문의 상세 정보를 불러오는 중입니다.</p>
@@ -28,7 +24,6 @@
           <span :class="['approval-badge', { warn: inquiry.supplier?.approvalRequired }]">
             {{ inquiry.supplier?.approvalRequired ? "승인 확인 필요" : "일반 문의" }}
           </span>
-          <span v-if="isUrgentInquiry(inquiry)" class="urgent-badge">긴급 납품 요청</span>
         </div>
 
         <h2>{{ inquiry.supplier?.supplierName || "공급사 미지정" }}</h2>
@@ -40,11 +35,6 @@
         <div class="detail-note">
           <h3>문의 메모</h3>
           <p>{{ inquiry.message || "별도 문의 메모가 없습니다." }}</p>
-        </div>
-
-        <div v-if="isUrgentInquiry(inquiry)" class="urgent-request-note detail-urgent-note">
-          <strong>긴급 확인 항목</strong>
-          <span>재고 보유 여부, 오늘/내일 납품 가능 시간, 운송 조건, 최종 단가를 우선 확인해야 합니다.</span>
         </div>
 
         <div v-if="isSupplier" class="status-actions detail-status-actions">
@@ -64,10 +54,6 @@
       <section class="detail-page-card">
         <h2>문의 정보</h2>
         <dl class="detail-list">
-          <div>
-            <dt>요청 유형</dt>
-            <dd>{{ isUrgentInquiry(inquiry) ? "긴급 납품 요청" : "일반 문의" }}</dd>
-          </div>
           <div>
             <dt>담당자</dt>
             <dd>{{ inquiry.requesterName }}</dd>
@@ -147,19 +133,18 @@
     <div v-else-if="!isLoading" class="empty-state">
       <strong>문의 정보를 찾을 수 없습니다.</strong>
       <p>저장된 mock 문의가 없거나 브라우저 저장 데이터가 초기화되었을 수 있습니다.</p>
-      <RouterLink class="primary-button" to="/inquiries">문의 내역으로 이동</RouterLink>
+      <RouterLink class="primary-button" to="/dashboard">문의 내역으로 이동</RouterLink>
     </div>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { authState } from "../api/authApi";
-import { deleteSupplierInquiry, getSupplierInquiry, updateSupplierInquiryStatus } from "../api/materialApi";
+import { getSupplierInquiry, updateSupplierInquiryStatus } from "../api/materialApi";
 
 const route = useRoute();
-const router = useRouter();
 const inquiry = ref(null);
 const isLoading = ref(false);
 const isUpdating = ref(false);
@@ -194,7 +179,7 @@ async function loadInquiry() {
   try {
     isLoading.value = true;
     errorMessage.value = "";
-    inquiry.value = await getSupplierInquiry(route.params.id);
+    inquiry.value = await getSupplierInquiry(route.params.inquiryId);
   } catch {
     errorMessage.value = "문의 상세 정보를 불러오지 못했습니다.";
   } finally {
@@ -202,22 +187,8 @@ async function loadInquiry() {
   }
 }
 
-async function removeInquiry() {
-  if (!window.confirm("이 문의를 삭제하시겠습니까?")) return;
-  const deleted = await deleteSupplierInquiry(inquiry.value.id);
-  if (deleted) {
-    router.push("/inquiries");
-    return;
-  }
-  errorMessage.value = "삭제할 문의를 찾을 수 없습니다.";
-}
-
 function getStatusLabel(status) {
   return inquiryStatuses.find((item) => item.value === status)?.label || "문의 접수";
-}
-
-function isUrgentInquiry(inquiry) {
-  return inquiry?.requestType === "urgent" || inquiry?.priority === "high" || String(inquiry?.id || "").startsWith("URG");
 }
 
 function formatDate(value) {
@@ -234,7 +205,3 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 </script>
-
-<style scoped>
-.detail-heading-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px}.delete-button{display:inline-flex;min-height:46px;align-items:center;justify-content:center;border:1px solid #fecaca;border-radius:999px;padding:0 18px;color:#b42318;background:#fff;cursor:pointer;font-weight:900}.delete-button:hover{background:#fff5f5}@media(max-width:650px){.detail-heading-actions{justify-content:flex-start}}
-</style>

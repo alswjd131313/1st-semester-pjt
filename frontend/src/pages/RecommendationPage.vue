@@ -61,7 +61,9 @@
     <KakaoMap
       v-if="!isLoading"
       :site="rankingMapSite"
-      :suppliers="displayedRecommendations"
+      :suppliers="mapRecommendations"
+      :selected-supplier="selectedMapSupplier"
+      @select-supplier="selectSupplierForRoute"
     />
 
     <section v-if="!isLoading" class="recommendation-toolbar" aria-label="추천 결과 필터와 정렬">
@@ -100,6 +102,7 @@
         v-for="item in displayedRecommendations"
         :key="`${item.supplierName}-${item.materialName}-${item.standard}`"
         class="rec-row"
+        @click="selectSupplierForRoute(item)"
       >
         <div class="rec-rank">
           <span class="rank-num">{{ item.displayRank }}</span>
@@ -112,6 +115,11 @@
             <span v-if="item.isRegisteredSupplier" class="badge-reg">등록 공급사</span>
           </div>
           <p class="rec-material">{{ item.materialName }} · {{ item.standard }}</p>
+          <div class="rec-signal-row">
+            <span>{{ getRankingLabel(item) }}</span>
+            <span>{{ getMaterialTypeLabel(item) }}</span>
+            <span :class="getMatchSignalClass(item)">{{ getMatchConfidenceLabel(item) }}</span>
+          </div>
         </div>
 
         <div class="rec-metrics">
@@ -134,8 +142,8 @@
         </div>
 
         <div class="rec-actions">
-          <button type="button" class="btn-detail" @click="openDetail(item)">상세 보기</button>
-          <button type="button" class="btn-inquiry" @click="openInquiry(item, 'general')">문의하기</button>
+          <button type="button" class="btn-detail" @click.stop="openDetail(item)">상세 보기</button>
+          <button type="button" class="btn-inquiry" @click.stop="openInquiry(item)">공급사 문의</button>
         </div>
       </article>
     </div>
@@ -241,8 +249,13 @@
                 </div>
                 <div>
                   <span>거리 점수</span>
-                  <strong>{{ selectedRecommendation.distanceScore }}</strong>
-                  <meter min="0" max="100" :value="selectedRecommendation.distanceScore" />
+                  <strong>{{ getDistanceScoreLabel(selectedRecommendation) }}</strong>
+                  <meter
+                    v-if="hasRouteInformation(selectedRecommendation)"
+                    min="0"
+                    max="100"
+                    :value="selectedRecommendation.distanceScore"
+                  />
                 </div>
                 <div>
                   <span>가격 점수</span>
@@ -288,7 +301,7 @@
           </div>
 
           <div class="detail-note">
-            <h3>Hard Filter 통과 근거</h3>
+            <h3>핵심 검토 근거</h3>
             <div class="hard-filter-grid">
               <article
                 v-for="evidence in getHardFilterEvidence(selectedRecommendation)"
@@ -308,7 +321,7 @@
               <article>
                 <span>적용 기준</span>
                 <strong>{{ getStandardEvidence(selectedRecommendation).standard }}</strong>
-                <p>{{ getStandardEvidence(selectedRecommendation).title }}</p>
+                <p>{{ getStandardEvidence(selectedRecommendation).title }} · {{ getEvidenceVerificationLabel(selectedRecommendation) }}</p>
               </article>
               <article>
                 <span>규격 근거</span>
@@ -317,7 +330,7 @@
               </article>
               <article>
                 <span>승인 리스크</span>
-                <strong>{{ selectedRecommendation.approvalRequired ? "검토 필요" : "낮음" }}</strong>
+                <strong>{{ isApprovalReviewRequired(selectedRecommendation) ? "검토 필요" : "낮음" }}</strong>
                 <p>{{ getStandardEvidence(selectedRecommendation).approvalRisk }}</p>
               </article>
             </div>
@@ -326,7 +339,7 @@
           <div class="detail-note">
             <h3>물성 비교</h3>
             <div class="property-summary">
-              <strong>{{ getPropertySummary(selectedRecommendation).passed }}개 기준 통과</strong>
+              <strong>{{ getPropertySummary(selectedRecommendation).label }}</strong>
               <span>{{ getPropertySummary(selectedRecommendation).message }}</span>
             </div>
             <div class="property-table" role="table" aria-label="물성 비교표">
@@ -346,8 +359,8 @@
                 <span>{{ row.original }}</span>
                 <span>
                   {{ row.candidate }}
-                  <b :class="['property-result', { fail: !row.passed }]">
-                    {{ row.passed ? "통과" : "확인" }}
+                  <b :class="['property-result', { fail: row.passed === false }]">
+                    {{ getPropertyResultLabel(row) }}
                   </b>
                 </span>
                 <span>{{ row.standard }}</span>
@@ -367,7 +380,7 @@
                 <p>{{ getScoreEvidence(selectedRecommendation).reliability }}</p>
               </article>
               <article>
-                <strong>거리 {{ selectedRecommendation.distanceScore }}점</strong>
+                <strong>거리 {{ getDistanceScoreLabel(selectedRecommendation) }}</strong>
                 <p>{{ getScoreEvidence(selectedRecommendation).distance }}</p>
               </article>
               <article>
@@ -377,9 +390,9 @@
             </div>
           </div>
 
-          <div :class="['approval-note', { warn: selectedRecommendation.approvalRequired }]">
+          <div :class="['approval-note', { warn: isApprovalReviewRequired(selectedRecommendation) }]">
             <strong>
-              {{ selectedRecommendation.approvalRequired ? "감리 승인 확인 필요" : "승인 리스크 낮음" }}
+              {{ getApprovalRiskLabel(selectedRecommendation) }}
             </strong>
             <p>{{ getApprovalRiskNote(selectedRecommendation) }}</p>
             <ul class="approval-checklist">
@@ -397,7 +410,7 @@
           <div class="modal-actions">
             <button type="button" class="secondary-button" @click="closeDetail">닫기</button>
             <button type="button" class="primary-button" @click="openInquiry(selectedRecommendation)">
-              문의하기
+              공급사 문의
             </button>
           </div>
         </section>
@@ -419,8 +432,8 @@
         >
           <div class="modal-header">
             <div>
-              <p class="eyebrow">{{ inquiryMode === 'urgent' ? 'Urgent Delivery Request' : 'Supplier Inquiry' }}</p>
-              <h2 id="supplier-inquiry-title">{{ inquiryModalTitle }}</h2>
+              <p class="eyebrow">Supplier Inquiry</p>
+              <h2 id="supplier-inquiry-title">공급사 문의</h2>
               <span>
                 {{ selectedInquirySupplier.supplierName }} ·
                 {{ selectedInquirySupplier.materialName }}
@@ -433,13 +446,8 @@
           </div>
 
           <div class="inquiry-summary">
-            <strong>{{ inquirySummaryTitle }}</strong>
-            <p>{{ inquirySummaryMessage }}</p>
-            <ul v-if="inquiryMode === 'urgent'" class="urgent-request-list">
-              <li>요청 자재와 필요 수량을 공급사에 우선 확인 요청합니다.</li>
-              <li>납품 가능 여부, 최종 단가, 운송 조건은 공급사 답변 후 확정됩니다.</li>
-              <li>구매 확정이나 결제 처리는 포함하지 않습니다.</li>
-            </ul>
+            <strong>문의 전 확인</strong>
+            <p>PaceFlow는 문의 우선순위를 추천합니다. 실제 재고, 견적, 납품 가능 여부는 공급사 확인 후 확정됩니다.</p>
           </div>
 
           <form class="inquiry-form" @submit.prevent="submitInquiry">
@@ -464,7 +472,7 @@
               <textarea
                 v-model.trim="inquiryForm.message"
                 rows="4"
-                :placeholder="inquiryMode === 'urgent' ? '예: 오늘 중 납품 가능 여부, 하차 가능 시간, 대체 허용 범위를 확인해주세요.' : '현장 조건, 하차 가능 시간, 대체 가능 범위 등을 남겨주세요.'"
+                placeholder="희망 납기, 긴급 여부, 현장 조건 등을 남겨주세요."
               />
             </label>
 
@@ -475,7 +483,7 @@
               <button type="button" class="secondary-button" @click="closeInquiry">취소</button>
               <button
                 type="submit"
-                :class="inquiryMode === 'urgent' ? 'urgent-button' : 'primary-button'"
+                class="primary-button"
                 :disabled="isInquirySubmitting"
               >
                 {{ submitButtonLabel }}
@@ -490,9 +498,10 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   createSupplierInquiry,
+  getDrivingRoute,
   getLatestMaterialRequest,
   getRecommendations,
 } from "../api/materialApi";
@@ -508,11 +517,14 @@ import {
 } from "../data/materialTaxonomyData";
 
 const route = useRoute();
+const router = useRouter();
 const request = ref(null);
 const recommendations = ref([]);
+const selectedRouteSupplier = ref(null);
+const selectedRoute = ref(null);
+const routeResultCache = new Map();
 const selectedRecommendation = ref(null);
 const selectedInquirySupplier = ref(null);
-const inquiryMode = ref("general");
 const inquiryStatus = ref("");
 const inquiryErrorMessage = ref("");
 const isLoading = ref(false);
@@ -578,6 +590,12 @@ const displayedRecommendations = computed(() =>
   })),
 );
 
+const mapRecommendations = computed(() =>
+  filteredRecommendations.value
+    .filter((item) => hasKoreaCoordinate(item.latitude, item.longitude))
+    .slice(0, 30),
+);
+
 const activeFilterLabel = computed(() => {
   const filters = [];
 
@@ -604,10 +622,20 @@ const activeRankingEvidenceText = computed(() => {
   return activeRankingLabel.value;
 });
 
+const selectedMapSupplier = computed(() =>
+  selectedRouteSupplier.value
+    ? { ...selectedRouteSupplier.value, ...(selectedRoute.value || {}) }
+    : null,
+);
+
 const rankingMapSite = computed(() => ({
-  latitude: request.value?.siteLat || 37.5447,
-  longitude: request.value?.siteLng || 127.0558,
-  address: request.value?.siteAddress || "서울 성동구 기준",
+  latitude: hasKoreaCoordinate(request.value?.siteLat, request.value?.siteLng)
+    ? Number(request.value.siteLat)
+    : null,
+  longitude: hasKoreaCoordinate(request.value?.siteLat, request.value?.siteLng)
+    ? Number(request.value.siteLng)
+    : null,
+  address: request.value?.siteAddress || "현장 주소 확인 필요",
 }));
 
 function getRankingLabel(item) {
@@ -619,7 +647,7 @@ function getRankingLabel(item) {
     return "승인 검토 후보";
   }
 
-  if (Number(item.distanceScore || 0) >= 90) {
+  if (hasRouteInformation(item) && Number(item.distanceScore || 0) >= 90) {
     return "긴급 납품 후보";
   }
 
@@ -639,7 +667,7 @@ function getRankingSummary(item) {
     return "물성 조건은 맞지만 승인 리스크를 함께 확인해야 하는 비교 후보입니다.";
   }
 
-  if (Number(item.distanceScore || 0) >= 90) {
+  if (hasRouteInformation(item) && Number(item.distanceScore || 0) >= 90) {
     return "현장 접근성이 좋아 긴급 문의 우선순위가 높은 후보입니다.";
   }
 
@@ -651,11 +679,15 @@ function getRankingSummary(item) {
     return "납품 이력이 안정적이라 반복 공급 가능성을 우선 확인할 후보입니다.";
   }
 
-  return "가격, 거리, 납품 이력을 종합해 후순위 비교 대상으로 표시한 후보입니다.";
+  return hasRouteInformation(item)
+    ? "가격, 차량 거리, 납품 이력을 종합해 비교 대상으로 표시한 후보입니다."
+    : "가격, 납품 이력, KS 적합도를 기준으로 비교하고 차량 거리는 확인이 필요한 후보입니다.";
 }
 
 function getCardSummary(item) {
-  if (item.reason && item.dataSource !== "narajangteo") {
+  const hasUnverifiedDistanceClaim = !hasRouteInformation(item)
+    && /거리|접근성|가까/.test(item.reason || "");
+  if (item.reason && item.dataSource !== "narajangteo" && !hasUnverifiedDistanceClaim) {
     return item.reason;
   }
 
@@ -679,19 +711,37 @@ function getCompactEvidenceText(item) {
   return `핵심 검토: ${evidence.metrics.slice(0, 3).join(" · ")}`;
 }
 
+function getEvidenceVerificationLabel(item) {
+  const evidence = getStandardEvidence(item);
+  return evidence.verificationLabel || (evidence.verificationStatus === "verified" ? "핵심 기준 구조화" : "검토 필요");
+}
+
 function getMaterialFitScore(item) {
-  if (Number.isFinite(Number(item.materialFitScore))) {
-    return Number(item.materialFitScore);
+  const evidence = getStandardEvidence(item);
+  const suppliedScore = Number(item.materialFitScore);
+  const hasSuppliedScore = Number.isFinite(suppliedScore);
+
+  if (evidence.verificationStatus === "needs_source") {
+    return hasSuppliedScore ? Math.min(suppliedScore, 55) : 55;
   }
 
   if (item.approvalRequired) {
-    return 78;
+    return hasSuppliedScore ? Math.min(suppliedScore, 78) : 78;
   }
 
-  const rows = item.propertyComparison?.length ? item.propertyComparison : getStandardEvidence(item).propertyChecks;
-  const passed = rows.filter((row) => row.passed !== false).length;
-  const ratio = rows.length ? passed / rows.length : 1;
-  return Math.round(86 + ratio * 12);
+  const rows = item.propertyComparison?.length ? item.propertyComparison : evidence.propertyChecks;
+  const evaluated = rows.filter((row) => typeof row.passed === "boolean");
+  if (!evaluated.length) {
+    const evidenceCap = evidence.verificationStatus === "verified" ? 84 : 80;
+    return hasSuppliedScore ? Math.min(suppliedScore, evidenceCap) : evidenceCap;
+  }
+
+  if (hasSuppliedScore && item.propertyComparison?.length) {
+    return suppliedScore;
+  }
+
+  const passed = evaluated.filter((row) => row.passed).length;
+  return Math.round(70 + (passed / evaluated.length) * 28);
 }
 
 function calculateRankingScore(item) {
@@ -699,13 +749,18 @@ function calculateRankingScore(item) {
   const reliabilityScore = Number(item.reliabilityScore || 0);
   const distanceScore = Number(item.distanceScore || 0);
   const priceScore = Number(item.priceScore || 0);
-
-  return Math.round(
+  let weightedScore =
     materialFitScore * 0.45 +
-      reliabilityScore * 0.3 +
-      distanceScore * 0.15 +
-      priceScore * 0.1,
-  );
+    reliabilityScore * 0.3 +
+    priceScore * 0.1;
+  let knownWeight = 0.85;
+
+  if (hasRouteInformation(item)) {
+    weightedScore += distanceScore * 0.15;
+    knownWeight += 0.15;
+  }
+
+  return Math.round(weightedScore / knownWeight);
 }
 
 function syncRankingTabFromKeyword() {
@@ -713,26 +768,8 @@ function syncRankingTabFromKeyword() {
   activeRankingTab.value = getMaterialTaxonomyByEvidenceId(keywordEvidence?.id)?.id || "all";
 }
 
-const inquiryModalTitle = computed(() =>
-  inquiryMode.value === "urgent" ? "긴급 납품 요청" : "공급사 문의하기",
-);
-
-const inquirySummaryTitle = computed(() =>
-  inquiryMode.value === "urgent" ? "긴급 요청 전 확인" : "문의 전 확인",
-);
-
-const inquirySummaryMessage = computed(() =>
-  inquiryMode.value === "urgent"
-    ? "긴급 납품 요청은 구매 확정이 아니라, 공급사에 재고와 납품 가능 여부를 우선 확인하는 빠른 요청입니다."
-    : "PaceFlow는 문의 우선순위를 추천합니다. 실제 재고, 견적, 납품 가능 여부는 공급사 확인 후 확정됩니다.",
-);
-
 const submitButtonLabel = computed(() => {
-  if (isInquirySubmitting.value) {
-    return inquiryMode.value === "urgent" ? "긴급 요청 저장 중" : "문의 저장 중";
-  }
-
-  return inquiryMode.value === "urgent" ? "긴급 요청 저장하기" : "문의 저장하기";
+  return isInquirySubmitting.value ? "문의 요청 보내는 중" : "문의 요청 보내기";
 });
 
 const requestEvidenceText = computed(() =>
@@ -771,12 +808,20 @@ function compareRecommendations(a, b) {
 }
 
 function getSortableDistance(item) {
-  const distance = Number(item.distanceKm);
-  return Number.isFinite(distance) ? distance : Number.MAX_SAFE_INTEGER;
+  const distance = Number(item.routeDistanceM);
+  return hasRouteInformation(item) && Number.isFinite(distance)
+    ? distance
+    : Number.MAX_SAFE_INTEGER;
 }
 
 function hasActualSupplierDistance(item) {
-  return item.locationBasis === "supplier_address" && Number.isFinite(Number(item.distanceKm));
+  return hasRouteInformation(item);
+}
+
+function hasRouteInformation(item) {
+  return item.routeStatus === "success"
+    && Number.isFinite(Number(item.routeDistanceM))
+    && Number.isFinite(Number(item.routeDurationSec));
 }
 
 function getDistanceConfidenceScore(item) {
@@ -792,29 +837,134 @@ function getDistanceConfidenceScore(item) {
 }
 
 function getDistanceLabel(item) {
-  const distance = Number(item.distanceKm);
-  if (hasActualSupplierDistance(item)) {
-    return `${distance}km`;
+  const routeItem = getRouteDisplayItem(item);
+  if (hasRouteInformation(routeItem)) {
+    const minutes = Math.max(1, Math.round(Number(routeItem.routeDurationSec) / 60));
+    const distanceKm = (Number(routeItem.routeDistanceM) / 1000).toFixed(1);
+    return `차량 기준 약 ${minutes}분 · ${distanceKm}km`;
   }
 
-  if (item.locationBasis === "contract_agency_estimated") {
-    return "공급사 거리 확인 필요";
-  }
-
-  return item.distanceLabel || "거리 확인 필요";
+  return routeItem.routeNote || "거리 정보 확인 필요";
 }
 
 function getDistanceSignal(item) {
-  const distance = Number(item.distanceKm);
-  if (hasActualSupplierDistance(item)) {
-    return `거리 ${distance}km`;
+  const routeItem = getRouteDisplayItem(item);
+  if (hasRouteInformation(routeItem)) {
+    const minutes = Math.max(1, Math.round(Number(routeItem.routeDurationSec) / 60));
+    const distanceKm = (Number(routeItem.routeDistanceM) / 1000).toFixed(1);
+    return `차량 ${minutes}분 · ${distanceKm}km`;
   }
 
-  if (item.locationBasis === "contract_agency_estimated") {
-    return "계약기관 위치 추정";
+  return routeItem.routeNote || "거리 정보 확인 필요";
+}
+
+function getRouteDisplayItem(item) {
+  return selectedRouteSupplier.value
+    && getRouteCandidateKey(selectedRouteSupplier.value) === getRouteCandidateKey(item)
+    && selectedRoute.value
+    ? { ...item, ...selectedRoute.value }
+    : item;
+}
+
+function getRouteCandidateKey(item) {
+  return [
+    item?.dataSource || "",
+    item?.id || item?.candidateId || "",
+    item?.supplierName || "",
+    item?.materialName || "",
+    item?.standard || "",
+  ].join("|");
+}
+
+function getRouteCacheKey(item) {
+  return [
+    Number(request.value?.siteLat).toFixed(6),
+    Number(request.value?.siteLng).toFixed(6),
+    Number(item?.latitude).toFixed(6),
+    Number(item?.longitude).toFixed(6),
+    getRouteCandidateKey(item),
+  ].join("|");
+}
+
+function hasKoreaCoordinate(latitude, longitude) {
+  if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
+    return false;
+  }
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 32 && lat <= 39 && lng >= 124 && lng <= 132;
+}
+
+let routeRequestSequence = 0;
+async function selectSupplierForRoute(item) {
+  const currentRequest = ++routeRequestSequence;
+  selectedRouteSupplier.value = item;
+
+  if (!hasKoreaCoordinate(item?.latitude, item?.longitude)) {
+    selectedRoute.value = {
+      routeDistanceM: null,
+      routeDurationSec: null,
+      routeStatus: "unavailable",
+      routeNote: "위치 정보 확인 필요",
+      routePath: [],
+    };
+    return;
+  }
+  if (!hasKoreaCoordinate(request.value?.siteLat, request.value?.siteLng)) {
+    selectedRoute.value = {
+      routeDistanceM: null,
+      routeDurationSec: null,
+      routeStatus: "unavailable",
+      routeNote: "자재 요청에서 현장 주소를 먼저 선택해 주세요.",
+      routePath: [],
+    };
+    return;
   }
 
-  return "거리 확인 필요";
+  const cacheKey = getRouteCacheKey(item);
+  const cachedRoute = routeResultCache.get(cacheKey);
+  if (cachedRoute) {
+    selectedRoute.value = cachedRoute;
+    return;
+  }
+
+  selectedRoute.value = {
+    routeDistanceM: null,
+    routeDurationSec: null,
+    routeStatus: "not_requested",
+    routeNote: "차량 경로 확인 중",
+    routePath: [],
+  };
+  try {
+    const result = await getDrivingRoute({
+      originLat: request.value.siteLat,
+      originLng: request.value.siteLng,
+      destinationLat: item.latitude,
+      destinationLng: item.longitude,
+    });
+    if (currentRequest === routeRequestSequence) {
+      selectedRoute.value = result;
+      if (result.routeStatus === "success") {
+        routeResultCache.set(cacheKey, result);
+      }
+    }
+  } catch {
+    if (currentRequest === routeRequestSequence) {
+      selectedRoute.value = {
+        routeDistanceM: null,
+        routeDurationSec: null,
+        routeStatus: "failed",
+        routeNote: "거리 정보 확인 필요",
+        routePath: [],
+      };
+    }
+  }
+}
+
+function getDistanceScoreLabel(item) {
+  return hasRouteInformation(item)
+    ? `${Math.round(Number(item.distanceScore || 0))}점`
+    : "미확인";
 }
 
 function getMatchSignalLabel(item) {
@@ -923,15 +1073,25 @@ function getPropertyComparison(item) {
 
 function getPropertySummary(item) {
   const rows = getPropertyComparison(item);
-  const passed = rows.filter((row) => row.passed).length;
+  const passed = rows.filter((row) => row.passed === true).length;
+  const pending = rows.filter((row) => row.passed == null).length;
   const hasCarbon = rows.some((row) => row.label.includes("탄소"));
 
   return {
     passed,
-    message: hasCarbon
+    label: pending ? `${pending}개 항목 검토` : `${passed}개 기준 통과`,
+    message: pending
+      ? `${pending}개 항목은 후보의 시험성적 또는 상세 규격 확인이 필요합니다.`
+      : hasCarbon
       ? "항복강도·인장강도·연신율은 기준 이상, 탄소당량은 기준 이하 조건으로 확인합니다."
       : `${getStandardEvidence(item).category} 기준 자재와 추천 자재의 주요 물성치를 비교합니다.`,
   };
+}
+
+function getPropertyResultLabel(row) {
+  if (row.passed === true) return "통과";
+  if (row.passed === false) return "미충족";
+  return "검토";
 }
 
 function getPriceTrendBars(item) {
@@ -1000,35 +1160,53 @@ function getHardFilterEvidence(item) {
   }
 
   const evidence = getStandardEvidence(item);
+  const needsSource = evidence.verificationStatus === "needs_source";
   return [
     ...evidence.filters.slice(0, 3).map((description, index) => ({
       label: evidence.metrics[index] || "검증 항목",
-      status: "확인",
+      status: needsSource ? "기준 보강" : "확인",
       description,
     })),
     {
       label: "승인 리스크",
-      status: item.approvalRequired ? "승인 확인" : "낮음",
+      status: isApprovalReviewRequired(item) ? "검토 필요" : "낮음",
       description: evidence.approvalRisk,
     },
   ];
 }
 
+function isApprovalReviewRequired(item) {
+  return Boolean(item?.approvalRequired) || getStandardEvidence(item).verificationStatus === "needs_source";
+}
+
+function getApprovalRiskLabel(item) {
+  if (item?.approvalRequired) {
+    return "감리 승인 확인 필요";
+  }
+
+  return getStandardEvidence(item).verificationStatus === "needs_source"
+    ? "적용 기준 검토 필요"
+    : "승인 리스크 낮음";
+}
+
 function isHardFilterWarning(evidence) {
-  return ["승인", "문의", "확인 필요"].some((keyword) => evidence.status?.includes(keyword));
+  return ["승인", "문의", "확인 필요", "보강"].some((keyword) => evidence.status?.includes(keyword));
 }
 
 function getScoreEvidence(item) {
+  const evidence = getStandardEvidence(item);
   return {
     materialFit:
       item.scoreEvidence?.materialFit ||
-      `${getStandardEvidence(item).standard} 기준의 물성·규격 적합도를 가장 높은 비중으로 반영했습니다.`,
+      (evidence.verificationStatus === "needs_source"
+        ? "적용 KS 기준이 확보되지 않아 물성 점수를 보수적으로 반영했습니다."
+        : `${evidence.standard} 기준의 물성·규격 적합도를 가장 높은 비중으로 반영했습니다.`),
     price: item.scoreEvidence?.price || `${item.price} 기준으로 가격 점수 ${item.priceScore}점을 부여했습니다.`,
     distance:
       item.scoreEvidence?.distance ||
-      (Number.isFinite(Number(item.distanceKm))
-        ? `현장 기준 ${item.distanceKm}km 거리로 거리 점수 ${item.distanceScore}점을 부여했습니다.`
-        : "공급사 좌표가 없어 거리 점수는 보수적으로 반영했습니다."),
+      (hasRouteInformation(item)
+        ? `카카오 차량 경로 ${getDistanceLabel(item)}를 거리 점수에 반영했습니다.`
+        : item.routeNote || "차량 경로가 확인되지 않아 거리 가중치를 제외했습니다."),
     reliability:
       item.scoreEvidence?.reliability ||
       `과거 납품 이력 ${item.deliveryCount}회를 기준으로 신뢰도 점수 ${item.reliabilityScore}점을 부여했습니다.`,
@@ -1040,14 +1218,24 @@ function getApprovalRiskNote(item) {
     return item.approvalRiskNote;
   }
 
-  return item.approvalRequired
-    ? getStandardEvidence(item).approvalRisk
-    : `${getStandardEvidence(item).standard} 기준으로 우선 검토 가능한 후보입니다. 최종 납품 가능 여부는 공급사 문의가 필요합니다.`;
+  const evidence = getStandardEvidence(item);
+  return isApprovalReviewRequired(item)
+    ? evidence.approvalRisk
+    : `${evidence.standard} 기준으로 우선 검토 가능한 후보입니다. 최종 납품 가능 여부는 공급사 문의가 필요합니다.`;
 }
 
 function getApprovalChecklist(item) {
   if (item.approvalChecklist?.length) {
     return item.approvalChecklist;
+  }
+
+  const evidence = getStandardEvidence(item);
+  if (evidence.verificationStatus === "needs_source") {
+    return [
+      { label: "적용 표준", status: "기준 보강", description: "재료군에 맞는 KS 기준 자료를 확인해야 합니다." },
+      { label: "물성 기준", status: "검토 필요", description: "시험성적과 상세 규격 확인 전에는 적합 판정을 확정하지 않습니다." },
+      { label: "현장 확인", status: "필요", description: "최종 납품 서류와 재고 여부는 공급사에 확인하세요." },
+    ];
   }
 
   return item.approvalRequired
@@ -1098,31 +1286,23 @@ function closeDetail() {
   selectedRecommendation.value = null;
 }
 
-function openInquiry(item, mode = "general") {
+function openInquiry(item) {
   selectedInquirySupplier.value = item;
-  inquiryMode.value = mode;
   inquiryStatus.value = "";
   inquiryErrorMessage.value = "";
   inquiryForm.quantity = request.value?.requiredQuantity || "";
   inquiryForm.desiredDate = request.value?.requiredDate || "";
-  inquiryForm.message = mode === "urgent" ? buildUrgentMessage(item) : "";
+  inquiryForm.message = "";
   selectedRecommendation.value = null;
 }
 
 function closeInquiry() {
   selectedInquirySupplier.value = null;
-  inquiryMode.value = "general";
   inquiryStatus.value = "";
 }
 
-function buildUrgentMessage(item) {
-  const material = request.value?.materialName || item.materialName || "요청 자재";
-  const quantity = request.value?.requiredQuantity || "필요 수량";
-  const siteAddress = request.value?.siteAddress || "현장 주소";
-  return `${material} ${quantity} 긴급 납품 가능 여부를 확인하고 싶습니다. 현장 주소는 ${siteAddress}입니다. 실제 재고, 최종 단가, 가능한 납품 시간을 회신 부탁드립니다.`;
-}
-
 async function submitInquiry() {
+  if (isInquirySubmitting.value) return;
   try {
     isInquirySubmitting.value = true;
     inquiryStatus.value = "";
@@ -1131,8 +1311,8 @@ async function submitInquiry() {
       requestId: route.query.requestId,
       requestMaterial: request.value,
       supplier: selectedInquirySupplier.value,
-      requestType: inquiryMode.value,
-      priority: inquiryMode.value === "urgent" ? "high" : "normal",
+      requestType: "general",
+      priority: "normal",
       requesterName: inquiryForm.requesterName,
       contact: inquiryForm.contact,
       quantity: inquiryForm.quantity,
@@ -1140,10 +1320,11 @@ async function submitInquiry() {
       message: inquiryForm.message,
     });
 
-    inquiryStatus.value = inquiryMode.value === "urgent"
-      ? `${inquiry.id} 긴급 납품 요청이 저장되었습니다. 공급사 확인 후 가능 여부가 업데이트됩니다.`
-      : `${inquiry.id} 문의가 저장되었습니다. 공급사 확인 후 문의 상태가 업데이트됩니다.`;
+    inquiryStatus.value = "공급사 문의 요청이 접수되었습니다. 마이페이지 > 문의 내역에서 상태를 확인할 수 있습니다.";
     inquiryForm.message = "";
+    await new Promise((resolve) => window.setTimeout(resolve, 650));
+    closeInquiry();
+    await router.push("/inquiries");
   } catch {
     inquiryErrorMessage.value = "공급사 문의를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
   } finally {
@@ -1155,10 +1336,13 @@ async function loadRecommendations() {
   try {
     isLoading.value = true;
     errorMessage.value = "";
+    selectedRouteSupplier.value = null;
+    selectedRoute.value = null;
     request.value = await getLatestMaterialRequest();
     recommendations.value = await getRecommendations(route.query.requestId, {
       includeInternational: !hideApprovalRequired.value,
       keyword: route.query.keyword || "",
+      request: request.value,
     });
   } catch {
     errorMessage.value = "추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";

@@ -8,34 +8,23 @@
       </span>
     </RouterLink>
 
-    <nav ref="navRef" @mouseleave="onNavLeave">
+    <nav aria-label="주요 메뉴">
       <RouterLink
-        v-if="!isSupplier"
-        to="/materials/request"
-        @mouseenter="onLinkHover"
-      >자재 요청</RouterLink>
-      <RouterLink
-        to="/materials/recommendation"
-        @mouseenter="onLinkHover"
-      >추천 결과</RouterLink>
-      <RouterLink
-        v-if="isSupplier"
-        to="/supplier/dashboard"
-        @mouseenter="onLinkHover"
-      >공급사 대시보드</RouterLink>
-      <RouterLink
-        to="/inquiries"
-        @mouseenter="onLinkHover"
-      >문의 내역</RouterLink>
-
-      <span class="nav-hover-pill" :style="hoverPillStyle" aria-hidden="true"></span>
-      <span class="nav-indicator" :style="indicatorStyle" aria-hidden="true"></span>
+        v-for="item in navItems"
+        :key="item.name"
+        :to="{ name: item.name }"
+        :class="{ 'is-active': item.activeRoutes.includes(route.name) }"
+      >{{ item.label }}</RouterLink>
     </nav>
 
     <div class="auth-actions">
       <template v-if="authState.user">
         <div class="profile-wrap" ref="dropdownWrapRef">
-          <button type="button" class="profile-trigger" @click.stop="toggleDropdown">
+          <button
+            type="button"
+            :class="['profile-trigger', { 'is-active': myPageRouteNames.includes(route.name) }]"
+            @click.stop="toggleDropdown"
+          >
             <span class="profile-avatar">{{ userInitials }}</span>
             <span class="profile-name">{{ displayName }}</span>
             <span class="profile-chevron" :class="{ open: showDropdown }">▾</span>
@@ -45,10 +34,17 @@
             <div v-if="showDropdown" class="profile-dropdown">
               <RouterLink
                 class="dropdown-item"
-                :to="isSupplier ? '/supplier/mypage' : '/mypage'"
+                :to="{ name: isSupplier ? 'supplier-mypage' : 'mypage' }"
                 @click="showDropdown = false"
               >
                 <span>👤</span> 마이페이지
+              </RouterLink>
+              <RouterLink
+                class="dropdown-item"
+                :to="{ name: 'inquiries' }"
+                @click="showDropdown = false"
+              >
+                <span>📋</span> 문의 내역
               </RouterLink>
               <button type="button" class="dropdown-item dropdown-logout" @click="handleLogout">
                 <span>🚪</span> 로그아웃
@@ -65,17 +61,39 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { authState, logoutUser } from "../api/authApi";
 
 const router = useRouter();
 const route = useRoute();
-const navRef = ref(null);
+const isSupplier = computed(() => authState.user?.role === "supplier");
+const myPageRouteNames = ["mypage", "supplier-mypage", "supplier-profile", "inquiries", "inquiry-detail", "inquiry-edit"];
+const navItems = computed(() => [
+  ...(isSupplier.value
+    ? [{
+        name: "supplier-dashboard",
+        label: "공급사 대시보드",
+        activeRoutes: ["supplier-dashboard", "supplier-profile"],
+      }]
+    : [{
+        name: "material-request",
+        label: "자재 요청",
+        activeRoutes: ["material-request"],
+      }]),
+  {
+    name: "recommendation",
+    label: "추천 결과",
+    activeRoutes: ["recommendation", "recommendation-detail", "price-trend"],
+  },
+  {
+    name: "community",
+    label: "커뮤니티",
+    activeRoutes: ["community", "community-write", "community-edit", "community-detail"],
+  },
+]);
 const dropdownWrapRef = ref(null);
 const showDropdown = ref(false);
-
-const isSupplier = computed(() => authState.user?.role === "supplier");
 
 const userInitials = computed(() => {
   const name = authState.user?.name || "";
@@ -86,15 +104,6 @@ const displayName = computed(() =>
   authState.user?.companyName || authState.user?.name || ""
 );
 
-const indicatorStyle = ref({ left: "0px", width: "0px", opacity: "0" });
-const hoverPillStyle = ref({ left: "0px", width: "0px", top: "0px", height: "0px", opacity: "0" });
-
-watch(
-  () => route.path,
-  () => { nextTick(updateIndicator); },
-  { immediate: true },
-);
-
 watch(showDropdown, (val) => {
   if (val) {
     document.addEventListener("click", handleOutsideClick);
@@ -103,7 +112,7 @@ watch(showDropdown, (val) => {
   }
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
   document.removeEventListener("click", handleOutsideClick);
 });
 
@@ -115,39 +124,6 @@ function handleOutsideClick(e) {
 
 function toggleDropdown() {
   showDropdown.value = !showDropdown.value;
-}
-
-function updateIndicator() {
-  if (!navRef.value) return;
-  const active = navRef.value.querySelector(".router-link-active");
-  if (!active) {
-    indicatorStyle.value = { ...indicatorStyle.value, opacity: "0" };
-    return;
-  }
-  const navRect = navRef.value.getBoundingClientRect();
-  const linkRect = active.getBoundingClientRect();
-  indicatorStyle.value = {
-    left: linkRect.left - navRect.left + "px",
-    width: linkRect.width + "px",
-    opacity: "1",
-  };
-}
-
-function onLinkHover(e) {
-  if (!navRef.value) return;
-  const navRect = navRef.value.getBoundingClientRect();
-  const linkRect = e.currentTarget.getBoundingClientRect();
-  hoverPillStyle.value = {
-    left: linkRect.left - navRect.left - 10 + "px",
-    width: linkRect.width + 20 + "px",
-    top: linkRect.top - navRect.top - 6 + "px",
-    height: linkRect.height + 12 + "px",
-    opacity: "1",
-  };
-}
-
-function onNavLeave() {
-  hoverPillStyle.value = { ...hoverPillStyle.value, opacity: "0" };
 }
 
 async function handleLogout() {
@@ -186,6 +162,10 @@ async function handleLogout() {
 
 .profile-trigger:hover {
   background: rgba(0, 0, 0, 0.05);
+}
+
+.profile-trigger.is-active {
+  box-shadow: inset 0 0 0 2px rgba(21, 89, 232, 0.2);
 }
 
 .profile-avatar {
@@ -270,19 +250,24 @@ async function handleLogout() {
 }
 
 /* 홈페이지에서 흰색 스타일 */
-:global(.app-shell:has(.home-page)) .profile-trigger {
+:global(.app-shell:has(.home-page)) .profile-trigger,
+:global(.app-shell:has(.community-page)) .profile-trigger {
   border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(8, 24, 54, 0.28);
 }
 
-:global(.app-shell:has(.home-page)) .profile-name {
+:global(.app-shell:has(.home-page)) .profile-name,
+:global(.app-shell:has(.community-page)) .profile-name {
   color: rgba(255, 255, 255, 0.92);
 }
 
-:global(.app-shell:has(.home-page)) .profile-chevron {
-  color: rgba(255, 255, 255, 0.7);
+:global(.app-shell:has(.home-page)) .profile-chevron,
+:global(.app-shell:has(.community-page)) .profile-chevron {
+  color: #cbd5e1;
 }
 
-:global(.app-shell:has(.home-page)) .profile-trigger:hover {
+:global(.app-shell:has(.home-page)) .profile-trigger:hover,
+:global(.app-shell:has(.community-page)) .profile-trigger:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 

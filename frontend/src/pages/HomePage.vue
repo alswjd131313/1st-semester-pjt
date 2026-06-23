@@ -9,50 +9,87 @@
           <span>공급사 문의까지, 더 빠르게</span>
         </h1>
         <p class="hero-description">
-          KS 규격·물성 데이터와 공급사 납품 이력을 자동 비교해<br>현장 위치·단가 기준으로 우선 문의할 후보를 즉시 추천합니다.
+          부족한 자재를 입력하면 규격, 물성, 거리, 단가, 납품 이력을 비교해 대체 자재와
+          공급사 후보를 추천합니다.
         </p>
         <div class="hero-proof-row" aria-label="추천 기준">
-          <span>물성 기준 검토</span>
+          <span>KS·물성 검증</span>
           <span>거리·단가 비교</span>
-          <span>납품 이력 반영</span>
+          <span>납품 이력 기반 추천</span>
         </div>
       </div>
 
       <form class="hero-search-dock" @submit.prevent="submitSearch">
-        <p class="dock-title">자재 검색</p>
-        <div class="dock-row">
-          <div class="dock-input-wrap">
-            <input
-              v-model="keyword"
-              type="text"
-              placeholder="필요한 자재를 입력하세요"
-              autocomplete="off"
-              @focus="showAc = true"
-              @blur="hideAc"
-              @keydown.arrow-down.prevent="acMove(1)"
-              @keydown.arrow-up.prevent="acMove(-1)"
-              @keydown.enter.prevent="onAcEnter"
-              @keydown.esc="showAc = false"
-              @input="showAc = true; acIndex = -1"
-            />
-            <ul v-if="showAc && acSuggestions.length" class="ac-list">
-              <li
-                v-for="(s, i) in acSuggestions"
-                :key="s"
-                :class="{ 'ac-active': i === acIndex }"
-                @mousedown.prevent="selectAc(s)"
+        <div class="search-field">
+          <label for="hero-material-search">자재 검색</label>
+          <div class="search-control-row">
+            <div class="search-input-area">
+              <input
+                id="hero-material-search"
+                v-model="keyword"
+                type="search"
+                placeholder="필요한 자재를 입력하세요"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="material-suggestion-list"
+                :aria-expanded="showSuggestionDropdown"
+                :aria-activedescendant="activeSuggestionId || undefined"
+                @focus="showAvailableSuggestions"
+                @blur="hideSuggestions"
+                @keydown="handleSearchKeydown"
+              />
+              <div
+                v-if="showSuggestionDropdown"
+                id="material-suggestion-list"
+                class="material-suggestion-dropdown"
+                role="listbox"
               >
-                <span class="ac-icon">🔍</span>{{ s }}
-              </li>
-            </ul>
+                <button
+                  v-for="(suggestion, index) in materialSuggestions"
+                  :key="`${suggestion.id}-${suggestion.name}-${suggestion.spec}`"
+                  :id="`material-suggestion-${index}`"
+                  :class="{ 'is-active': index === activeSuggestionIndex }"
+                  type="button"
+                  role="option"
+                  :aria-selected="index === activeSuggestionIndex"
+                  @mouseenter="activeSuggestionIndex = index"
+                  @mousedown.prevent="selectSuggestion(suggestion)"
+                >
+                  <span class="suggestion-copy">
+                    <span class="suggestion-main">
+                      <strong>{{ suggestion.name }}</strong>
+                      <small v-if="suggestion.spec">{{ suggestion.spec }}</small>
+                    </span>
+                    <span class="suggestion-meta">
+                      {{ suggestion.material_group }}
+                      <template v-if="suggestion.material_subtype">
+                        · {{ suggestion.material_subtype }}
+                      </template>
+                    </span>
+                  </span>
+                  <span v-if="suggestion.supplier_name" class="suggestion-supply">
+                    {{ suggestion.supplier_name }}
+                  </span>
+                  <span v-else-if="suggestion.available" class="suggestion-supply">
+                    공급 이력 있음
+                  </span>
+                </button>
+              </div>
+            </div>
+            <button type="submit">{{ searchButtonLabel }}</button>
+            <RouterLink class="dock-link" :to="dockLink.to">{{ dockLink.label }}</RouterLink>
           </div>
-          <button type="submit">대체 자재 찾기</button>
-          <RouterLink class="dock-link" to="/login?role=supplier">자재 조달 요청</RouterLink>
-        </div>
-        <div class="dock-tags">
-          <button type="button" class="dock-tag" @click="fillTag('철근 SD400 D10')">철근 SD400 D10</button>
-          <button type="button" class="dock-tag" @click="fillTag('H형강 300x300')">H형강 300x300</button>
-          <button type="button" class="dock-tag" @click="fillTag('고로슬래그 시멘트 1종')">고로슬래그 시멘트 1종</button>
+          <div class="search-example-tags" aria-label="자재 검색 예시">
+            <button
+              v-for="example in searchExamples"
+              :key="example"
+              type="button"
+              @click="keyword = example"
+            >
+              {{ example }}
+            </button>
+          </div>
         </div>
       </form>
     </section>
@@ -275,68 +312,20 @@
 
 <script setup>
 import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
-import { getSupplierInquiries, getSupplierMaterials } from "../api/materialApi";
+import { getMaterialSuggestions } from "../api/materialApi";
 
 const router = useRouter();
-
-// 자동완성
-const showAc = ref(false);
-const acIndex = ref(-1);
-
-const AC_DATA = [
-  "철근 SD300 D10", "철근 SD300 D13", "철근 SD300 D16",
-  "철근 SD400 D10", "철근 SD400 D13", "철근 SD400 D16", "철근 SD400 D19", "철근 SD400 D22", "철근 SD400 D25",
-  "철근 SD500 D13", "철근 SD500 D16", "철근 SD500 D19", "철근 SD500 D22", "철근 SD500 D25", "철근 SD500 D29",
-  "철근 SD600 D16", "철근 SD600 D19", "철근 SD600 D22", "철근 SD600 D25",
-  "H형강 100x100", "H형강 150x150", "H형강 200x200", "H형강 250x250", "H형강 300x300", "H형강 350x350", "H형강 400x400",
-  "I형강 100x50", "I형강 150x75", "I형강 200x100",
-  "ㄷ형강 75x40", "ㄷ형강 100x50", "ㄷ형강 150x65",
-  "ㄱ형강 50x50x6", "ㄱ형강 75x75x6", "ㄱ형강 100x100x7",
-  "포틀랜드 시멘트 1종", "포틀랜드 시멘트 2종", "포틀랜드 시멘트 3종",
-  "고로슬래그 시멘트 1종", "고로슬래그 시멘트 2종", "백시멘트",
-  "EPS 단열재 1종 50t", "EPS 단열재 2종 100t", "XPS 단열재 50t", "XPS 단열재 100t",
-  "우레탄폼 단열재 50t", "경질 우레탄폼 단열재 80t",
-  "합판 12mm", "합판 15mm", "합판 18mm", "합판 24mm",
-  "각재 30x40", "각재 40x60", "각재 50x100",
-];
-
-const acSuggestions = computed(() => {
-  const kw = keyword.value.trim().toLowerCase();
-  if (!kw) return [];
-  return AC_DATA.filter((s) => s.toLowerCase().includes(kw)).slice(0, 8);
-});
-
-function hideAc() {
-  setTimeout(() => { showAc.value = false; acIndex.value = -1; }, 150);
-}
-
-function acMove(dir) {
-  showAc.value = true;
-  acIndex.value = Math.max(-1, Math.min(acIndex.value + dir, acSuggestions.value.length - 1));
-}
-
-function onAcEnter() {
-  if (acIndex.value >= 0 && acSuggestions.value[acIndex.value]) {
-    selectAc(acSuggestions.value[acIndex.value]);
-  } else {
-    showAc.value = false;
-    submitSearch();
-  }
-}
-
-function selectAc(text) {
-  keyword.value = text;
-  showAc.value = false;
-  acIndex.value = -1;
-}
 const keyword = ref("");
-const inquiries = ref([]);
-const supplierMaterials = ref([]);
-const isLoading = ref(false);
-const errorMessage = ref("");
+const materialSuggestions = ref([]);
+const suggestionsOpen = ref(false);
+const activeSuggestionIndex = ref(-1);
+const searchExamples = ["철근 SD400 D10", "H형강 300x300", "고로슬래그 시멘트 1종"];
+let suggestionTimer;
+let suggestionRequestId = 0;
+let suppressNextSuggestionFetch = false;
 
 const valueStripRef = ref(null);
 const vcActive = ref(0);
@@ -442,41 +431,6 @@ const reasonCards = [
 
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
-const roleLabel = computed(() => (isSupplier.value ? "Supplier" : "Requester"));
-const approvalCount = computed(
-  () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
-);
-const roleHeadline = computed(() =>
-  isSupplier.value ? "등록 자재와 문의를 관리하세요." : "요청과 문의 상태를 확인하세요.",
-);
-const roleDescription = computed(() =>
-  isSupplier.value
-    ? "취급 자재를 등록하고 접수 문의의 공급 가능 여부를 업데이트할 수 있습니다."
-    : "새 자재 요청을 등록하고 추천 후보에 남긴 문의 상태를 이어서 확인할 수 있습니다.",
-);
-const roleStats = computed(() => {
-  if (isSupplier.value) {
-    return [
-      { label: "등록 자재", value: `${supplierMaterials.value.length}개` },
-      { label: "접수 문의", value: `${inquiries.value.length}건` },
-    ];
-  }
-
-  return [
-    { label: "저장 문의", value: `${inquiries.value.length}건` },
-    { label: "승인 확인", value: `${approvalCount.value}건` },
-  ];
-});
-const primaryRoleAction = computed(() =>
-  isSupplier.value
-    ? { label: "취급 자재 등록", to: "/supplier-register" }
-    : { label: "자재 요청하기", to: "/request" },
-);
-const secondaryRoleAction = computed(() =>
-  isSupplier.value
-    ? { label: "문의 관리", to: "/dashboard" }
-    : { label: "문의 내역", to: "/dashboard" },
-);
 const dockLink = computed(() => {
   if (!authState.user) {
     return { label: "공급사 등록 안내", to: "/login?role=supplier" };
@@ -484,9 +438,53 @@ const dockLink = computed(() => {
 
   return isSupplier.value
     ? { label: "공급사 자재 등록", to: "/supplier-register" }
-    : { label: "내 문의 내역", to: "/dashboard" };
+    : { label: "내 문의 내역", to: "/inquiries" };
 });
 const searchButtonLabel = computed(() => (isSupplier.value ? "추천 후보 보기" : "대체 자재 찾기"));
+const showSuggestionDropdown = computed(
+  () => suggestionsOpen.value && materialSuggestions.value.length > 0,
+);
+const activeSuggestionId = computed(() =>
+  activeSuggestionIndex.value >= 0
+    ? `material-suggestion-${activeSuggestionIndex.value}`
+    : "",
+);
+
+watch(keyword, (value) => {
+  if (suppressNextSuggestionFetch) {
+    suppressNextSuggestionFetch = false;
+    return;
+  }
+
+  clearTimeout(suggestionTimer);
+  const query = value.trim();
+  if (!query) {
+    suggestionRequestId += 1;
+    materialSuggestions.value = [];
+    suggestionsOpen.value = false;
+    activeSuggestionIndex.value = -1;
+    return;
+  }
+
+  const requestId = ++suggestionRequestId;
+  suggestionTimer = setTimeout(async () => {
+    try {
+      const suggestions = await getMaterialSuggestions(query);
+      if (requestId !== suggestionRequestId) {
+        return;
+      }
+      materialSuggestions.value = suggestions;
+      suggestionsOpen.value = suggestions.length > 0;
+      activeSuggestionIndex.value = -1;
+    } catch {
+      if (requestId === suggestionRequestId) {
+        materialSuggestions.value = [];
+        suggestionsOpen.value = false;
+        activeSuggestionIndex.value = -1;
+      }
+    }
+  }, 280);
+});
 
 function revealObservedSections() {
   const sections = document.querySelectorAll(".section-observe");
@@ -510,33 +508,78 @@ function revealObservedSections() {
   sections.forEach((section) => observer.observe(section));
 }
 
-async function loadRoleSummary() {
-  if (!authState.user) {
-    return;
-  }
-
-  try {
-    isLoading.value = true;
-    errorMessage.value = "";
-    inquiries.value = await getSupplierInquiries();
-
-    if (isSupplier.value) {
-      supplierMaterials.value = await getSupplierMaterials();
-    }
-  } catch {
-    errorMessage.value = "요약 정보를 불러오지 못했습니다.";
-  } finally {
-    isLoading.value = false;
-  }
-}
-
 function submitSearch() {
+  suggestionsOpen.value = false;
   const query = keyword.value ? { keyword: keyword.value } : {};
   router.push({ path: "/recommendations", query });
 }
 
-function fillTag(text) {
-  keyword.value = text;
+function showAvailableSuggestions() {
+  if (keyword.value.trim() && materialSuggestions.value.length) {
+    suggestionsOpen.value = true;
+  }
+}
+
+function hideSuggestions() {
+  suggestionsOpen.value = false;
+  activeSuggestionIndex.value = -1;
+}
+
+function selectSuggestion(suggestion) {
+  clearTimeout(suggestionTimer);
+  suggestionRequestId += 1;
+  suppressNextSuggestionFetch = true;
+  keyword.value = [suggestion.name, suggestion.spec].filter(Boolean).join(" ").trim();
+  materialSuggestions.value = [];
+  suggestionsOpen.value = false;
+  activeSuggestionIndex.value = -1;
+}
+
+function handleSearchKeydown(event) {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    moveSuggestion(1);
+    return;
+  }
+
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    moveSuggestion(-1);
+    return;
+  }
+
+  if (event.key === "Enter" && showSuggestionDropdown.value && activeSuggestionIndex.value >= 0) {
+    event.preventDefault();
+    selectSuggestion(materialSuggestions.value[activeSuggestionIndex.value]);
+    return;
+  }
+
+  if (event.key === "Escape" && showSuggestionDropdown.value) {
+    event.preventDefault();
+    suggestionsOpen.value = false;
+    activeSuggestionIndex.value = -1;
+  }
+}
+
+function moveSuggestion(direction) {
+  const suggestionCount = materialSuggestions.value.length;
+  if (!suggestionCount) {
+    return;
+  }
+
+  suggestionsOpen.value = true;
+  if (activeSuggestionIndex.value < 0) {
+    activeSuggestionIndex.value = direction > 0 ? 0 : suggestionCount - 1;
+  } else {
+    activeSuggestionIndex.value =
+      (activeSuggestionIndex.value + direction + suggestionCount) % suggestionCount;
+  }
+
+  nextTick(() => {
+    document
+      .getElementById(activeSuggestionId.value)
+      ?.scrollIntoView({ block: "nearest" });
+  });
 }
 
 // 스크롤 상단 버튼
@@ -564,12 +607,13 @@ function scrollToTop() {
 }
 
 onMounted(() => {
-  loadRoleSummary();
   revealObservedSections();
   window.addEventListener("scroll", onScroll, { passive: true });
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
+  clearTimeout(suggestionTimer);
+  suggestionRequestId += 1;
   window.removeEventListener("scroll", onScroll);
 });
 </script>

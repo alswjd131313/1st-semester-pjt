@@ -7,9 +7,11 @@ urlpatterns = [
     path("addresses/geocode/", views.geocode_address, name="address-geocode"),
     path("narajangteo/contracts/", views.narajangteo_contracts, name="narajangteo-contracts"),
     path("narajangteo/cached-contracts/", views.cached_narajangteo_contracts, name="narajangteo-cached-contracts"),
+    path("routes/driving/", views.driving_route, name="driving-route"),
 
     # 자재 검색
     path("materials/", views.MaterialListView.as_view(), name="material-list"),
+    path("materials/suggest/", views.material_suggestions, name="material-suggestions"),
 
     # 대체 공급사 추천 (핵심)
     path("materials/<int:material_id>/alternatives/", views.alternative_suppliers,name="alternatives"),
@@ -23,4 +25,12 @@ urlpatterns = [
     # 공급사 직접 등록 자재
     path("supplier-materials/", views.SupplierMaterialRegistrationListCreateView.as_view(), name="supplier-material-list-create"),
     path("supplier-materials/public/", views.PublicSupplierMaterialRegistrationListView.as_view(), name="supplier-material-public-list"),
+
+    # 커뮤니티 MVP
+    path("community/posts/", views.CommunityPostListCreateView.as_view(), name="community-post-list-create"),
+    path("community/posts/<int:pk>/", views.CommunityPostDetailView.as_view(), name="community-post-detail"),
+    path("community/posts/<int:post_id>/comments/", views.CommunityCommentListCreateView.as_view(), name="community-comment-list-create"),
+    path("community/contact-requests/", views.CommunityContactRequestListCreateView.as_view(), name="community-contact-list-create"),
+    path("community/contact-requests/<int:pk>/", views.CommunityContactRequestDetailView.as_view(), name="community-contact-detail"),
+    path("community/profiles/<int:user_id>/", views.community_public_profile, name="community-public-profile"),
 ]
