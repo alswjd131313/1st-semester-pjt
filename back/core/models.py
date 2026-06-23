@@ -526,3 +526,97 @@ class SupplierMaterialRegistration(models.Model):
 
     def __str__(self):
         return f"{self.supplier_name} / {self.material_name}"
+
+
+# ──────────────────────────────────────────
+# 8. 커뮤니티 MVP
+# ──────────────────────────────────────────
+
+class CommunityPost(models.Model):
+    DISPLAY_CHOICES = [
+        ("profile", "실명/프로필"),
+        ("anonymous", "익명"),
+    ]
+    TYPE_CHOICES = [
+        ("substitute_review", "대체 자재 후기"),
+        ("supplier_review", "공급사 후기"),
+        ("field_question", "현장 질문"),
+    ]
+
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="community_posts",
+    )
+    display_mode = models.CharField(max_length=20, choices=DISPLAY_CHOICES, default="profile")
+    anonymous_alias = models.CharField(max_length=20, blank=True)
+    post_type = models.CharField(max_length=30, choices=TYPE_CHOICES, db_index=True)
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    material_name = models.CharField(max_length=200, blank=True)
+    supplier_name = models.CharField(max_length=200, blank=True)
+    region = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "community_posts"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
+class CommunityComment(models.Model):
+    DISPLAY_CHOICES = [
+        ("profile", "실명/프로필"),
+        ("anonymous", "익명"),
+    ]
+
+    post = models.ForeignKey(CommunityPost, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="community_comments",
+    )
+    display_mode = models.CharField(max_length=20, choices=DISPLAY_CHOICES, default="profile")
+    anonymous_alias = models.CharField(max_length=20, blank=True)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "community_comments"
+        ordering = ["created_at"]
+
+
+class CommunityContactRequest(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "수락 대기"),
+        ("confirmed", "확인 완료"),
+        ("rejected", "거절됨"),
+    ]
+
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_community_contact_requests",
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_community_contact_requests",
+    )
+    post = models.ForeignKey(
+        CommunityPost,
+        on_delete=models.CASCADE,
+        related_name="contact_requests",
+    )
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "community_contact_requests"
+        ordering = ["-created_at"]

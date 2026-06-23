@@ -7,6 +7,9 @@ from .models import (
     SupplyHistory,
     Demand,
     SupplierMaterialRegistration,
+    CommunityPost,
+    CommunityComment,
+    CommunityContactRequest,
 )
 
 
@@ -159,3 +162,110 @@ class SupplierMaterialRegistrationSerializer(serializers.ModelSerializer):
             "delivery_count", "note", "created_at",
         ]
         read_only_fields = ["id", "owner_email", "created_at"]
+
+
+def community_author_payload(user, anonymous=False, alias=""):
+    if anonymous:
+        return {
+            "display_name": alias or "익명 사용자",
+            "role": "익명 사용자",
+            "affiliation": "",
+            "avatar_text": "PF",
+            "is_anonymous": True,
+        }
+
+    profile = getattr(user, "profile", None)
+    role_labels = {"requester": "현장 자재 담당자", "supplier": "공급사 담당자"}
+    name = user.first_name or user.username or "PaceFlow 사용자"
+    return {
+        "display_name": name,
+        "role": role_labels.get(getattr(profile, "role", ""), "PaceFlow 사용자"),
+        "affiliation": getattr(profile, "company_name", ""),
+        "avatar_text": (name[:2] or "PF").upper(),
+        "is_anonymous": False,
+    }
+
+
+class CommunityCommentSerializer(serializers.ModelSerializer):
+    author = serializers.SerializerMethodField()
+    is_owner = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommunityComment
+        fields = ["id", "author", "display_mode", "content", "created_at", "is_owner"]
+        read_only_fields = ["id", "author", "created_at", "is_owner"]
+
+    def get_author(self, obj):
+        return community_author_payload(
+            obj.author,
+            anonymous=obj.display_mode == "anonymous",
+            alias=obj.anonymous_alias,
+        )
+
+    def get_is_owner(self, obj):
+        request = self.context.get("request")
+        return bool(request and request.user.is_authenticated and request.user == obj.author)
+
+
+class CommunityPostSerializer(serializers.ModelSerializer):
+    author = serializers.SerializerMethodField()
+    post_type_label = serializers.CharField(source="get_post_type_display", read_only=True)
+    comment_count = serializers.IntegerField(read_only=True, default=0)
+    comments = CommunityCommentSerializer(many=True, read_only=True)
+    is_owner = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommunityPost
+        fields = [
+            "id", "author", "display_mode", "post_type", "post_type_label",
+            "title", "content", "material_name", "supplier_name", "region",
+            "status", "comment_count", "comments", "is_owner", "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "author", "comment_count", "comments", "is_owner", "created_at", "updated_at",
+        ]
+
+    def get_author(self, obj):
+        return community_author_payload(
+            obj.author,
+            anonymous=obj.display_mode == "anonymous",
+            alias=obj.anonymous_alias,
+        )
+
+    def get_is_owner(self, obj):
+        request = self.context.get("request")
+        return bool(request and request.user.is_authenticated and request.user == obj.author)
+
+
+class CommunityContactRequestSerializer(serializers.ModelSerializer):
+    post_title = serializers.CharField(source="post.title", read_only=True)
+    target_display_name = serializers.SerializerMethodField()
+    requester_display_name = serializers.SerializerMethodField()
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    direction = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommunityContactRequest
+        fields = [
+            "id", "post", "post_title", "target_display_name", "requester_display_name",
+            "message", "status", "status_label", "direction", "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "post_title", "target_display_name", "requester_display_name",
+            "status_label", "direction", "created_at", "updated_at",
+        ]
+
+    def get_target_display_name(self, obj):
+        post = obj.post
+        return community_author_payload(
+            post.author,
+            anonymous=post.display_mode == "anonymous",
+            alias=post.anonymous_alias,
+        )["display_name"]
+
+    def get_requester_display_name(self, obj):
+        return community_author_payload(obj.requester)["display_name"]
+
+    def get_direction(self, obj):
+        request = self.context.get("request")
+        return "sent" if request and request.user == obj.requester else "received"

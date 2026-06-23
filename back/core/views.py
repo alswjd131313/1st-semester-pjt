@@ -1,6 +1,8 @@
 import math
 import re
 import requests
+import secrets
+import string
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from datetime import date, timedelta
@@ -13,10 +15,14 @@ from django.db.models import (
 from django.conf import settings
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated, SAFE_METHODS
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .models import Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration
+from .models import (
+    Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration,
+    CommunityPost, CommunityComment, CommunityContactRequest,
+)
 from .serializers import (
     MaterialListSerializer,
     MaterialSuggestionSerializer,
@@ -25,6 +31,9 @@ from .serializers import (
     PriceTrendSerializer,
     DemandSerializer,
     SupplierMaterialRegistrationSerializer,
+    CommunityPostSerializer,
+    CommunityCommentSerializer,
+    CommunityContactRequestSerializer,
 )
 from .services.kakao_directions import get_driving_route
 
@@ -983,3 +992,127 @@ class PublicSupplierMaterialRegistrationListView(generics.ListAPIView):
     """
     serializer_class = SupplierMaterialRegistrationSerializer
     queryset = SupplierMaterialRegistration.objects.select_related("owner").all()
+
+
+# ══════════════════════════════════════════
+# 6. 커뮤니티 MVP
+# ══════════════════════════════════════════
+
+class IsCommunityAuthorOrReadOnly(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return request.method in SAFE_METHODS or obj.author == request.user
+
+
+class CommunityPostListCreateView(generics.ListCreateAPIView):
+    serializer_class = CommunityPostSerializer
+
+    def get_queryset(self):
+        queryset = CommunityPost.objects.select_related("author", "author__profile").annotate(
+            comment_count=Count("comments")
+        )
+        post_type = self.request.query_params.get("type", "").strip()
+        return queryset.filter(post_type=post_type) if post_type else queryset
+
+    def get_permissions(self):
+        return [IsAuthenticated()] if self.request.method == "POST" else [AllowAny()]
+
+    def perform_create(self, serializer):
+        display_mode = serializer.validated_data.get("display_mode", "profile")
+        alias = ""
+        if display_mode == "anonymous":
+            alphabet = string.ascii_uppercase + string.digits
+            alias = "익명" + "".join(secrets.choice(alphabet) for _ in range(5))
+        serializer.save(author=self.request.user, anonymous_alias=alias)
+
+
+class CommunityPostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CommunityPostSerializer
+    permission_classes = [IsCommunityAuthorOrReadOnly]
+    queryset = CommunityPost.objects.select_related("author", "author__profile").prefetch_related(
+        "comments__author", "comments__author__profile"
+    ).annotate(comment_count=Count("comments"))
+
+    def perform_update(self, serializer):
+        post = self.get_object()
+        display_mode = serializer.validated_data.get("display_mode", post.display_mode)
+        alias = post.anonymous_alias
+        if display_mode == "anonymous" and not alias:
+            alphabet = string.ascii_uppercase + string.digits
+            alias = "익명" + "".join(secrets.choice(alphabet) for _ in range(5))
+        elif display_mode == "profile":
+            alias = ""
+        serializer.save(author=post.author, anonymous_alias=alias)
+
+
+class CommunityCommentListCreateView(generics.ListCreateAPIView):
+    serializer_class = CommunityCommentSerializer
+
+    def get_queryset(self):
+        return CommunityComment.objects.filter(post_id=self.kwargs["post_id"]).select_related(
+            "author", "author__profile"
+        )
+
+    def get_permissions(self):
+        return [IsAuthenticated()] if self.request.method == "POST" else [AllowAny()]
+
+    def perform_create(self, serializer):
+        post = generics.get_object_or_404(CommunityPost, pk=self.kwargs["post_id"])
+        display_mode = serializer.validated_data.get("display_mode", "profile")
+        alias = ""
+        if display_mode == "anonymous":
+            alias = CommunityComment.objects.filter(
+                post=post,
+                author=self.request.user,
+                display_mode="anonymous",
+            ).exclude(anonymous_alias="").values_list("anonymous_alias", flat=True).first() or ""
+            if not alias:
+                alphabet = string.ascii_uppercase + string.digits
+                alias = "익명" + "".join(secrets.choice(alphabet) for _ in range(5))
+        serializer.save(post=post, author=self.request.user, anonymous_alias=alias)
+
+
+class CommunityContactRequestListCreateView(generics.ListCreateAPIView):
+    serializer_class = CommunityContactRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return CommunityContactRequest.objects.filter(
+            Q(requester=self.request.user) | Q(recipient=self.request.user)
+        ).select_related(
+            "post", "post__author", "post__author__profile", "requester", "requester__profile"
+        )
+
+    def perform_create(self, serializer):
+        post = serializer.validated_data["post"]
+        if post.author == self.request.user:
+            raise ValidationError({"post": "본인 게시글에는 질문 요청을 보낼 수 없습니다."})
+        serializer.save(requester=self.request.user, recipient=post.author, status="pending")
+
+
+class CommunityContactRequestDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = CommunityContactRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return CommunityContactRequest.objects.filter(
+            Q(requester=self.request.user) | Q(recipient=self.request.user)
+        ).select_related(
+            "post", "post__author", "post__author__profile", "requester", "requester__profile"
+        )
+
+    def perform_update(self, serializer):
+        contact_request = self.get_object()
+        if contact_request.recipient != self.request.user:
+            raise ValidationError({"status": "작성자만 요청 상태를 변경할 수 있습니다."})
+        next_status = serializer.validated_data.get("status", contact_request.status)
+        if next_status not in {"pending", "confirmed", "rejected"}:
+            raise ValidationError({"status": "올바르지 않은 상태입니다."})
+        serializer.save()
+
+    def update(self, request, *args, **kwargs):
+        if set(request.data.keys()) - {"status"}:
+            return Response(
+                {"error": "커뮤니티 대화 요청에서는 상태만 변경할 수 있습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)

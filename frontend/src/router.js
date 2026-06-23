@@ -15,6 +15,9 @@ import MyPage from "./pages/MyPage.vue";
 import SupplierMyPage from "./pages/SupplierMyPage.vue";
 import SignupSuccessPage from "./pages/SignupSuccessPage.vue";
 import PriceTrendPage from "./pages/PriceTrendPage.vue";
+import CommunityPage from "./pages/CommunityPage.vue";
+import CommunityWritePage from "./pages/CommunityWritePage.vue";
+import CommunityDetailPage from "./pages/CommunityDetailPage.vue";
 
 const routes = [
   { path: "/", name: "home", component: HomePage },
@@ -45,6 +48,22 @@ const routes = [
     component: PriceTrendPage,
     meta: { requiresAuth: true },
   },
+
+  // 커뮤니티
+  { path: "/community", name: "community", component: CommunityPage },
+  {
+    path: "/community/new",
+    name: "community-write",
+    component: CommunityWritePage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/community/:id/edit",
+    name: "community-edit",
+    component: CommunityWritePage,
+    meta: { requiresAuth: true },
+  },
+  { path: "/community/:id", name: "community-detail", component: CommunityDetailPage },
 
   // 문의
   {

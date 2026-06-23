@@ -80,6 +80,11 @@ const navItems = computed(() => [
     activeRoutes: ["recommendation", "recommendation-detail", "price-trend"],
   },
   {
+    name: "community",
+    label: "커뮤니티",
+    activeRoutes: ["community", "community-write", "community-edit", "community-detail"],
+  },
+  {
     name: "inquiries",
     label: "문의 내역",
     activeRoutes: ["inquiries", "inquiry-detail"],
@@ -243,19 +248,24 @@ async function handleLogout() {
 }
 
 /* 홈페이지에서 흰색 스타일 */
-:global(.app-shell:has(.home-page)) .profile-trigger {
+:global(.app-shell:has(.home-page)) .profile-trigger,
+:global(.app-shell:has(.community-page)) .profile-trigger {
   border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(8, 24, 54, 0.28);
 }
 
-:global(.app-shell:has(.home-page)) .profile-name {
-  color: rgba(255, 255, 255, 0.9);
+:global(.app-shell:has(.home-page)) .profile-name,
+:global(.app-shell:has(.community-page)) .profile-name {
+  color: #f8fafc;
 }
 
-:global(.app-shell:has(.home-page)) .profile-chevron {
-  color: rgba(255, 255, 255, 0.7);
+:global(.app-shell:has(.home-page)) .profile-chevron,
+:global(.app-shell:has(.community-page)) .profile-chevron {
+  color: #cbd5e1;
 }
 
-:global(.app-shell:has(.home-page)) .profile-trigger:hover {
+:global(.app-shell:has(.home-page)) .profile-trigger:hover,
+:global(.app-shell:has(.community-page)) .profile-trigger:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
