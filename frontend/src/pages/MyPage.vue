@@ -409,7 +409,7 @@ function resizeImage(file, maxSize) {
   margin-bottom: 22px;
 }
 .card-header h2 { font-size: 17px; font-weight: 700; color: #102a56; margin: 0; }
-.card-title { font-size: 17px; font-weight: 700; color: #102a56; margin: 0 0 22px; }
+.card-title { font-size: 18px; font-weight: 800; color: #102a56; margin: 0 0 22px; }
 .link-more { font-size: 13px; color: #1559e8; text-decoration: none; font-weight: 600; }
 
 /* ── 문의 현황 4-카드 그리드 ── */

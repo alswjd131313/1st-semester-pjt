@@ -123,6 +123,7 @@
       <div class="value-sticky">
         <div class="value-head">
           <h2>자재 수급 업무를 <span>더 간단하게</span></h2>
+          <p class="mp-section-sub">현장 정보 입력부터 후보 분석, 공급사 문의까지 <br>자재 수급 과정을 한눈에 확인할 수 있습니다.</p>
         </div>
         <div class="value-scene">
           <div
@@ -155,6 +156,7 @@
     <section class="flow-section section-observe">
       <div class="section-heading center-heading">
         <h2><span>3단계</span>로 끝나는 자재 탐색</h2>
+        <p class="mp-section-sub">자재 입력부터 후보 분석, 공급사 문의까지<br>복잡한 수급 업무를 단 3단계로 간소화했습니다.</p>
       </div>
 
       <div class="flow-card-grid">
@@ -172,7 +174,7 @@
     <section class="material-proof-section section-observe">
       <div class="section-heading center-heading">
         <h2>예시로 보는 <span>물성 비교</span></h2>
-        <p class="mp-section-sub">AI가 분석한 두 자재의 물성 데이터 비교 결과입니다.</p>
+        <p class="mp-section-sub">대체 가능성 검토를 위해 두 자재의 물성 정보를 비교합니다.</p>
       </div>
 
       <div class="mp-wrap">
@@ -417,7 +419,7 @@ const workflowCards = [
   {
     step: "03",
     title: "문의 우선순위 확인",
-    description: "거리, 단가, 납품 실적을 종합해 우선 연락할 업체를 정리합니다.",
+    description: "거리, 단가, 납품 실적을 종합해 우선적으로 연락할 업체를 정리합니다.",
     image: "/step_03.png",
   },
 ];
@@ -887,7 +889,7 @@ onBeforeUnmount(() => {
 }
 
 .value-head h2 {
-  margin: 0;
+  margin: 20px;
   color: #102a56;
   font-size: clamp(28px, 3.2vw, 42px);
   font-weight: 800;
@@ -1195,7 +1197,7 @@ onBeforeUnmount(() => {
 
 .rr-intro p {
   color: #65748d;
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.75;
 }
 
@@ -1251,13 +1253,13 @@ onBeforeUnmount(() => {
 
 .rr-content h3 {
   color: #102a56;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
 }
 
 .rr-content > p {
   color: #65748d;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.75;
   margin: 0;
 }
@@ -1290,7 +1292,7 @@ onBeforeUnmount(() => {
 .rr-criteria li {
   position: relative;
   padding-left: 14px;
-  font-size: 13px;
+  font-size: 15px;
   color: #4b6380;
   line-height: 1.5;
 }

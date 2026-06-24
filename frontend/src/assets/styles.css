@@ -1655,9 +1655,9 @@ h1 {
 
 /* ── 물성 비교 섹션 (mp-*) ── */
 .mp-section-sub {
-  font-size: 15px;
+  font-size: 18px;
   color: #71809a;
-  margin: 10px 0 0;
+  margin: 20px 0 10px;
   text-align: center;
 }
 

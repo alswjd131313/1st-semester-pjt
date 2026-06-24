@@ -4,13 +4,6 @@
     <div class="page-heading">
       <h1>자재 조달 요청</h1>
       <p>필요한 자재와 현장 정보를 입력하시면<br>대체 가능한 자재와 최적의 공급사를 추천해드립니다.</p>
-      <span class="time-badge">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-          <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        평균 1분 소요
-      </span>
     </div>
 
     <!-- 스텝 인디케이터 -->

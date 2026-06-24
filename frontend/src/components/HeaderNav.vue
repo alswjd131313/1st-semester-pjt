@@ -85,12 +85,12 @@ const navItems = computed(() => [
     ? [
         {
           name: "supplier-profile",
-          label: "자재 관리",
+          label: "프로필 관리",
           activeRoutes: ["supplier-profile"],
         },
         {
           name: "inquiries",
-          label: "받은 요청",
+          label: "문의 현황",
           activeRoutes: inquiryRouteNames,
         },
       ]
