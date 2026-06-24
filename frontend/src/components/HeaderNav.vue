@@ -19,6 +19,7 @@
 
     <div class="auth-actions">
       <template v-if="authState.user">
+        <NotificationBell :user="authState.user" />
         <div class="profile-wrap" ref="dropdownWrapRef">
           <button
             type="button"
@@ -47,7 +48,7 @@
                 :to="{ name: 'inquiries' }"
                 @click="showDropdown = false"
               >
-                <span>📋</span> 문의 내역
+                <span>📋</span> {{ isSupplier ? "받은 요청" : "문의 내역" }}
               </RouterLink>
               <button type="button" class="dropdown-item dropdown-logout" @click="handleLogout">
                 <span>🚪</span> 로그아웃
@@ -67,6 +68,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { authState, logoutUser } from "../api/authApi";
+import NotificationBell from "./NotificationBell.vue";
 
 const router = useRouter();
 const route = useRoute();

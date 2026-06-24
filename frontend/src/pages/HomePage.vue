@@ -338,6 +338,7 @@ import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
 import {
   getMaterialSuggestions,
+  filterInquiriesForUser,
   getSupplierInquiries,
   getSupplierMaterials,
 } from "../api/materialApi";
@@ -470,7 +471,10 @@ async function loadSupplierStats() {
       getSupplierInquiries(),
       getSupplierMaterials(),
     ]);
-    const inquiries = Array.isArray(inquiryResult) ? inquiryResult : [];
+    const inquiries = filterInquiriesForUser(
+      Array.isArray(inquiryResult) ? inquiryResult : [],
+      authState.user,
+    );
     const materials = Array.isArray(materialResult) ? materialResult : [];
 
     supplierStats.value = [

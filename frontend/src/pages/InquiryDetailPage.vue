@@ -51,7 +51,7 @@
             v-for="status in inquiryStatuses"
             :key="status.value"
             type="button"
-            :class="['status-action', { active: inquiry.status === status.value }]"
+            :class="['status-action', { active: isStatusGroupActive(inquiry.status, status.value) }]"
             :disabled="isUpdating"
             @click="changeInquiryStatus(status.value)"
           >
@@ -164,26 +164,18 @@ const isLoading = ref(false);
 const isUpdating = ref(false);
 const errorMessage = ref("");
 const statusLabels = {
-  received: "접수됨",
+  received: "확인 대기",
   pending: "확인 대기",
-  reviewing: "확인 중",
+  reviewing: "확인 대기",
   quoted: "납품 가능",
   accepted: "납품 가능",
   need_more_info: "추가 확인 필요",
   rejected: "거절",
-  unavailable: "납품 불가",
-};
-const requesterStatusLabels = {
-  received: "문의 접수",
-  reviewing: "확인 중",
-  quoted: "견적 가능",
-  unavailable: "불가",
+  unavailable: "거절",
 };
 const inquiryStatuses = [
   { value: "pending", label: "확인 대기" },
-  { value: "reviewing", label: "확인 중" },
   { value: "accepted", label: "납품 가능" },
-  { value: "need_more_info", label: "추가 확인 필요" },
   { value: "rejected", label: "거절" },
 ];
 
@@ -229,10 +221,16 @@ async function removeInquiry() {
 }
 
 function getStatusLabel(status) {
-  if (!isSupplier.value) {
-    return requesterStatusLabels[status] || "문의 접수";
-  }
-  return statusLabels[status] || "접수됨";
+  return statusLabels[status] || "확인 대기";
+}
+
+function isStatusGroupActive(currentStatus, actionStatus) {
+  const groups = {
+    pending: ["received", "pending", "reviewing"],
+    accepted: ["quoted", "accepted"],
+    rejected: ["rejected", "unavailable"],
+  };
+  return groups[actionStatus]?.includes(currentStatus) || false;
 }
 
 function isUrgentInquiry(inquiry) {

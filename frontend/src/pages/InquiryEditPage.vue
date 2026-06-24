@@ -26,6 +26,7 @@
         <label>
           문의 상태
           <select v-model="form.status">
+            <option v-if="form.status === 'need_more_info'" value="need_more_info">추가 확인 필요 (기존 상태)</option>
             <option v-for="status in statuses" :key="status.value" :value="status.value">{{ status.label }}</option>
           </select>
         </label>
@@ -53,13 +54,19 @@ const saving = ref(false);
 const notFound = ref(false);
 const errorMessage = ref("");
 const originalInquiry = ref(null);
-const form = reactive({ requesterName: "", contact: "", quantity: "", desiredDate: "", status: "received", message: "" });
+const form = reactive({ requesterName: "", contact: "", quantity: "", desiredDate: "", status: "pending", message: "" });
 const statuses = [
-  { value: "received", label: "문의 접수" },
-  { value: "reviewing", label: "확인 중" },
-  { value: "quoted", label: "견적 가능" },
-  { value: "unavailable", label: "불가" },
+  { value: "pending", label: "확인 대기" },
+  { value: "accepted", label: "납품 가능" },
+  { value: "rejected", label: "거절" },
 ];
+const normalizedStatus = (status) => {
+  if (["received", "pending", "reviewing"].includes(status)) return "pending";
+  if (["quoted", "accepted"].includes(status)) return "accepted";
+  if (["rejected", "unavailable"].includes(status)) return "rejected";
+  if (status === "need_more_info") return "need_more_info";
+  return "pending";
+};
 const supplierSummary = computed(() => {
   const supplier = originalInquiry.value?.supplier;
   return `${supplier?.supplierName || "공급사 미지정"} · ${supplier?.materialName || "자재 미지정"}${supplier?.standard ? ` · ${supplier.standard}` : ""}`;
@@ -78,7 +85,7 @@ onMounted(async () => {
       contact: inquiry.contact || "",
       quantity: inquiry.quantity || "",
       desiredDate: inquiry.desiredDate || "",
-      status: inquiry.status || "received",
+      status: normalizedStatus(inquiry.status),
       message: inquiry.message || "",
     });
   } finally {
