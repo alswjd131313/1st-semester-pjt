@@ -499,12 +499,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { authState } from "../api/authApi";
 import {
   createSupplierInquiry,
   getDrivingRoute,
   getLatestMaterialRequest,
   getRecommendations,
 } from "../api/materialApi";
+import { buildSupplierRecipientKey, buildUserRecipientKey } from "../api/notificationApi";
 import KakaoMap from "../components/KakaoMap.vue";
 import {
   getMatchedStandardEvidenceForMaterial,
@@ -1318,6 +1320,21 @@ async function submitInquiry() {
       quantity: inquiryForm.quantity,
       desiredDate: inquiryForm.desiredDate,
       message: inquiryForm.message,
+      requesterRecipientKey: buildUserRecipientKey(authState.user || {}),
+      requesterIdentity: {
+        userId: authState.user?.id ?? null,
+        email: authState.user?.email || "",
+        role: authState.user?.role || "requester",
+        companyName: authState.user?.companyName || "",
+        recipientKey: buildUserRecipientKey(authState.user || {}),
+      },
+      supplierRecipientKey: buildSupplierRecipientKey(selectedInquirySupplier.value || {}),
+      supplierIdentity: {
+        userId: selectedInquirySupplier.value?.ownerUserId ?? null,
+        email: selectedInquirySupplier.value?.ownerEmail || "",
+        companyName: selectedInquirySupplier.value?.supplierName || "",
+        recipientKey: buildSupplierRecipientKey(selectedInquirySupplier.value || {}),
+      },
     });
 
     inquiryStatus.value = "공급사 문의 요청이 접수되었습니다. 마이페이지 > 문의 내역에서 상태를 확인할 수 있습니다.";

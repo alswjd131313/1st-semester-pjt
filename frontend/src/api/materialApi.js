@@ -1,5 +1,10 @@
 import { additionalRecommendationResults, recommendationResults } from "../data/dummyData";
 import { apiClient, buildApiUrl, USE_MOCK_API } from "./apiClient";
+import {
+  buildSupplierRecipientKey,
+  createNotification,
+  getUserRecipientKeys,
+} from "./notificationApi";
 
 const REQUEST_STORAGE_KEY = "paceflow_v2_latest_request";
 const SUPPLIER_STORAGE_KEY = "paceflow_v2_supplier_materials";
@@ -260,11 +265,9 @@ export async function deleteSupplierMaterial(materialId) {
 }
 
 export async function createSupplierInquiry(payload) {
-  if (!USE_MOCK_API) {
-    return createMockSupplierInquiry(payload);
-  }
-
-  return createMockSupplierInquiry(payload);
+  const inquiry = createMockSupplierInquiry(payload);
+  createSupplierInquiryNotification(inquiry);
+  return inquiry;
 }
 
 export async function getSupplierInquiries() {
@@ -273,6 +276,71 @@ export async function getSupplierInquiries() {
   }
 
   return getStoredSupplierInquiries();
+}
+
+export function filterInquiriesForUser(inquiries, user) {
+  if (!Array.isArray(inquiries) || !user?.role) return [];
+  const recipientKeys = getUserRecipientKeys(user);
+  return inquiries.filter((inquiry) => (
+    user.role === "supplier"
+      ? isInquiryForSupplier(inquiry, user, recipientKeys)
+      : isInquiryForRequester(inquiry, user, recipientKeys)
+  ));
+}
+
+function isInquiryForRequester(inquiry, user, recipientKeys) {
+  const identity = inquiry.requesterIdentity || {};
+  const recipientKey = inquiry.requesterRecipientKey || identity.recipientKey || "";
+  const requesterId = identity.userId ?? inquiry.requesterUserId ?? inquiry.requester_id;
+  const requesterEmail = identity.email || inquiry.requesterEmail || inquiry.requester_email || "";
+  const hasStrongIdentity = Boolean(recipientKey || requesterId !== undefined || requesterEmail);
+
+  if (hasStrongIdentity) {
+    return (
+      (recipientKey && recipientKeys.has(recipientKey))
+      || sameIdentifier(requesterId, user.id)
+      || sameText(requesterEmail, user.email)
+    );
+  }
+
+  return sameText(inquiry.requesterName, user.name);
+}
+
+function isInquiryForSupplier(inquiry, user, recipientKeys) {
+  const identity = inquiry.supplierIdentity || {};
+  const supplier = inquiry.supplier || {};
+  const recipientKey = inquiry.supplierRecipientKey || identity.recipientKey || "";
+  const supplierUserId = identity.userId ?? supplier.ownerUserId ?? supplier.owner_user_id;
+  const supplierEmail = (
+    identity.email
+    || supplier.ownerEmail
+    || supplier.owner_email
+    || supplier.email
+    || ""
+  );
+  const hasStrongIdentity = Boolean(recipientKey || supplierUserId !== undefined || supplierEmail);
+
+  if (hasStrongIdentity) {
+    return (
+      (recipientKey && recipientKeys.has(recipientKey))
+      || sameIdentifier(supplierUserId, user.id)
+      || sameText(supplierEmail, user.email)
+    );
+  }
+
+  const supplierCompany = identity.companyName || supplier.companyName || supplier.supplierName;
+  return sameText(supplierCompany, user.companyName);
+}
+
+function sameIdentifier(left, right) {
+  if (left === null || left === undefined || right === null || right === undefined) return false;
+  return String(left) === String(right);
+}
+
+function sameText(left, right) {
+  if (!left || !right) return false;
+  return String(left).trim().toLocaleLowerCase("ko-KR")
+    === String(right).trim().toLocaleLowerCase("ko-KR");
 }
 
 export async function getSupplierInquiry(inquiryId) {
@@ -465,11 +533,14 @@ function parsePriceAmount(value) {
 }
 
 export async function updateSupplierInquiryStatus(inquiryId, status) {
-  if (!USE_MOCK_API) {
-    return updateMockSupplierInquiryStatus(inquiryId, status);
+  const previousInquiry = getStoredSupplierInquiries().find(
+    (inquiry) => String(inquiry.id) === String(inquiryId),
+  );
+  const updatedInquiry = updateMockSupplierInquiryStatus(inquiryId, status);
+  if (updatedInquiry && previousInquiry?.status !== status) {
+    createRequesterStatusNotification(updatedInquiry, status);
   }
-
-  return updateMockSupplierInquiryStatus(inquiryId, status);
+  return updatedInquiry;
 }
 
 
@@ -1041,6 +1112,72 @@ function createMockSupplierInquiry(payload) {
   return inquiry;
 }
 
+function createSupplierInquiryNotification(inquiry) {
+  const recipientKey = inquiry.supplierRecipientKey || buildSupplierRecipientKey(inquiry.supplier);
+  if (!recipientKey) return;
+
+  const materialName = inquiry.requestMaterial?.materialName || inquiry.supplier?.materialName || "요청 자재";
+  const quantity = inquiry.quantity || inquiry.requestMaterial?.requiredQuantity || "";
+  const summary = [materialName, quantity].filter(Boolean).join(" · ");
+  createNotification({
+    recipient_user_id: inquiry.supplierIdentity?.userId ?? null,
+    recipient_role: "supplier",
+    recipient_key: recipientKey,
+    type: "supplier_inquiry_created",
+    title: "새로운 자재 문의가 도착했습니다.",
+    message: summary ? `${summary} 문의가 도착했습니다.` : "요청자가 자재 납품 가능 여부를 문의했습니다.",
+    related_inquiry_id: inquiry.id,
+    target_path: `/inquiries/${inquiry.id}`,
+    event_key: `inquiry-created:${inquiry.id}`,
+  });
+}
+
+function createRequesterStatusNotification(inquiry, status) {
+  const recipientKey = inquiry.requesterRecipientKey || inquiry.requesterIdentity?.recipientKey;
+  if (!recipientKey) return;
+
+  const statusMessages = {
+    reviewing: {
+      title: "공급사가 요청을 확인 중입니다.",
+      message: "공급사가 문의 내용을 확인하고 있습니다.",
+    },
+    quoted: {
+      title: "납품 가능 응답이 도착했습니다.",
+      message: "공급사가 요청 자재에 대해 납품 가능으로 응답했습니다.",
+    },
+    accepted: {
+      title: "납품 가능 응답이 도착했습니다.",
+      message: "공급사가 요청 자재에 대해 납품 가능으로 응답했습니다.",
+    },
+    need_more_info: {
+      title: "공급사가 추가 확인을 요청했습니다.",
+      message: "공급사가 납품 가능 여부 확인을 위해 추가 정보를 요청했습니다.",
+    },
+    rejected: {
+      title: "공급사가 요청을 거절했습니다.",
+      message: "공급사가 해당 요청에 대해 거절로 응답했습니다.",
+    },
+    unavailable: {
+      title: "공급사가 요청을 거절했습니다.",
+      message: "공급사가 해당 요청에 대해 거절로 응답했습니다.",
+    },
+  };
+  const notificationCopy = statusMessages[status];
+  if (!notificationCopy) return;
+
+  createNotification({
+    recipient_user_id: inquiry.requesterIdentity?.userId ?? null,
+    recipient_role: "requester",
+    recipient_key: recipientKey,
+    type: "supplier_inquiry_status_changed",
+    title: notificationCopy.title,
+    message: notificationCopy.message,
+    related_inquiry_id: inquiry.id,
+    target_path: `/inquiries/${inquiry.id}`,
+    event_key: `inquiry-status:${inquiry.id}:${status}`,
+  });
+}
+
 function updateMockSupplierInquiryStatus(inquiryId, status) {
   const normalizedId = String(inquiryId ?? "");
   const updatedAt = new Date().toISOString();
@@ -1091,6 +1228,7 @@ function createRecommendationFromSupplier(item, index) {
   const totalScore = Math.round(materialFitScore * 0.45 + reliabilityScore * 0.3 + distanceScore * 0.15 + priceScore * 0.1);
 
   return {
+    ownerEmail: item.ownerEmail,
     supplierName: item.supplierName,
     materialName: item.materialName,
     standard: [item.standard, item.strengthGrade].filter(Boolean).join(" / ") || "규격 확인 필요",

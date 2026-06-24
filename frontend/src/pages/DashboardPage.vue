@@ -8,56 +8,56 @@
       </div>
     </div>
 
-    <div class="inquiry-type-tabs" role="tablist" aria-label="문의 유형">
+    <div v-if="!isSupplier" class="inquiry-type-tabs" role="tablist" aria-label="문의 유형">
       <button type="button" :class="{ active: activeTab === 'supplier' }" @click="activeTab = 'supplier'">공급사 문의</button>
       <button type="button" :class="{ active: activeTab === 'community' }" @click="activeTab = 'community'">커뮤니티 대화 요청</button>
     </div>
 
     <div v-if="activeTab === 'supplier' && isSupplier" class="dashboard-stats">
       <article>
-        <span>전체 요청</span>
-        <strong>{{ inquiries.length }}건</strong>
+        <span>받은 요청</span>
+        <strong>{{ roleInquiries.length }}건</strong>
       </article>
       <article>
         <span>확인 대기</span>
         <strong>{{ waitingCount }}건</strong>
       </article>
       <article>
-        <span>확인 중</span>
-        <strong>{{ reviewingCount }}건</strong>
-      </article>
-      <article>
         <span>납품 가능</span>
         <strong>{{ availableCount }}건</strong>
+      </article>
+      <article>
+        <span>거절</span>
+        <strong>{{ rejectedCount }}건</strong>
       </article>
     </div>
 
     <div v-else-if="activeTab === 'supplier'" class="dashboard-stats">
       <article>
         <span>저장된 문의</span>
-        <strong>{{ inquiries.length }}건</strong>
+        <strong>{{ roleInquiries.length }}건</strong>
       </article>
       <article>
-        <span>감리 승인 확인</span>
-        <strong>{{ approvalCount }}건</strong>
+        <span>확인 대기</span>
+        <strong>{{ waitingCount }}건</strong>
       </article>
       <article>
-        <span>긴급 요청</span>
-        <strong>{{ urgentCount }}건</strong>
+        <span>납품 가능</span>
+        <strong>{{ availableCount }}건</strong>
       </article>
       <article>
-        <span>견적 가능</span>
-        <strong>{{ quotedCount }}건</strong>
+        <span>거절</span>
+        <strong>{{ rejectedCount }}건</strong>
       </article>
     </div>
 
-    <div v-if="activeTab === 'supplier' && isSupplier" class="supplier-status-filters" aria-label="문의 상태 필터">
+    <div v-if="activeTab === 'supplier'" class="supplier-status-filters" aria-label="문의 상태 필터">
       <button
-        v-for="filter in supplierStatusFilters"
+        v-for="filter in inquiryStatusFilters"
         :key="filter.value"
         type="button"
-        :class="{ active: supplierStatusFilter === filter.value }"
-        @click="supplierStatusFilter = filter.value"
+        :class="{ active: inquiryStatusFilter === filter.value }"
+        @click="inquiryStatusFilter = filter.value"
       >
         {{ filter.label }}
       </button>
@@ -159,7 +159,7 @@
             v-for="status in supplierActionStatuses"
               :key="status.value"
               type="button"
-              :class="['status-action', { active: inquiry.status === status.value }]"
+              :class="['status-action', { active: isStatusGroupActive(inquiry.status, status.value) }]"
               :disabled="updatingInquiryId === inquiry.id"
               @click.stop="changeInquiryStatus(inquiry.id, status.value)"
             >
@@ -175,7 +175,7 @@
 
     <div v-else-if="activeTab === 'supplier' && !isLoading" class="empty-state">
       <template v-if="isSupplier">
-        <strong>{{ supplierStatusFilter === "all" ? "아직 받은 요청이 없습니다." : "해당 상태의 요청이 없습니다." }}</strong>
+        <strong>{{ inquiryStatusFilter === "all" ? "아직 받은 요청이 없습니다." : "해당 상태의 요청이 없습니다." }}</strong>
         <p>요청자가 보낸 자재 문의가 접수되면 이곳에서 확인할 수 있습니다.</p>
       </template>
       <template v-else>
@@ -185,7 +185,7 @@
       </template>
     </div>
 
-    <template v-if="activeTab === 'community'">
+    <template v-if="!isSupplier && activeTab === 'community'">
       <p v-if="communityLoading" class="loading-message">커뮤니티 대화 요청을 불러오는 중입니다.</p>
       <p v-if="communityError" class="error-message">{{ communityError }}</p>
       <div v-if="!communityLoading && communityRequests.length" class="community-request-list">
@@ -223,7 +223,11 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { authState } from "../api/authApi";
-import { getSupplierInquiries, updateSupplierInquiryStatus } from "../api/materialApi";
+import {
+  filterInquiriesForUser,
+  getSupplierInquiries,
+  updateSupplierInquiryStatus,
+} from "../api/materialApi";
 import { getCommunityContactRequests, updateCommunityContactRequest } from "../api/communityApi";
 
 const inquiries = ref([]);
@@ -235,36 +239,26 @@ const communityError = ref("");
 const isLoading = ref(false);
 const errorMessage = ref("");
 const updatingInquiryId = ref("");
-const supplierStatusFilter = ref("all");
+const inquiryStatusFilter = ref("all");
 const statusLabels = {
-  received: "접수됨",
+  received: "확인 대기",
   pending: "확인 대기",
-  reviewing: "확인 중",
+  reviewing: "확인 대기",
   quoted: "납품 가능",
   accepted: "납품 가능",
   need_more_info: "추가 확인 필요",
   rejected: "거절",
-  unavailable: "납품 불가",
+  unavailable: "거절",
 };
-const requesterStatusLabels = {
-  received: "문의 접수",
-  reviewing: "확인 중",
-  quoted: "견적 가능",
-  unavailable: "불가",
-};
-const supplierStatusFilters = [
+const inquiryStatusFilters = [
   { value: "all", label: "전체", statuses: [] },
-  { value: "waiting", label: "확인 대기", statuses: ["received", "pending"] },
-  { value: "reviewing", label: "확인 중", statuses: ["reviewing"] },
+  { value: "waiting", label: "확인 대기", statuses: ["received", "pending", "reviewing"] },
   { value: "available", label: "납품 가능", statuses: ["quoted", "accepted"] },
-  { value: "need_more_info", label: "추가 확인 필요", statuses: ["need_more_info"] },
   { value: "rejected", label: "거절", statuses: ["rejected", "unavailable"] },
 ];
 const supplierActionStatuses = [
   { value: "pending", label: "확인 대기" },
-  { value: "reviewing", label: "확인 중" },
   { value: "accepted", label: "납품 가능" },
-  { value: "need_more_info", label: "추가 확인 필요" },
   { value: "rejected", label: "거절" },
 ];
 
@@ -276,42 +270,31 @@ const isSupplier = computed(() => authState.user?.role === "supplier");
 const dashboardDescription = computed(() =>
   isSupplier.value
     ? "요청자가 보낸 자재 문의를 확인하고 상태를 관리합니다."
-    : "공급사 문의와 커뮤니티 대화 요청을 한 곳에서 확인하고, 후속 상태를 관리합니다.",
+    : "내가 보낸 공급사 문의와 커뮤니티 대화 요청을 확인하고 후속 상태를 관리합니다.",
 );
+const roleInquiries = computed(() => filterInquiriesForUser(inquiries.value, authState.user));
 const displayedInquiries = computed(() => {
-  if (!isSupplier.value || supplierStatusFilter.value === "all") {
-    return inquiries.value;
+  if (inquiryStatusFilter.value === "all") {
+    return roleInquiries.value;
   }
-  const filter = supplierStatusFilters.find((item) => item.value === supplierStatusFilter.value);
-  return inquiries.value.filter((inquiry) => filter?.statuses.includes(inquiry.status));
+  const filter = inquiryStatusFilters.find((item) => item.value === inquiryStatusFilter.value);
+  return roleInquiries.value.filter((inquiry) => filter?.statuses.includes(inquiry.status));
 });
 
 function openInquiry(inquiryId) {
   router.push(`/inquiries/${inquiryId}`);
 }
 
-const approvalCount = computed(
-  () => inquiries.value.filter((inquiry) => inquiry.supplier?.approvalRequired).length,
-);
-
-const quotedCount = computed(
-  () => inquiries.value.filter((inquiry) => inquiry.status === "quoted").length,
-);
-
 const waitingCount = computed(
-  () => inquiries.value.filter((inquiry) => ["received", "pending"].includes(inquiry.status)).length,
-);
-
-const reviewingCount = computed(
-  () => inquiries.value.filter((inquiry) => inquiry.status === "reviewing").length,
+  () => roleInquiries.value.filter((inquiry) => ["received", "pending", "reviewing"].includes(inquiry.status)).length,
 );
 
 const availableCount = computed(
-  () => inquiries.value.filter((inquiry) => ["quoted", "accepted"].includes(inquiry.status)).length,
+  () => roleInquiries.value.filter((inquiry) => ["quoted", "accepted"].includes(inquiry.status)).length,
 );
 
-const urgentCount = computed(
-  () => inquiries.value.filter((inquiry) => isUrgentInquiry(inquiry)).length,
+const rejectedCount = computed(
+  () => roleInquiries.value.filter((inquiry) => ["rejected", "unavailable"].includes(inquiry.status)).length,
 );
 
 const latestInquiryLabel = computed(() => {
@@ -321,7 +304,7 @@ const latestInquiryLabel = computed(() => {
 
 onMounted(() => {
   loadInquiries();
-  loadCommunityRequests();
+  if (!isSupplier.value) loadCommunityRequests();
 });
 
 async function loadCommunityRequests() {
@@ -377,10 +360,16 @@ async function loadInquiries() {
 }
 
 function getStatusLabel(status) {
-  if (!isSupplier.value) {
-    return requesterStatusLabels[status] || "문의 접수";
-  }
-  return statusLabels[status] || "접수됨";
+  return statusLabels[status] || "확인 대기";
+}
+
+function isStatusGroupActive(currentStatus, actionStatus) {
+  const groups = {
+    pending: ["received", "pending", "reviewing"],
+    accepted: ["quoted", "accepted"],
+    rejected: ["rejected", "unavailable"],
+  };
+  return groups[actionStatus]?.includes(currentStatus) || false;
 }
 
 function getMaterialName(inquiry) {
