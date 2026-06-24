@@ -435,6 +435,84 @@ class SupplyHistory(models.Model):
         return f"{self.supplier} / {self.material} / {self.contract_date}"
 
 
+class CategoryContractHistory(models.Model):
+    """
+    특정 KS 자재로 확정할 수 없는 자재군 단위 계약 이력.
+    가격·단가 추이·정확 자재 납품 횟수에는 사용하지 않고,
+    공급사의 자재군 경험을 나타내는 보조 신뢰도에만 사용한다.
+    """
+
+    MAPPING_STATUS_CHOICES = [
+        ("category_only", "자재군만 확인"),
+        ("pending_review", "검토 대기"),
+    ]
+
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.CASCADE,
+        related_name="category_contract_histories",
+        verbose_name="공급사",
+    )
+    material_category = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_GROUP_CHOICES,
+        db_index=True,
+        verbose_name="자재군",
+    )
+    contract_date = models.DateField(verbose_name="계약 체결일")
+    contract_name = models.CharField(max_length=255, verbose_name="계약명")
+    unit_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="계약 금액 (원)",
+        validators=[MinValueValidator(0)],
+    )
+    quantity = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="수량",
+        validators=[MinValueValidator(0)],
+    )
+    keyword = models.CharField(max_length=100, blank=True, verbose_name="수집 검색어")
+    mapping_status = models.CharField(
+        max_length=30,
+        choices=MAPPING_STATUS_CHOICES,
+        default="category_only",
+        db_index=True,
+        verbose_name="매핑 상태",
+    )
+    mapping_reason = models.CharField(max_length=255, blank=True, verbose_name="매핑 보류 사유")
+    source_api = models.CharField(max_length=50, default="나라장터", verbose_name="원천 API")
+    external_id = models.CharField(max_length=100, verbose_name="외부 계약 식별자")
+    raw_data = models.JSONField(default=dict, blank=True, verbose_name="원본 응답")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "category_contract_history"
+        ordering = ["-contract_date", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["supplier", "source_api", "external_id"],
+                name="uniq_category_contract_source_external",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["supplier", "material_category", "mapping_status"],
+                name="category_contract_exp_idx",
+            ),
+        ]
+        verbose_name = "자재군 계약 이력"
+        verbose_name_plural = "자재군 계약 이력 목록"
+
+    def __str__(self):
+        return f"{self.supplier} / {self.get_material_category_display()} / {self.contract_date}"
+
+
 # ──────────────────────────────────────────
 # 6. 수요 등록 (시공사)
 # ──────────────────────────────────────────

@@ -8,6 +8,7 @@
 import os
 import sys
 import argparse
+import hashlib
 import re
 import time
 from collections import Counter
@@ -20,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
-from core.models import Material, Supplier, SupplyHistory
+from core.models import CategoryContractHistory, Material, Supplier, SupplyHistory
 
 # ── PDF 기준 정확한 URL (ao 경로 포함)
 BASE_URL = "https://apis.data.go.kr/1230000/ao/CntrctInfoService/getCntrctInfoListThngPPSSrch"
@@ -102,6 +103,27 @@ MATERIAL_COMPOSITE_KEYWORDS = {
     "철근": ("철근콘크리트관", "철근콘크리트블록", "암거블록", "조립식철근콘크리트"),
     "시멘트": ("레미콘", "몰탈", "모르타르", "보수재"),
     "단열재": ("샌드위치패널", "복합패널", "외장패널", "단열도어"),
+}
+
+MATERIAL_CATEGORY_CODES = {
+    "철근": "rebar",
+    "H빔": "shape_steel",
+    "시멘트": "cement",
+    "단열재": "insulation",
+    "전선관": "electrical_conduit",
+}
+
+CATEGORY_HISTORY_HOLD_REASONS = {
+    "두께 미확정",
+    "등급 미확정",
+    "등급 미확정으로 복수 KS 후보 발생",
+    "복수 KS 후보 발생",
+    "명시 규격과 일치하는 KS 후보 없음",
+    "전선관 종류 미확정",
+    "전선관 규격 미확정",
+    "전선관 종류에 일치하는 내부 Material 없음",
+    "명시 규격과 일치하는 전선관 후보 없음",
+    "복수 전선관 규격 발생",
 }
 
 
@@ -306,6 +328,19 @@ def evaluate_material_relevance(item: dict, material_name: str) -> tuple[bool, s
     if unsupported_keyword:
         return False, f"지원하지 않는 자재군: {unsupported_keyword}"
 
+    if material_name == "전선관":
+        raw_text = build_contract_text(item)
+        normalized = normalize_text(raw_text)
+        purchase_hints = ("구매", "구입", "납품", "지급자재", "관급자재", "제조구매")
+        product_fields = " ".join(
+            str(item.get(field, ""))
+            for field in ("prdctClsfcNoNm", "prdctIdntNoNm", "cntrctPrdctNm")
+            if item.get(field)
+        )
+        has_product_evidence = "전선관" in normalize_text(product_fields)
+        if not has_product_evidence and not any(normalize_text(hint) in normalized for hint in purchase_hints):
+            return False, "전선관 자체 구매 아님"
+
     basis = f"자재 키워드 확인: {matched_keyword}"
     item["_paceflow_relevance_basis"] = basis
     return True, basis
@@ -460,10 +495,77 @@ def choose_insulation_materials(materials, item: dict) -> list[Material]:
     return []
 
 
+def choose_conduit_materials(materials, item: dict) -> list[Material]:
+    raw_text = build_contract_text(item).upper()
+    normalized = normalize_text(raw_text)
+
+    unsupported_family = next(
+        (
+            family
+            for family in ("FEP", "ELP", "HI-VE", "HIVE")
+            if normalize_text(family) in normalized
+        ),
+        None,
+    )
+    if unsupported_family:
+        item["_paceflow_hold_reason"] = "전선관 종류에 일치하는 내부 Material 없음"
+        item["_paceflow_detected_conduit_type"] = unsupported_family
+        return []
+
+    conduit_type = None
+    subtype = None
+    suffix = None
+    type_label = None
+    if "CD관" in normalized:
+        conduit_type, subtype, suffix, type_label = "CD", "cd_conduit", "CD", "CD관"
+    elif "PF관" in normalized:
+        conduit_type, subtype, suffix, type_label = "PF", "pf_conduit", "PF", "PF관"
+    elif "가요전선관" in normalized or "가요관" in normalized:
+        conduit_type, subtype, suffix, type_label = "FLEXIBLE", "flexible_conduit", "F", "가요 전선관"
+    elif "경질합성수지관" in normalized or "경질전선관" in normalized:
+        conduit_type, subtype, suffix, type_label = "RIGID", "rigid_conduit", "C", "경질 합성수지관"
+
+    if not conduit_type:
+        item["_paceflow_hold_reason"] = "전선관 종류 미확정"
+        return []
+
+    size_matches = {
+        int(match.group(1))
+        for match in re.finditer(
+            r"(?<!\d)(\d{1,3})\s*(?:CD|PF|MM|㎜|호|C|F)(?![A-Z0-9])",
+            raw_text,
+            re.IGNORECASE,
+        )
+    }
+    if not size_matches:
+        item["_paceflow_hold_reason"] = "전선관 규격 미확정"
+        return []
+
+    expected_diameters = {f"{size}{suffix}" for size in size_matches}
+    candidates = [
+        material
+        for material in materials
+        if material.material_subtype == subtype
+        and material.diameter.upper() in expected_diameters
+    ]
+    if len(candidates) == 1:
+        item["_paceflow_match_basis"] = (
+            f"전선관 명시 규격 매핑: {type_label} {candidates[0].diameter}"
+        )
+        return candidates
+    if len(candidates) > 1:
+        item["_paceflow_hold_reason"] = "복수 전선관 규격 발생"
+    else:
+        item["_paceflow_hold_reason"] = "명시 규격과 일치하는 전선관 후보 없음"
+    return []
+
+
 def choose_materials(materials, item: dict, material_name: str) -> list[Material]:
     material_list = list(materials)
     if material_name == "단열재":
         return choose_insulation_materials(material_list, item)
+    if material_name == "전선관":
+        return choose_conduit_materials(material_list, item)
     scored = [
         (material_match_score(material, item), material)
         for material in material_list
@@ -511,6 +613,71 @@ def parse_history_identity(item: dict) -> tuple[object | None, Decimal | None, s
     return contract_date, unit_price, ""
 
 
+def contract_name_from_item(item: dict) -> str:
+    return str(
+        item.get("cntrctPrdctNm")
+        or item.get("prdctIdntNoNm")
+        or item.get("cntrctNm")
+        or "계약명 미확인"
+    ).strip()
+
+
+def optional_decimal(value) -> Decimal | None:
+    normalized = str(value or "").replace(",", "").strip()
+    if not normalized:
+        return None
+    try:
+        parsed = Decimal(normalized)
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def category_contract_external_id(corp: dict, item: dict) -> str:
+    for field in (
+        "untyCntrctNo",
+        "cntrctNo",
+        "cntrctRefNo",
+        "bidNtceNo",
+        "prdctIdntNo",
+    ):
+        value = str(item.get(field, "")).strip()
+        if value:
+            return value[:100]
+
+    identity = "|".join([
+        supplier_business_key(corp),
+        contract_name_from_item(item),
+        str(item.get("cntrctCnclsDate", ""))[:10],
+        str(item.get("thtmCntrctAmt", "")).replace(",", "").strip(),
+    ])
+    return f"fallback-{hashlib.sha256(identity.encode('utf-8')).hexdigest()[:32]}"
+
+
+def parse_category_history_identity(corp: dict, item: dict) -> tuple[dict | None, str]:
+    raw_date = str(item.get("cntrctCnclsDate", ""))
+    try:
+        contract_date = datetime.strptime(raw_date[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None, "계약일 파싱 실패"
+
+    contract_name = contract_name_from_item(item)
+    if not contract_name or contract_name == "계약명 미확인":
+        return None, "계약명 없음"
+
+    return {
+        "contract_date": contract_date,
+        "contract_name": contract_name,
+        "unit_price": optional_decimal(item.get("thtmCntrctAmt")),
+        "quantity": optional_decimal(
+            item.get("cntrctQty")
+            or item.get("thtmCntrctQty")
+            or item.get("qty")
+        ),
+        "external_id": category_contract_external_id(corp, item),
+    }, ""
+
+
 def classify_dry_run_candidates(corp: dict, materials, item: dict) -> tuple[list[tuple[Material, str]], str]:
     key = supplier_business_key(corp)
     if not key:
@@ -534,6 +701,28 @@ def classify_dry_run_candidates(corp: dict, materials, item: dict) -> tuple[list
         )
         classified.append((material, "duplicate" if is_duplicate else "new"))
     return classified, ""
+
+
+def classify_category_history_candidate(corp: dict, material_category: str, item: dict) -> tuple[str, str]:
+    if not material_category:
+        return "", "자재군 코드 없음"
+    key = supplier_business_key(corp)
+    if not key:
+        return "", "공급사 식별자 없음"
+    identity, error = parse_category_history_identity(corp, item)
+    if error:
+        return "", error
+
+    supplier = Supplier.objects.filter(business_no=key).first()
+    is_duplicate = bool(
+        supplier
+        and CategoryContractHistory.objects.filter(
+            supplier=supplier,
+            source_api="나라장터",
+            external_id=identity["external_id"],
+        ).exists()
+    )
+    return ("category_duplicate" if is_duplicate else "category_new"), ""
 
 
 def looks_like_address(value: str) -> bool:
@@ -664,6 +853,47 @@ def save_history(supplier: Supplier, material: Material, item: dict) -> bool:
         return False
 
 
+def save_category_history(
+    supplier: Supplier,
+    material_category: str,
+    search_keyword: str,
+    mapping_reason: str,
+    item: dict,
+) -> tuple[bool, str]:
+    identity, error = parse_category_history_identity(
+        {"name": supplier.name, "business_no": supplier.business_no},
+        item,
+    )
+    if error:
+        return False, error
+
+    try:
+        raw_data = dict(item)
+        raw_data["paceflowMappingStatus"] = "category_only"
+        raw_data["paceflowMappingReason"] = mapping_reason
+        raw_data["paceflowSearchKeyword"] = search_keyword
+        raw_data["paceflowRelevanceBasis"] = item.get("_paceflow_relevance_basis", "")
+        _, created = CategoryContractHistory.objects.get_or_create(
+            supplier=supplier,
+            source_api="나라장터",
+            external_id=identity["external_id"],
+            defaults={
+                "material_category": material_category,
+                "contract_date": identity["contract_date"],
+                "contract_name": identity["contract_name"],
+                "unit_price": identity["unit_price"],
+                "quantity": identity["quantity"],
+                "keyword": search_keyword,
+                "mapping_status": "category_only",
+                "mapping_reason": mapping_reason,
+                "raw_data": raw_data,
+            },
+        )
+        return created, ""
+    except Exception as exc:
+        return False, f"자재군 계약 저장 실패: {exc}"
+
+
 # ──────────────────────────────────────────
 # 6. 메인
 # ──────────────────────────────────────────
@@ -744,6 +974,10 @@ def main():
     if not materials.exists():
         print(f"❌ '{args.material}' 자재가 DB에 없습니다. seed_data.py를 먼저 실행하세요.")
         sys.exit(1)
+    material_category = MATERIAL_CATEGORY_CODES.get(args.material)
+    if not material_category:
+        print(f"❌ '{args.material}'에 대응하는 자재군 코드가 없습니다.")
+        sys.exit(1)
 
     mode_label = "미리보기" if args.dry_run else "수집"
     end_page = args.start_page + args.pages - 1
@@ -753,10 +987,12 @@ def main():
         f"numRows={args.num_rows} / timeout={args.timeout:g}초 / retries={args.retries}회\n"
     )
     print("중복 기준: 자재=(KS 코드, KS 등급, 규격), 공급사=사업자번호/없으면 업체명 키, 계약=(공급사, 자재, 계약일, 계약금액)")
+    print("자재군 계약 중복 기준: 공급사 + source_api + external_id (보류 계약은 SupplyHistory에 저장하지 않음)")
     if not JUSO_KEY:
         print("도로명주소 API 키 없음 (이번 계약 dry-run에는 영향 없음)")
 
     total_saved = 0
+    total_category_saved = 0
     totals = Counter()
     failures = []
 
@@ -865,8 +1101,56 @@ def main():
                         if hold_reason:
                             stats["held"] += 1
                             hold_reasons[hold_reason] += 1
+                            is_category_candidate = hold_reason in CATEGORY_HISTORY_HOLD_REASONS
+                            category_status = ""
+                            if is_category_candidate and args.dry_run:
+                                category_status, category_error = classify_category_history_candidate(
+                                    main_corp,
+                                    material_category,
+                                    item,
+                                )
+                                if category_error:
+                                    stats["category_invalid"] += 1
+                                    exclusion_reasons[f"자재군 계약 후보 적용 실패: {category_error}"] += 1
+                                else:
+                                    stats[category_status] += 1
+                            elif is_category_candidate:
+                                address = extract_supplier_address(item)
+                                supplier = upsert_supplier(main_corp, address)
+                                if not supplier:
+                                    stats["category_invalid"] += 1
+                                    exclusion_reasons["자재군 계약 공급사 upsert 실패"] += 1
+                                else:
+                                    created, category_error = save_category_history(
+                                        supplier,
+                                        material_category,
+                                        search_keyword,
+                                        hold_reason,
+                                        item,
+                                    )
+                                    if category_error:
+                                        stats["category_invalid"] += 1
+                                        exclusion_reasons[category_error] += 1
+                                    elif created:
+                                        stats["category_saved"] += 1
+                                        total_category_saved += 1
+                                        print(
+                                            f"  ✓ 자재군 이력 저장: {supplier.name} / {args.material} / "
+                                            f"{item.get('cntrctCnclsDate')} / {hold_reason}"
+                                        )
+                                    else:
+                                        stats["category_duplicate"] += 1
                             if len(hold_samples) < args.preview_limit:
-                                hold_samples.append(make_hold_sample(main_corp, item, hold_reason))
+                                sample = make_hold_sample(main_corp, item, hold_reason)
+                                if is_category_candidate:
+                                    label = {
+                                        "category_new": "자재군 신규 후보",
+                                        "category_duplicate": "자재군 기존 중복",
+                                    }.get(category_status, "자재군 이력 대상")
+                                    sample = f"{sample} | {label}"
+                                else:
+                                    sample = f"{sample} | 자재군 이력 저장 제외"
+                                hold_samples.append(sample)
                         else:
                             stats["excluded"] += 1
                             exclusion_reasons["검색어와 품목 불일치"] += 1
@@ -906,7 +1190,8 @@ def main():
             print(
                 f"  [키워드 요약] {period_label}/{search_keyword}: 조회 후보={stats['queried']}, "
                 f"신규 후보={stats['new']}, 기존 중복={stats['duplicate']}, 보류={stats['held']}, "
-                f"제외={stats['excluded']}, "
+                f"자재군 신규={stats['category_new']}, 자재군 중복={stats['category_duplicate']}, "
+                f"자재군 저장={stats['category_saved']}, 제외={stats['excluded']}, "
                 f"실패 페이지={stats['failed_pages']}, timeout 페이지={stats['timeout_pages']}"
             )
             if hold_reasons:
@@ -928,6 +1213,7 @@ def main():
         print(
             f"\ndry-run 완료: 조회 후보={totals['queried']}, 신규 후보={totals['new']}, "
             f"기존 중복={totals['duplicate']}, 보류={totals['held']}, 제외={totals['excluded']}, "
+            f"자재군 신규={totals['category_new']}, 자재군 중복={totals['category_duplicate']}, "
             f"실패 페이지={totals['failed_pages']}, timeout 페이지={totals['timeout_pages']} (DB 저장 없음)"
         )
         if failures:
@@ -943,7 +1229,10 @@ def main():
                 )
             print("  가능성: API 서버 지연 / 조회기간 과다 / 검색 파라미터 문제 / 네트워크 경로 문제")
     else:
-        print(f"\n✅ 완료: 총 {total_saved}건 저장, 제외 {totals['excluded']}건")
+        print(
+            f"\n✅ 완료: 정확 자재 이력 {total_saved}건 저장, "
+            f"자재군 계약 이력 {total_category_saved}건 저장, 제외 {totals['excluded']}건"
+        )
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from .models import (
     RegulationMapping,
     Supplier,
     SupplyHistory,
+    CategoryContractHistory,
     Demand,
     SupplierMaterialRegistration,
 )
@@ -44,6 +45,17 @@ class SupplyHistoryAdmin(admin.ModelAdmin):
     list_display  = ["supplier", "material", "contract_date", "unit_price", "quantity"]
     list_filter   = ["material", "contract_date"]
     search_fields = ["supplier__name", "material__name"]
+    date_hierarchy = "contract_date"
+
+
+@admin.register(CategoryContractHistory)
+class CategoryContractHistoryAdmin(admin.ModelAdmin):
+    list_display = [
+        "supplier", "material_category", "contract_name", "contract_date",
+        "mapping_status", "mapping_reason",
+    ]
+    list_filter = ["material_category", "mapping_status", "source_api", "contract_date"]
+    search_fields = ["supplier__name", "contract_name", "external_id", "keyword"]
     date_hierarchy = "contract_date"
 
 

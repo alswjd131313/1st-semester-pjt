@@ -101,6 +101,8 @@ class RecommendationSerializer(serializers.Serializer):
 
     latest_unit_price  = serializers.DecimalField(max_digits=15, decimal_places=2, allow_null=True)
     supply_count       = serializers.IntegerField()
+    category_experience_count = serializers.IntegerField(required=False, default=0)
+    category_experience_score = serializers.IntegerField(required=False, default=0, min_value=0, max_value=5)
     distance_km        = serializers.FloatField(allow_null=True)
     route_distance_m   = serializers.IntegerField(allow_null=True, required=False)
     route_duration_sec = serializers.IntegerField(allow_null=True, required=False)

@@ -21,7 +21,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from .models import (
-    Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration,
+    Material, MaterialSpec, Supplier, SupplyHistory, CategoryContractHistory,
+    Demand, SupplierMaterialRegistration,
     CommunityPost, CommunityComment, CommunityContactRequest,
     SupplierInquiry,
 )
@@ -433,6 +434,11 @@ def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return R * 2 * math.asin(math.sqrt(a))
 
 
+def calculate_category_experience_score(category_count: int) -> int:
+    """자재군 경험 보조점수는 계약 1건당 1점, 최대 5점으로 제한한다."""
+    return min(max(int(category_count or 0), 0), 5)
+
+
 # ══════════════════════════════════════════
 # 유틸: 이동평균 계산
 # ══════════════════════════════════════════
@@ -773,6 +779,27 @@ def alternative_suppliers(request, material_id: int):
             "message": f"차량 경로 기준 반경 {radius_km}km 내 공급사가 없습니다.",
         })
 
+    # 자재군 계약 이력은 정확 자재의 가격·납품 횟수와 분리해서 집계한다.
+    # 이 count만 추천 보조점수에 사용하며 latest_price/supply_count에는 섞지 않는다.
+    supplier_ids = {candidate["supplier"].id for candidate in candidates}
+    category_experience_counts = {}
+    if original.material_group and supplier_ids:
+        category_experience_counts = dict(
+            CategoryContractHistory.objects
+            .filter(
+                supplier_id__in=supplier_ids,
+                material_category=original.material_group,
+                mapping_status__in=["category_only", "pending_review"],
+            )
+            .values("supplier_id")
+            .annotate(category_count=Count("id"))
+            .values_list("supplier_id", "category_count")
+        )
+    for candidate in candidates:
+        category_count = category_experience_counts.get(candidate["supplier"].id, 0)
+        candidate["category_experience_count"] = category_count
+        candidate["category_experience_score"] = calculate_category_experience_score(category_count)
+
     # ══════════════════════════════
     # STEP 3: 가중치 스코어링
     # KS 적합도 45% + 신뢰도 30% + 차량 경로 15% + 가격 10%
@@ -821,13 +848,18 @@ def alternative_suppliers(request, material_id: int):
             weighted_score += route_score * 0.15
             known_weight += 0.15
 
-        c["total_score"] = round(weighted_score / known_weight, 2)
+        base_total_score = round(weighted_score / known_weight, 2)
+        category_experience_score = c["category_experience_score"]
+        c["total_score"] = round(min(100.0, base_total_score + category_experience_score), 2)
         c["scores"] = {
             "material_fit_score": round(material_fit_score),
             "price_score": round(price_score),
             "distance_score": round(route_score) if route_score is not None else None,
             "route_score": round(route_score) if route_score is not None else None,
             "reliability_score": round(reliability_score),
+            "category_experience_count": c["category_experience_count"],
+            "category_experience_score": category_experience_score,
+            "base_total": base_total_score,
             "total": c["total_score"],
         }
 
@@ -861,6 +893,8 @@ def alternative_suppliers(request, material_id: int):
             "scores":           c["scores"],
             "latest_unit_price": c["latest_price"],
             "supply_count":     c["supply_count"],
+            "category_experience_count": c["category_experience_count"],
+            "category_experience_score": c["category_experience_score"],
             "distance_km": (
                 round(c["route"]["distance_m"] / 1000, 2)
                 if c["route"]["status"] == "success"
