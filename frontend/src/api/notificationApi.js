@@ -134,6 +134,16 @@ export function markAllNotificationsRead(user) {
   if (changed) writeNotifications(notifications);
 }
 
+export function deleteReadNotifications(user) {
+  const recipientKeys = getUserRecipientKeys(user);
+  const notifications = readNotifications().filter((item) => !(
+    item.recipient_role === user.role
+    && recipientKeys.has(item.recipient_key)
+    && item.is_read
+  ));
+  writeNotifications(notifications);
+}
+
 export function subscribeToNotificationChanges(listener) {
   const handleStorage = (event) => {
     if (event.key === NOTIFICATION_STORAGE_KEY) listener();

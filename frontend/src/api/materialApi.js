@@ -618,6 +618,7 @@ function normalizeBackendInquiry(raw) {
     desiredDate: raw.desired_date || "",
     quantity: raw.quantity || "",
     requesterName: raw.requester_name || "",
+    requesterCompany: raw.requester_company || "",
     contact: raw.contact || "",
     message: raw.message || "",
     requestMaterial: {

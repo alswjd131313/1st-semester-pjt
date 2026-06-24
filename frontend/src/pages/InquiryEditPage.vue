@@ -56,7 +56,7 @@ const errorMessage = ref("");
 const originalInquiry = ref(null);
 const form = reactive({ requesterName: "", contact: "", quantity: "", desiredDate: "", status: "pending", message: "" });
 const statuses = [
-  { value: "pending", label: "확인 대기" },
+  { value: "pending", label: "협의 필요" },
   { value: "accepted", label: "납품 가능" },
   { value: "rejected", label: "거절" },
 ];

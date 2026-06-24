@@ -9,6 +9,11 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+      },
+      '/gmsapi': {
+        target: 'https://gms.ssafy.io',
+        changeOrigin: true,
+        secure: true,
       }
     }
   },

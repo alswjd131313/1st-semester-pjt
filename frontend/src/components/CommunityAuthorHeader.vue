@@ -1,7 +1,9 @@
 <template>
   <div class="community-author-header">
     <div class="community-author-avatar" :class="{ anonymous: author?.is_anonymous }">
-      {{ author?.avatar_text || "PF" }}
+      <img v-if="author?.is_anonymous" src="/basic_profile.png" class="avatar-img" alt="" />
+      <img v-else-if="resolvedProfileImage" :src="resolvedProfileImage" class="avatar-img" alt="" />
+      <template v-else>{{ author?.avatar_text || "PF" }}</template>
     </div>
     <div class="community-author-copy">
       <strong>{{ author?.display_name || "PaceFlow 사용자" }}</strong>
@@ -24,15 +26,24 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { authState } from "../api/authApi";
 
-defineProps({
+const props = defineProps({
   author: { type: Object, default: () => ({}) },
   menu: { type: Boolean, default: true },
   owner: { type: Boolean, default: false },
 });
 const emit = defineEmits(["question", "profile", "report", "edit", "delete"]);
 const open = ref(false);
+
+const resolvedProfileImage = computed(() => {
+  if (!props.author || props.author.is_anonymous) return null;
+  if (props.author.profile_id != null && props.author.profile_id === authState.user?.id) {
+    return localStorage.getItem("paceflow_profile_img") || null;
+  }
+  return null;
+});
 
 function emitAction(action) {
   open.value = false;
@@ -42,8 +53,9 @@ function emitAction(action) {
 
 <style scoped>
 .community-author-header { display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:11px; min-width:0; }
-.community-author-avatar { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; color:#fff; background:linear-gradient(135deg,#1559e8,#22a6f2); box-shadow:0 7px 18px rgba(21,89,232,.16); font-size:12px; font-weight:1000; line-height:1; }
+.community-author-avatar { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; color:#fff; background:linear-gradient(135deg,#1559e8,#22a6f2); box-shadow:0 7px 18px rgba(21,89,232,.16); font-size:12px; font-weight:1000; line-height:1; overflow:hidden; }
 .community-author-avatar.anonymous { background:linear-gradient(135deg,#263a60,#6c7e9d); }
+.avatar-img { width:100%; height:100%; object-fit:cover; border-radius:14px; }
 .community-author-copy { min-width:0; flex:1; }
 .community-author-copy strong,.community-author-copy span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .community-author-copy strong { color:#102a56; font-size:14px; line-height:1.35; }

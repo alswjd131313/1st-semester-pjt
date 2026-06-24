@@ -15,11 +15,11 @@
 
     <div v-if="activeTab === 'supplier' && isSupplier" class="dashboard-stats">
       <article>
-        <span>받은 요청</span>
+        <span>전체 요청</span>
         <strong>{{ roleInquiries.length }}건</strong>
       </article>
       <article>
-        <span>확인 대기</span>
+        <span>협의 필요</span>
         <strong>{{ waitingCount }}건</strong>
       </article>
       <article>
@@ -38,7 +38,7 @@
         <strong>{{ roleInquiries.length }}건</strong>
       </article>
       <article>
-        <span>확인 대기</span>
+        <span>협의 필요</span>
         <strong>{{ waitingCount }}건</strong>
       </article>
       <article>
@@ -68,7 +68,7 @@
 
     <div v-if="activeTab === 'supplier' && !isLoading && displayedInquiries.length" class="inquiry-list">
       <article
-        v-for="inquiry in displayedInquiries"
+        v-for="(inquiry, index) in displayedInquiries"
         :key="inquiry.id"
         class="inquiry-card"
         :class="{ 'supplier-card': isSupplier }"
@@ -76,7 +76,7 @@
         <!-- ── 공급사 뷰 ── -->
         <template v-if="isSupplier">
           <div class="card-topline">
-            <span class="inq-id-badge">INQ-{{ inquiry.id }}</span>
+            <span class="inq-id-badge">{{ displayedInquiries.length - index }}</span>
             <span :class="['status-badge', inquiry.status]">{{ getStatusLabel(inquiry.status) }}</span>
             <span class="inq-time">{{ formatDate(inquiry.createdAt) }}</span>
           </div>
@@ -139,7 +139,7 @@
                   :disabled="updatingInquiryId === inquiry.id"
                   @change="changeInquiryStatus(inquiry.id, $event.target.value)"
                 >
-                  <option value="pending">확인 대기</option>
+                  <option value="pending">협의 필요</option>
                   <option value="accepted">납품 가능</option>
                   <option value="rejected">거절</option>
                 </select>
@@ -154,7 +154,7 @@
         <template v-else>
           <!-- 상단: ID 뱃지 + 상태 + 날짜 -->
           <div class="card-topline">
-            <span class="inq-id-badge rq">INQ-{{ inquiry.id }}</span>
+            <span class="inq-id-badge rq">{{ displayedInquiries.length - index }}</span>
             <span :class="['status-badge', inquiry.status]">{{ getStatusLabel(inquiry.status) }}</span>
             <span class="inq-time">{{ formatDate(inquiry.createdAt) }}</span>
           </div>
@@ -238,12 +238,6 @@
 
           <!-- 요청 메모 -->
           <div v-if="inquiry.message" class="inq-memo-card">
-            <div class="inq-memo-header">
-              <div class="inq-memo-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-              </div>
-              <span>요청 메모</span>
-            </div>
             <p class="inq-memo-text">{{ inquiry.message }}</p>
           </div>
 
@@ -344,9 +338,9 @@ const errorMessage = ref("");
 const updatingInquiryId = ref("");
 const inquiryStatusFilter = ref("all");
 const statusLabels = {
-  received: "확인 대기",
-  pending: "확인 대기",
-  reviewing: "확인 대기",
+  received: "협의 필요",
+  pending: "협의 필요",
+  reviewing: "협의 필요",
   quoted: "납품 가능",
   accepted: "납품 가능",
   need_more_info: "추가 확인 필요",
@@ -355,18 +349,18 @@ const statusLabels = {
 };
 const inquiryStatusFilters = [
   { value: "all", label: "전체", statuses: [] },
-  { value: "waiting", label: "확인 대기", statuses: ["received", "pending", "reviewing"] },
+  { value: "waiting", label: "협의 필요", statuses: ["received", "pending", "reviewing"] },
   { value: "available", label: "납품 가능", statuses: ["quoted", "accepted"] },
   { value: "rejected", label: "거절", statuses: ["rejected", "unavailable"] },
 ];
 const supplierActionStatuses = [
-  { value: "pending", label: "확인 대기" },
+  { value: "pending", label: "협의 필요" },
   { value: "accepted", label: "납품 가능" },
   { value: "rejected", label: "거절" },
 ];
 
 const dashboardTitle = computed(() =>
-  authState.user?.role === "supplier" ? "받은 요청" : "내 문의 내역",
+  authState.user?.role === "supplier" ? "문의 현황" : "내 문의 내역",
 );
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
@@ -463,7 +457,7 @@ async function loadInquiries() {
 }
 
 function getStatusLabel(status) {
-  return statusLabels[status] || "확인 대기";
+  return statusLabels[status] || "협의 필요";
 }
 
 function isStatusGroupActive(currentStatus, actionStatus) {
@@ -599,29 +593,26 @@ function getSupplierDistance(inquiry) {
 .btn-card-detail:hover { opacity:.88; }
 @media(max-width:700px){.inq-info-grid{grid-template-columns:1fr}.inq-requester-row{flex-direction:column;gap:8px}}
 /* ── 요청자 카드 ── */
-.inq-id-badge.rq { background:#059669; }
+.inq-id-badge.rq { background:#1559e8; }
 .inq-subtitle { font-size:13px;color:#8492a8;margin:-10px 0 14px;font-weight:500; }
 /* 타임라인 */
 .inq-timeline { display:flex;align-items:flex-start;margin:16px 0 18px; }
 .tl-step { display:flex;flex-direction:column;align-items:center;gap:5px;min-width:64px; }
 .tl-circle { width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
-.tl-circle.done { background:#059669; }
-.tl-circle.active { background:#fff;border:2.5px solid #059669;color:#059669; }
+.tl-circle.done { background:#1559e8; }
+.tl-circle.active { background:#fff;border:2.5px solid #1559e8;color:#1559e8; }
 .tl-circle.rejected { background:#ef4444;color:#fff; }
 .tl-circle.pending { background:#e9eef6;color:#94a3b8; }
 .tl-label { font-size:11px;font-weight:700;color:#8492a8;text-align:center;white-space:nowrap; }
-.tl-label-active { color:#059669;font-weight:900; }
+.tl-label-active { color:#1559e8;font-weight:900; }
 .tl-date { font-size:10px;color:#b0bac9;text-align:center;white-space:nowrap; }
 .tl-connector { flex:1;height:2px;background:#e2e8f0;margin-top:17px;align-self:flex-start; }
-.tl-connector.filled { background:#059669; }
+.tl-connector.filled { background:#1559e8; }
 /* 2×2 그리드 */
 .inq-info-grid-2x2 { grid-template-columns:repeat(2,1fr) !important; }
 /* 요청 메모 */
-.inq-memo-card { border-radius:14px;padding:14px 16px;background:#fffbeb;border:1.5px dashed #f59e0b;margin-bottom:14px; }
-.inq-memo-header { display:flex;align-items:center;gap:8px;margin-bottom:10px; }
-.inq-memo-icon { display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:#f59e0b;color:#fff;flex-shrink:0; }
-.inq-memo-header>span { font-size:14px;font-weight:900;color:#92400e; }
-.inq-memo-text { font-size:14px;color:#78350f;line-height:1.65;margin:0; }
+.inq-memo-card { border-radius:10px;padding:10px 14px;background:#f5f8fd;border:1px solid #e8eef9;margin-bottom:14px; }
+.inq-memo-text { font-size:14px;color:#40506a;line-height:1.65;margin:0; }
 /* 공급사 정보 */
 .inq-supplier-info-row { display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f5f8fd;border-radius:14px;padding:13px 15px;margin-bottom:4px; }
 .inq-supplier-left { display:flex;align-items:center;gap:12px;min-width:0;flex:1; }
@@ -636,8 +627,8 @@ function getSupplierDistance(inquiry) {
 .requester-footer { align-items:center; }
 .rq-footer-status { font-size:12px;color:#8492a8;line-height:1.7; }
 .rq-footer-status>span:first-child { font-weight:700;color:#65748d; }
-.btn-detail-outline { display:inline-flex;align-items:center;justify-content:center;padding:10px 22px;border-radius:10px;border:1.5px solid #1559e8;background:#fff;color:#1559e8;font-size:14px;font-weight:800;text-decoration:none;white-space:nowrap; }
-.btn-detail-outline:hover { background:#edf4ff; }
+.btn-detail-outline { display:inline-flex;align-items:center;justify-content:center;padding:10px 22px;border-radius:10px;background:#1559e8;color:#fff;font-size:14px;font-weight:800;text-decoration:none;white-space:nowrap; }
+.btn-detail-outline:hover { opacity:.88; }
 @media(max-width:700px){.inq-info-grid-2x2{grid-template-columns:1fr !important}.inq-supplier-info-row{flex-direction:column;align-items:flex-start}.btn-supplier-detail{align-self:stretch;text-align:center}}
 .inquiry-type-tabs{display:flex;gap:8px;margin:22px 0}.inquiry-type-tabs button{border:1px solid #d7e3f5;border-radius:999px;padding:11px 17px;color:#51627e;background:#fff;font-weight:900;cursor:pointer}.inquiry-type-tabs button.active{border-color:#1559e8;color:#fff;background:#1559e8}.community-request-list{display:grid;gap:14px}.community-request-card{border:1px solid #dbe6f8;border-radius:22px;padding:22px;background:#fff;box-shadow:0 14px 40px rgba(31,61,115,.08)}.community-request-topline,.community-request-card footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.community-request-topline>span:first-child{color:#1559e8;font-size:12px;font-weight:900}.community-request-status{border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900}.community-request-status.pending{color:#9a5b00;background:#fff2cc}.community-request-status.confirmed{color:#047857;background:#dcf8ed}.community-request-status.rejected{color:#b42318;background:#fee7e7}.community-request-card h2{margin:14px 0 7px;color:#102a56;font-size:20px}.community-request-target{color:#65748d;font-size:13px}.community-request-message{border-radius:14px;padding:14px;color:#40506a;background:#f5f8fd;line-height:1.6}.community-request-card footer{margin-top:14px;color:#8492a8;font-size:12px}.community-request-card footer>a{color:#1559e8;font-weight:900}.community-request-actions{display:flex;gap:7px;margin-left:auto}.community-request-actions button{border:0;border-radius:9px;padding:8px 10px;color:#fff;background:#1559e8;cursor:pointer;font-weight:800}.community-request-actions .reject{color:#b42318;background:#fee7e7}@media(max-width:650px){.community-request-card footer{align-items:flex-start;flex-direction:column}.community-request-actions{margin-left:0}}
 </style>
