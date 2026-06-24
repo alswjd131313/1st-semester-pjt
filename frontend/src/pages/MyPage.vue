@@ -141,16 +141,16 @@
       <div class="modal">
         <h3>프로필 편집</h3>
         <div class="form-group">
-          <label>이름 <span class="field-note">변경 불가</span></label>
-          <input type="text" :value="displayName" disabled class="input-disabled" />
+          <label>이름</label>
+          <input type="text" v-model="editForm.name" placeholder="이름을 입력하세요" />
         </div>
         <div class="form-group">
-          <label>이메일</label>
-          <input type="email" v-model="editForm.email" placeholder="이메일을 입력하세요" />
+          <label>이메일 <span class="field-note">변경 불가</span></label>
+          <input type="email" :value="authState.user?.email" disabled class="input-disabled" />
         </div>
         <p v-if="profileSaveMsg" :class="profileSaveMsg.type === 'error' ? 'error-msg' : 'success-msg'">{{ profileSaveMsg.text }}</p>
         <div class="modal-actions">
-          <button class="btn-primary" @click="saveProfile">저장</button>
+          <button class="btn-primary" :disabled="isSaving" @click="saveProfile">{{ isSaving ? '저장 중...' : '저장' }}</button>
           <button class="btn-ghost" @click="showProfileModal = false">취소</button>
         </div>
       </div>
@@ -174,7 +174,7 @@
         </div>
         <p v-if="pwError" class="error-msg">{{ pwError }}</p>
         <div class="modal-actions">
-          <button class="btn-primary" @click="changePw">변경</button>
+          <button class="btn-primary" :disabled="isSaving" @click="changePw">{{ isSaving ? '변경 중...' : '변경' }}</button>
           <button class="btn-ghost" @click="showPwModal = false">취소</button>
         </div>
       </div>
@@ -185,7 +185,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { authState, logoutUser as authLogout } from "../api/authApi";
+import { authState, logoutUser as authLogout, updateProfile } from "../api/authApi";
 import { filterInquiriesForUser, getSupplierInquiries } from "../api/materialApi";
 import { getCommunityPosts } from "../api/communityApi";
 
@@ -196,15 +196,16 @@ const receivedComments = ref(0);
 const emailNotify = ref(true);
 const showPwModal = ref(false);
 const showProfileModal = ref(false);
+const isSaving = ref(false);
 const pwError = ref("");
 const profileSaveMsg = ref(null);
 const pw = reactive({ current: "", next: "", confirm: "" });
-const editForm = reactive({ email: "" });
+const editForm = reactive({ name: "" });
 const fileInput = ref(null);
 const profileImage = ref(localStorage.getItem("paceflow_profile_img") || null);
 
 const displayName = computed(() => authState.user?.name ?? authState.user?.email ?? "사용자");
-const profileEmail = computed(() => localStorage.getItem("paceflow_profile_email") || authState.user?.email || "-");
+const profileEmail = computed(() => authState.user?.email || "-");
 const initial = computed(() => (displayName.value[0] ?? "U").toUpperCase());
 
 const pendingStatuses = new Set(["received", "pending", "reviewing"]);
@@ -231,17 +232,24 @@ onMounted(async () => {
 });
 
 function openProfileModal() {
-  editForm.email = profileEmail.value === "-" ? "" : profileEmail.value;
+  editForm.name = authState.user?.name ?? "";
   profileSaveMsg.value = null;
   showProfileModal.value = true;
 }
 
-function saveProfile() {
-  if (!editForm.email) { profileSaveMsg.value = { type: "error", text: "이메일을 입력하세요." }; return; }
-  localStorage.setItem("paceflow_profile_email", editForm.email);
-  if (authState.user) authState.user.email = editForm.email;
-  profileSaveMsg.value = { type: "success", text: "프로필이 저장되었습니다." };
-  setTimeout(() => { showProfileModal.value = false; profileSaveMsg.value = null; }, 1200);
+async function saveProfile() {
+  if (!editForm.name.trim()) { profileSaveMsg.value = { type: "error", text: "이름을 입력하세요." }; return; }
+  isSaving.value = true;
+  profileSaveMsg.value = null;
+  try {
+    await updateProfile({ name: editForm.name });
+    profileSaveMsg.value = { type: "success", text: "프로필이 저장되었습니다." };
+    setTimeout(() => { showProfileModal.value = false; profileSaveMsg.value = null; }, 1200);
+  } catch (e) {
+    profileSaveMsg.value = { type: "error", text: e.message };
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 async function logout() {
@@ -249,12 +257,20 @@ async function logout() {
   router.push("/");
 }
 
-function changePw() {
+async function changePw() {
   if (!pw.current || !pw.next) { pwError.value = "모든 항목을 입력하세요."; return; }
   if (pw.next !== pw.confirm) { pwError.value = "새 비밀번호가 일치하지 않습니다."; return; }
+  isSaving.value = true;
   pwError.value = "";
-  showPwModal.value = false;
-  Object.assign(pw, { current: "", next: "", confirm: "" });
+  try {
+    await updateProfile({ currentPassword: pw.current, newPassword: pw.next });
+    showPwModal.value = false;
+    Object.assign(pw, { current: "", next: "", confirm: "" });
+  } catch (e) {
+    pwError.value = e.message;
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 async function handleImageUpload(event) {

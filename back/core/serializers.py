@@ -7,6 +7,7 @@ from .models import (
     SupplyHistory,
     Demand,
     SupplierMaterialRegistration,
+    SupplierInquiry,
     CommunityPost,
     CommunityComment,
     CommunityContactRequest,
@@ -152,17 +153,70 @@ class DemandSerializer(serializers.ModelSerializer):
 
 class SupplierMaterialRegistrationSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source="owner.email", read_only=True)
+    owner_user_id = serializers.IntegerField(source="owner.id", read_only=True)
 
     class Meta:
         model = SupplierMaterialRegistration
         fields = [
-            "id", "owner_email", "supplier_name", "contact", "address", "zip_no",
+            "id", "owner_email", "owner_user_id", "supplier_name", "contact", "address", "zip_no",
             "latitude", "longitude", "main_materials", "material_name", "standard",
             "strength_grade", "material_group", "specification", "ks_standard",
             "recent_price", "unit", "manufacturer", "stock_available", "service_area", "distance_km",
             "delivery_count", "note", "created_at",
         ]
-        read_only_fields = ["id", "owner_email", "created_at"]
+        read_only_fields = ["id", "owner_email", "owner_user_id", "created_at"]
+
+
+class SupplierInquirySerializer(serializers.ModelSerializer):
+    requester_id = serializers.IntegerField(source="requester.id", read_only=True)
+    requester_email = serializers.EmailField(source="requester.email", read_only=True)
+    requester_company = serializers.SerializerMethodField()
+    supplier_user_id = serializers.SerializerMethodField()
+    supplier_email = serializers.SerializerMethodField()
+    supplier_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SupplierInquiry
+        fields = [
+            "id", "status", "created_at", "updated_at", "status_updated_at",
+            "material_name", "standard", "quantity", "desired_date", "site_address",
+            "requester_name", "contact", "message",
+            "requester_id", "requester_email", "requester_company",
+            "supplier_user_id", "supplier_email", "supplier_info",
+        ]
+        read_only_fields = [
+            "id", "created_at", "updated_at",
+            "requester_id", "requester_email", "requester_company",
+            "supplier_user_id", "supplier_email", "supplier_info",
+        ]
+
+    def get_requester_company(self, obj):
+        profile = getattr(obj.requester, "profile", None)
+        return getattr(profile, "company_name", "") or ""
+
+    def get_supplier_user_id(self, obj):
+        return obj.supplier_user_id
+
+    def get_supplier_email(self, obj):
+        return obj.supplier_user.email if obj.supplier_user else None
+
+    def get_supplier_info(self, obj):
+        if not obj.supplier_user:
+            return None
+        profile = getattr(obj.supplier_user, "profile", None)
+        company_name = getattr(profile, "company_name", "") or ""
+        if not company_name:
+            reg = obj.supplier_user.supplier_material_registrations.first()
+            company_name = getattr(reg, "supplier_name", "") or ""
+        return {
+            "company_name": company_name,
+        }
+
+
+class SupplierInquiryStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupplierInquiry
+        fields = ["status"]
 
 
 def community_author_payload(user, anonymous=False, alias=""):

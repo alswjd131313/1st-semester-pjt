@@ -25,34 +25,33 @@ const DEFAULT_MATERIAL_SUGGESTIONS = [
 ];
 
 export async function createMaterialRequest(payload) {
-  if (!USE_MOCK_API) {
-    const material = await findBackendMaterial(payload);
+  if (USE_MOCK_API) {
     const request = {
       id: `REQ-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      backendMaterialId: material.id,
       ...payload,
-      siteLat: payload.siteLat !== null && payload.siteLat !== "" && Number.isFinite(Number(payload.siteLat))
-        ? Number(payload.siteLat)
-        : null,
-      siteLng: payload.siteLng !== null && payload.siteLng !== "" && Number.isFinite(Number(payload.siteLng))
-        ? Number(payload.siteLng)
-        : null,
     };
-    const { data } = await apiClient.post(buildApiUrl("/api/v1/demands/"), toBackendDemand(request));
-    const savedRequest = { ...request, backendDemandId: data.id };
-    localStorage.setItem(REQUEST_STORAGE_KEY, JSON.stringify(savedRequest));
-    return savedRequest;
+    localStorage.setItem(REQUEST_STORAGE_KEY, JSON.stringify(request));
+    return request;
   }
 
+  const material = await findBackendMaterial(payload);
   const request = {
     id: `REQ-${Date.now()}`,
     createdAt: new Date().toISOString(),
+    backendMaterialId: material.id,
     ...payload,
+    siteLat: payload.siteLat !== null && payload.siteLat !== "" && Number.isFinite(Number(payload.siteLat))
+      ? Number(payload.siteLat)
+      : null,
+    siteLng: payload.siteLng !== null && payload.siteLng !== "" && Number.isFinite(Number(payload.siteLng))
+      ? Number(payload.siteLng)
+      : null,
   };
-
-  localStorage.setItem(REQUEST_STORAGE_KEY, JSON.stringify(request));
-  return request;
+  const { data } = await apiClient.post(buildApiUrl("/api/v1/demands/"), toBackendDemand(request));
+  const savedRequest = { ...request, backendDemandId: data.id };
+  localStorage.setItem(REQUEST_STORAGE_KEY, JSON.stringify(savedRequest));
+  return savedRequest;
 }
 
 export async function getLatestMaterialRequest() {
@@ -78,7 +77,6 @@ export async function getMaterialSuggestions(query) {
       .includes(loweredQuery),
   );
   let backendSuggestions = [];
-
   if (!USE_MOCK_API) {
     const { data } = await apiClient.get(buildApiUrl("/api/v1/materials/suggest/"), {
       params: { q: normalizedQuery },
@@ -100,30 +98,29 @@ export async function getMaterialSuggestions(query) {
 }
 
 export async function getRecommendations(requestId, options = {}) {
-  if (!USE_MOCK_API) {
-    const latestRequest = options.request || await getLatestMaterialRequest();
-    const backendRecommendations = await getBackendAlternativeRecommendations(
-      latestRequest,
-      requestId,
-      options,
+  if (USE_MOCK_API) {
+    const registeredRecommendations = getStoredSupplierMaterials().map((item, index) =>
+      createRecommendationFromSupplier(item, index),
     );
-    const registeredRecommendations = await getPublicSupplierMaterialRecommendations(requestId, 0);
-    const narajangteoRecommendations = await getNarajangteoRecommendationCandidates(options.keyword || "", requestId);
     return normalizeRecommendationRanking([
-      ...backendRecommendations,
       ...registeredRecommendations,
-      ...narajangteoRecommendations,
       ...recommendationResults,
       ...additionalRecommendationResults,
     ], requestId);
   }
 
-  const registeredRecommendations = getStoredSupplierMaterials().map((item, index) =>
-    createRecommendationFromSupplier(item, index),
+  const latestRequest = options.request || await getLatestMaterialRequest();
+  const backendRecommendations = await getBackendAlternativeRecommendations(
+    latestRequest,
+    requestId,
+    options,
   );
-
+  const registeredRecommendations = await getPublicSupplierMaterialRecommendations(requestId, 0);
+  const narajangteoRecommendations = await getNarajangteoRecommendationCandidates(options.keyword || "", requestId);
   return normalizeRecommendationRanking([
+    ...backendRecommendations,
     ...registeredRecommendations,
+    ...narajangteoRecommendations,
     ...recommendationResults,
     ...additionalRecommendationResults,
   ], requestId);
@@ -233,49 +230,72 @@ async function getPublicSupplierMaterialRecommendations(requestId, startIndex = 
 }
 
 export async function registerSupplierMaterial(payload) {
-  if (!USE_MOCK_API) {
-    const { data } = await apiClient.post(buildApiUrl("/api/v1/supplier-materials/"), toBackendSupplierMaterial(payload));
-    return toFrontendSupplierMaterial(data);
-  }
-
-  return createMockSupplierMaterial(payload);
+  if (USE_MOCK_API) return createMockSupplierMaterial(payload);
+  const { data } = await apiClient.post(buildApiUrl("/api/v1/supplier-materials/"), toBackendSupplierMaterial(payload));
+  return toFrontendSupplierMaterial(data);
 }
 
 export async function getSupplierMaterials() {
-  if (!USE_MOCK_API) {
-    const { data } = await apiClient.get(buildApiUrl("/api/v1/supplier-materials/"));
-    const results = Array.isArray(data) ? data : data.results || [];
-    return results.map(toFrontendSupplierMaterial);
-  }
-
-  return getStoredSupplierMaterials();
+  if (USE_MOCK_API) return getStoredSupplierMaterials();
+  const { data } = await apiClient.get(buildApiUrl("/api/v1/supplier-materials/"));
+  const results = Array.isArray(data) ? data : data.results || [];
+  return results.map(toFrontendSupplierMaterial);
 }
 
 export async function deleteSupplierMaterial(materialId) {
-  if (!USE_MOCK_API) {
-    await apiClient.delete(buildApiUrl(`/api/v1/supplier-materials/${materialId}/`));
-    return true;
+  if (USE_MOCK_API) {
+    const normalizedId = String(materialId ?? "");
+    const materials = getStoredSupplierMaterials();
+    const remaining = materials.filter((material) => String(material.id) !== normalizedId);
+    localStorage.setItem(SUPPLIER_STORAGE_KEY, JSON.stringify(remaining));
+    return remaining.length !== materials.length;
   }
-
-  const normalizedId = String(materialId ?? "");
-  const materials = getStoredSupplierMaterials();
-  const remaining = materials.filter((material) => String(material.id) !== normalizedId);
-  localStorage.setItem(SUPPLIER_STORAGE_KEY, JSON.stringify(remaining));
-  return remaining.length !== materials.length;
+  await apiClient.delete(buildApiUrl(`/api/v1/supplier-materials/${materialId}/`));
+  return true;
 }
 
 export async function createSupplierInquiry(payload) {
-  const inquiry = createMockSupplierInquiry(payload);
+  if (USE_MOCK_API) {
+    const inquiry = createMockSupplierInquiry(payload);
+    createSupplierInquiryNotification(inquiry);
+    return inquiry;
+  }
+
+  const body = {
+    material_name: payload.requestMaterial?.materialName || payload.supplier?.materialName || "",
+    standard: payload.requestMaterial?.strengthGrade || payload.supplier?.standard || "",
+    quantity: payload.quantity || payload.requestMaterial?.requiredQuantity || "",
+    desired_date: payload.desiredDate || null,
+    site_address: payload.requestMaterial?.siteAddress || payload.siteAddress || "",
+    requester_name: payload.requesterName || "",
+    contact: payload.contact || "",
+    message: payload.message || "",
+    supplier_user_id: payload.supplierIdentity?.userId || null,
+  };
+  const { data } = await apiClient.post(buildApiUrl("/api/v1/inquiries/"), body);
+  const normalizedInquiry = normalizeBackendInquiry(data);
+  const inquiry = {
+    ...normalizedInquiry,
+    requesterRecipientKey: payload.requesterRecipientKey || payload.requesterIdentity?.recipientKey || "",
+    supplierRecipientKey: payload.supplierRecipientKey || payload.supplierIdentity?.recipientKey || "",
+    requesterIdentity: {
+      ...normalizedInquiry.requesterIdentity,
+      ...payload.requesterIdentity,
+    },
+    supplierIdentity: {
+      ...normalizedInquiry.supplierIdentity,
+      ...payload.supplierIdentity,
+    },
+  };
   createSupplierInquiryNotification(inquiry);
   return inquiry;
 }
 
 export async function getSupplierInquiries() {
-  if (!USE_MOCK_API) {
-    return getStoredSupplierInquiries();
-  }
-
-  return getStoredSupplierInquiries();
+  if (USE_MOCK_API) return getStoredSupplierInquiries();
+  const { data } = await apiClient.get(buildApiUrl("/api/v1/inquiries/"));
+  const list = Array.isArray(data) ? data : data.results || [];
+  return list.map(normalizeBackendInquiry);
 }
 
 export function filterInquiriesForUser(inquiries, user) {
@@ -344,36 +364,58 @@ function sameText(left, right) {
 }
 
 export async function getSupplierInquiry(inquiryId) {
-  const normalizedId = String(inquiryId ?? "");
-  return getStoredSupplierInquiries().find((inquiry) => String(inquiry.id) === normalizedId) || null;
+  if (USE_MOCK_API) {
+    const normalizedId = String(inquiryId ?? "");
+    return getStoredSupplierInquiries().find((inquiry) => String(inquiry.id) === normalizedId) || null;
+  }
+  const { data } = await apiClient.get(buildApiUrl(`/api/v1/inquiries/${inquiryId}/`));
+  return normalizeBackendInquiry(data);
 }
 
 export async function updateSupplierInquiry(inquiryId, updates) {
-  const normalizedId = String(inquiryId ?? "");
-  const inquiries = getStoredSupplierInquiries();
-  const index = inquiries.findIndex((inquiry) => String(inquiry.id) === normalizedId);
-  if (index < 0) return null;
+  if (USE_MOCK_API) {
+    const normalizedId = String(inquiryId ?? "");
+    const inquiries = getStoredSupplierInquiries();
+    const index = inquiries.findIndex((inquiry) => String(inquiry.id) === normalizedId);
+    if (index < 0) return null;
+    const current = inquiries[index];
+    const next = {
+      ...current,
+      ...updates,
+      id: current.id,
+      statusUpdatedAt: updates.status && updates.status !== current.status
+        ? new Date().toISOString()
+        : current.statusUpdatedAt,
+    };
+    inquiries.splice(index, 1, next);
+    localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
+    return next;
+  }
 
-  const current = inquiries[index];
-  const next = {
-    ...current,
-    ...updates,
-    id: current.id,
-    statusUpdatedAt: updates.status && updates.status !== current.status
-      ? new Date().toISOString()
-      : current.statusUpdatedAt,
+  const body = {
+    material_name: updates.materialName || updates.requestMaterial?.materialName || "",
+    standard: updates.standard || updates.requestMaterial?.strengthGrade || "",
+    quantity: updates.quantity || updates.requestMaterial?.requiredQuantity || "",
+    desired_date: updates.desiredDate || null,
+    site_address: updates.siteAddress || updates.requestMaterial?.siteAddress || "",
+    requester_name: updates.requesterName || "",
+    contact: updates.contact || "",
+    message: updates.message || "",
   };
-  inquiries.splice(index, 1, next);
-  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
-  return next;
+  const { data } = await apiClient.patch(buildApiUrl(`/api/v1/inquiries/${inquiryId}/`), body);
+  return normalizeBackendInquiry(data);
 }
 
 export async function deleteSupplierInquiry(inquiryId) {
-  const normalizedId = String(inquiryId ?? "");
-  const inquiries = getStoredSupplierInquiries();
-  const remaining = inquiries.filter((inquiry) => String(inquiry.id) !== normalizedId);
-  if (remaining.length === inquiries.length) return false;
-  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(remaining));
+  if (USE_MOCK_API) {
+    const normalizedId = String(inquiryId ?? "");
+    const inquiries = getStoredSupplierInquiries();
+    const remaining = inquiries.filter((inquiry) => String(inquiry.id) !== normalizedId);
+    if (remaining.length === inquiries.length) return false;
+    localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(remaining));
+    return true;
+  }
+  await apiClient.delete(buildApiUrl(`/api/v1/inquiries/${inquiryId}/`));
   return true;
 }
 
@@ -533,14 +575,77 @@ function parsePriceAmount(value) {
 }
 
 export async function updateSupplierInquiryStatus(inquiryId, status) {
-  const previousInquiry = getStoredSupplierInquiries().find(
-    (inquiry) => String(inquiry.id) === String(inquiryId),
+  if (USE_MOCK_API) {
+    const previousInquiry = getStoredSupplierInquiries().find(
+      (inquiry) => String(inquiry.id) === String(inquiryId),
+    );
+    const updatedInquiry = updateMockSupplierInquiryStatus(inquiryId, status);
+    if (updatedInquiry && previousInquiry?.status !== status) {
+      createRequesterStatusNotification(updatedInquiry, status);
+    }
+    return updatedInquiry;
+  }
+
+  const previousInquiry = await getSupplierInquiry(inquiryId);
+  const { data } = await apiClient.patch(
+    buildApiUrl(`/api/v1/inquiries/${inquiryId}/status/`),
+    { status },
   );
-  const updatedInquiry = updateMockSupplierInquiryStatus(inquiryId, status);
-  if (updatedInquiry && previousInquiry?.status !== status) {
+  const updatedInquiry = normalizeBackendInquiry(data);
+  if (previousInquiry?.status !== status) {
     createRequesterStatusNotification(updatedInquiry, status);
   }
   return updatedInquiry;
+}
+
+function normalizeBackendInquiry(raw) {
+  const supplierInfo = raw.supplier_info || null;
+  const requesterRecipientKey = raw.requester_id
+    ? `user:${raw.requester_id}`
+    : raw.requester_email
+      ? `email:${String(raw.requester_email).trim().toLocaleLowerCase("ko-KR")}`
+      : "";
+  const supplierRecipientKey = raw.supplier_user_id
+    ? `user:${raw.supplier_user_id}`
+    : raw.supplier_email
+      ? `email:${String(raw.supplier_email).trim().toLocaleLowerCase("ko-KR")}`
+      : "";
+  return {
+    id: String(raw.id),
+    status: raw.status,
+    createdAt: raw.created_at,
+    statusUpdatedAt: raw.status_updated_at || raw.updated_at || raw.created_at,
+    desiredDate: raw.desired_date || "",
+    quantity: raw.quantity || "",
+    requesterName: raw.requester_name || "",
+    contact: raw.contact || "",
+    message: raw.message || "",
+    requestMaterial: {
+      materialName: raw.material_name || "",
+      strengthGrade: raw.standard || "",
+      requiredQuantity: raw.quantity || "",
+      siteAddress: raw.site_address || "",
+    },
+    supplier: supplierInfo ? {
+      supplierName: supplierInfo.company_name || "",
+      materialName: raw.material_name || "",
+      standard: raw.standard || "",
+      deliveryCount: supplierInfo.delivery_count || null,
+      routeDistanceM: supplierInfo.distance_m || null,
+    } : null,
+    requesterIdentity: {
+      userId: raw.requester_id,
+      email: raw.requester_email || "",
+      recipientKey: requesterRecipientKey,
+    },
+    supplierIdentity: {
+      userId: raw.supplier_user_id,
+      email: raw.supplier_email || "",
+      recipientKey: supplierRecipientKey,
+    },
+    requesterRecipientKey,
+    supplierRecipientKey,
+  };
 }
 
 
@@ -992,11 +1097,113 @@ function createMockSupplierMaterial(payload) {
     createdAt: new Date().toISOString(),
     ...payload,
   };
-
   const savedMaterials = getStoredSupplierMaterials();
   localStorage.setItem(SUPPLIER_STORAGE_KEY, JSON.stringify([material, ...savedMaterials]));
   return material;
 }
+
+function createMockSupplierInquiry(payload) {
+  const isUrgent = payload.requestType === "urgent" || payload.priority === "high";
+  const inquiry = {
+    id: `${isUrgent ? "URG" : "INQ"}-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    status: DEFAULT_INQUIRY_STATUS,
+    statusUpdatedAt: new Date().toISOString(),
+    requestType: isUrgent ? "urgent" : "general",
+    priority: isUrgent ? "high" : "normal",
+    ...payload,
+  };
+  const savedInquiries = getStoredSupplierInquiries();
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify([inquiry, ...savedInquiries]));
+  return inquiry;
+}
+
+function createSupplierInquiryNotification(inquiry) {
+  const recipientKey = inquiry.supplierRecipientKey || buildSupplierRecipientKey(inquiry.supplier);
+  if (!recipientKey) return;
+  const materialName = inquiry.requestMaterial?.materialName || inquiry.supplier?.materialName || "요청 자재";
+  const quantity = inquiry.quantity || inquiry.requestMaterial?.requiredQuantity || "";
+  const summary = [materialName, quantity].filter(Boolean).join(" · ");
+  createNotification({
+    recipient_user_id: inquiry.supplierIdentity?.userId ?? null,
+    recipient_role: "supplier",
+    recipient_key: recipientKey,
+    type: "supplier_inquiry_created",
+    title: "새로운 자재 문의가 도착했습니다.",
+    message: summary ? `${summary} 문의가 도착했습니다.` : "요청자가 자재 납품 가능 여부를 문의했습니다.",
+    related_inquiry_id: inquiry.id,
+    target_path: `/inquiries/${inquiry.id}`,
+    event_key: `inquiry-created:${inquiry.id}`,
+  });
+}
+
+function createRequesterStatusNotification(inquiry, status) {
+  const recipientKey = inquiry.requesterRecipientKey || inquiry.requesterIdentity?.recipientKey;
+  if (!recipientKey) return;
+  const statusMessages = {
+    reviewing: ["공급사가 요청을 확인 중입니다.", "공급사가 문의 내용을 확인하고 있습니다."],
+    quoted: ["납품 가능 응답이 도착했습니다.", "공급사가 요청 자재에 대해 납품 가능으로 응답했습니다."],
+    accepted: ["납품 가능 응답이 도착했습니다.", "공급사가 요청 자재에 대해 납품 가능으로 응답했습니다."],
+    need_more_info: ["공급사가 추가 확인을 요청했습니다.", "공급사가 납품 가능 여부 확인을 위해 추가 정보를 요청했습니다."],
+    rejected: ["공급사가 요청을 거절했습니다.", "공급사가 해당 요청에 대해 거절로 응답했습니다."],
+    unavailable: ["공급사가 요청을 거절했습니다.", "공급사가 해당 요청에 대해 거절로 응답했습니다."],
+  };
+  const notificationCopy = statusMessages[status];
+  if (!notificationCopy) return;
+  createNotification({
+    recipient_user_id: inquiry.requesterIdentity?.userId ?? null,
+    recipient_role: "requester",
+    recipient_key: recipientKey,
+    type: "supplier_inquiry_status_changed",
+    title: notificationCopy[0],
+    message: notificationCopy[1],
+    related_inquiry_id: inquiry.id,
+    target_path: `/inquiries/${inquiry.id}`,
+    event_key: `inquiry-status:${inquiry.id}:${status}`,
+  });
+}
+
+function updateMockSupplierInquiryStatus(inquiryId, status) {
+  const normalizedId = String(inquiryId ?? "");
+  const updatedAt = new Date().toISOString();
+  const inquiries = getStoredSupplierInquiries().map((inquiry) =>
+    String(inquiry.id) === normalizedId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
+  );
+  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
+  return inquiries.find((inquiry) => String(inquiry.id) === normalizedId) || null;
+}
+
+function getStoredSupplierMaterials() {
+  try {
+    const saved = localStorage.getItem(SUPPLIER_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+function getStoredSupplierInquiries() {
+  try {
+    const saved = localStorage.getItem(INQUIRY_STORAGE_KEY);
+    return saved ? JSON.parse(saved).map(normalizeStoredInquiry) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeStoredInquiry(inquiry) {
+  const isUrgent = inquiry.requestType === "urgent"
+    || inquiry.priority === "high"
+    || String(inquiry.id || "").startsWith("URG");
+  return {
+    status: DEFAULT_INQUIRY_STATUS,
+    statusUpdatedAt: inquiry.createdAt,
+    requestType: isUrgent ? "urgent" : "general",
+    priority: isUrgent ? "high" : "normal",
+    ...inquiry,
+  };
+}
+
 
 function dedupeSupplierMaterials(items) {
   const seen = new Map();
@@ -1070,6 +1277,7 @@ function toFrontendSupplierMaterial(item) {
   return {
     id: item.id,
     ownerEmail: item.owner_email,
+    ownerUserId: item.owner_user_id ?? null,
     supplierName: item.supplier_name,
     contact: item.contact,
     address: item.address,
@@ -1095,128 +1303,8 @@ function toFrontendSupplierMaterial(item) {
   };
 }
 
-function createMockSupplierInquiry(payload) {
-  const isUrgent = payload.requestType === "urgent" || payload.priority === "high";
-  const inquiry = {
-    id: `${isUrgent ? "URG" : "INQ"}-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    status: DEFAULT_INQUIRY_STATUS,
-    statusUpdatedAt: new Date().toISOString(),
-    requestType: isUrgent ? "urgent" : "general",
-    priority: isUrgent ? "high" : "normal",
-    ...payload,
-  };
 
-  const savedInquiries = getStoredSupplierInquiries();
-  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify([inquiry, ...savedInquiries]));
-  return inquiry;
-}
 
-function createSupplierInquiryNotification(inquiry) {
-  const recipientKey = inquiry.supplierRecipientKey || buildSupplierRecipientKey(inquiry.supplier);
-  if (!recipientKey) return;
-
-  const materialName = inquiry.requestMaterial?.materialName || inquiry.supplier?.materialName || "요청 자재";
-  const quantity = inquiry.quantity || inquiry.requestMaterial?.requiredQuantity || "";
-  const summary = [materialName, quantity].filter(Boolean).join(" · ");
-  createNotification({
-    recipient_user_id: inquiry.supplierIdentity?.userId ?? null,
-    recipient_role: "supplier",
-    recipient_key: recipientKey,
-    type: "supplier_inquiry_created",
-    title: "새로운 자재 문의가 도착했습니다.",
-    message: summary ? `${summary} 문의가 도착했습니다.` : "요청자가 자재 납품 가능 여부를 문의했습니다.",
-    related_inquiry_id: inquiry.id,
-    target_path: `/inquiries/${inquiry.id}`,
-    event_key: `inquiry-created:${inquiry.id}`,
-  });
-}
-
-function createRequesterStatusNotification(inquiry, status) {
-  const recipientKey = inquiry.requesterRecipientKey || inquiry.requesterIdentity?.recipientKey;
-  if (!recipientKey) return;
-
-  const statusMessages = {
-    reviewing: {
-      title: "공급사가 요청을 확인 중입니다.",
-      message: "공급사가 문의 내용을 확인하고 있습니다.",
-    },
-    quoted: {
-      title: "납품 가능 응답이 도착했습니다.",
-      message: "공급사가 요청 자재에 대해 납품 가능으로 응답했습니다.",
-    },
-    accepted: {
-      title: "납품 가능 응답이 도착했습니다.",
-      message: "공급사가 요청 자재에 대해 납품 가능으로 응답했습니다.",
-    },
-    need_more_info: {
-      title: "공급사가 추가 확인을 요청했습니다.",
-      message: "공급사가 납품 가능 여부 확인을 위해 추가 정보를 요청했습니다.",
-    },
-    rejected: {
-      title: "공급사가 요청을 거절했습니다.",
-      message: "공급사가 해당 요청에 대해 거절로 응답했습니다.",
-    },
-    unavailable: {
-      title: "공급사가 요청을 거절했습니다.",
-      message: "공급사가 해당 요청에 대해 거절로 응답했습니다.",
-    },
-  };
-  const notificationCopy = statusMessages[status];
-  if (!notificationCopy) return;
-
-  createNotification({
-    recipient_user_id: inquiry.requesterIdentity?.userId ?? null,
-    recipient_role: "requester",
-    recipient_key: recipientKey,
-    type: "supplier_inquiry_status_changed",
-    title: notificationCopy.title,
-    message: notificationCopy.message,
-    related_inquiry_id: inquiry.id,
-    target_path: `/inquiries/${inquiry.id}`,
-    event_key: `inquiry-status:${inquiry.id}:${status}`,
-  });
-}
-
-function updateMockSupplierInquiryStatus(inquiryId, status) {
-  const normalizedId = String(inquiryId ?? "");
-  const updatedAt = new Date().toISOString();
-  const inquiries = getStoredSupplierInquiries().map((inquiry) =>
-    String(inquiry.id) === normalizedId ? { ...inquiry, status, statusUpdatedAt: updatedAt } : inquiry,
-  );
-
-  localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(inquiries));
-  return inquiries.find((inquiry) => String(inquiry.id) === normalizedId) || null;
-}
-
-function getStoredSupplierMaterials() {
-  try {
-    const saved = localStorage.getItem(SUPPLIER_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-}
-
-function getStoredSupplierInquiries() {
-  try {
-    const saved = localStorage.getItem(INQUIRY_STORAGE_KEY);
-    return saved ? JSON.parse(saved).map(normalizeInquiry) : [];
-  } catch {
-    return [];
-  }
-}
-
-function normalizeInquiry(inquiry) {
-  const isUrgent = inquiry.requestType === "urgent" || inquiry.priority === "high" || String(inquiry.id || "").startsWith("URG");
-  return {
-    status: DEFAULT_INQUIRY_STATUS,
-    statusUpdatedAt: inquiry.createdAt,
-    requestType: isUrgent ? "urgent" : "general",
-    priority: isUrgent ? "high" : "normal",
-    ...inquiry,
-  };
-}
 
 function createRecommendationFromSupplier(item, index) {
   const distanceKm = Number(item.distanceKm || 6 + index * 2);
@@ -1229,6 +1317,7 @@ function createRecommendationFromSupplier(item, index) {
 
   return {
     ownerEmail: item.ownerEmail,
+    ownerUserId: item.ownerUserId ?? null,
     supplierName: item.supplierName,
     materialName: item.materialName,
     standard: [item.standard, item.strengthGrade].filter(Boolean).join(" / ") || "규격 확인 필요",

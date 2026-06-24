@@ -98,3 +98,26 @@ export function isLoggedIn() {
 export function hasRole(role) {
   return authState.user?.role === role;
 }
+
+export async function updateProfile(payload) {
+  try {
+    const body = {};
+    if (payload.name?.trim()) body.name = payload.name.trim();
+    if (payload.companyName?.trim()) body.company_name = payload.companyName.trim();
+    if (payload.newPassword?.trim()) {
+      body.current_password = payload.currentPassword || "";
+      body.new_password = payload.newPassword.trim();
+    }
+    const { data } = await apiClient.patch(buildApiUrl("/api/v1/auth/profile/"), body);
+    const updated = data.user || data;
+    if (data.token) {
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      apiClient.defaults.headers.common["Authorization"] = `Token ${data.token}`;
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    authState.user = updated;
+    return updated;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "프로필 수정에 실패했습니다."));
+  }
+}

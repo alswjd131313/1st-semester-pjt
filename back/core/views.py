@@ -23,6 +23,7 @@ from rest_framework.response import Response
 from .models import (
     Material, MaterialSpec, Supplier, SupplyHistory, Demand, SupplierMaterialRegistration,
     CommunityPost, CommunityComment, CommunityContactRequest,
+    SupplierInquiry,
 )
 from .serializers import (
     MaterialListSerializer,
@@ -32,6 +33,8 @@ from .serializers import (
     PriceTrendSerializer,
     DemandSerializer,
     SupplierMaterialRegistrationSerializer,
+    SupplierInquirySerializer,
+    SupplierInquiryStatusSerializer,
     CommunityPostSerializer,
     CommunityCommentSerializer,
     CommunityContactRequestSerializer,
@@ -1152,3 +1155,89 @@ class CommunityContactRequestDetailView(generics.RetrieveUpdateAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().update(request, *args, **kwargs)
+
+
+# ──────────────────────────────────────────
+# 공급사 문의 (SupplierInquiry)
+# ──────────────────────────────────────────
+
+class SupplierInquiryListCreateView(generics.ListCreateAPIView):
+    serializer_class = SupplierInquirySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        profile = getattr(user, "profile", None)
+        if getattr(profile, "role", None) == "supplier":
+            return SupplierInquiry.objects.filter(
+                supplier_user=user
+            ).select_related("requester", "requester__profile", "supplier_user", "supplier_user__profile")
+        return SupplierInquiry.objects.filter(
+            requester=user
+        ).select_related("requester", "requester__profile", "supplier_user", "supplier_user__profile")
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        profile = getattr(user, "profile", None)
+        supplier_user_id = self.request.data.get("supplier_user_id")
+        supplier_user = None
+        if supplier_user_id:
+            User = get_user_model()
+            try:
+                supplier_user = User.objects.get(pk=supplier_user_id)
+            except User.DoesNotExist:
+                pass
+        serializer.save(
+            requester=user,
+            requester_name=serializer.validated_data.get("requester_name") or user.first_name,
+            supplier_user=supplier_user,
+        )
+
+
+class SupplierInquiryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = SupplierInquirySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "patch", "delete"]
+
+    def get_queryset(self):
+        user = self.request.user
+        return SupplierInquiry.objects.filter(
+            Q(requester=user) | Q(supplier_user=user)
+        ).select_related("requester", "requester__profile", "supplier_user", "supplier_user__profile")
+
+    def perform_update(self, serializer):
+        if self.get_object().requester != self.request.user:
+            raise ValidationError({"detail": "요청자만 문의를 수정할 수 있습니다."})
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.requester != self.request.user:
+            raise ValidationError({"detail": "요청자만 문의를 삭제할 수 있습니다."})
+        instance.delete()
+
+
+class SupplierInquiryStatusView(generics.UpdateAPIView):
+    serializer_class = SupplierInquiryStatusSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["patch"]
+
+    def get_queryset(self):
+        return SupplierInquiry.objects.filter(
+            supplier_user=self.request.user
+        ).select_related("requester", "requester__profile", "supplier_user", "supplier_user__profile")
+
+    def perform_update(self, serializer):
+        from django.utils import timezone
+        next_status = serializer.validated_data.get("status")
+        if next_status not in {"pending", "reviewing", "accepted", "rejected"}:
+            raise ValidationError({"status": "올바르지 않은 상태입니다."})
+        serializer.save(status_updated_at=timezone.now())
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        full_serializer = SupplierInquirySerializer(instance, context={"request": request})
+        return Response(full_serializer.data)

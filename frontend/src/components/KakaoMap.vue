@@ -1,10 +1,10 @@
 <template>
   <section class="kakao-map-panel">
     <div class="section-title-row">
-      <div>
+      <!-- <div>
         <h2>현장과 추천 공급사 위치</h2>
         <p>공급사를 선택하면 현장에서 출발하는 차량 경로와 예상 시간을 확인합니다.</p>
-      </div>
+      </div> -->
       <span>{{ validSuppliers.length }}개 공급사</span>
     </div>
     <div class="map-legend" aria-label="지도 위치 기준">
