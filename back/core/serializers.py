@@ -170,6 +170,7 @@ class SupplierMaterialRegistrationSerializer(serializers.ModelSerializer):
 class SupplierInquirySerializer(serializers.ModelSerializer):
     requester_id = serializers.IntegerField(source="requester.id", read_only=True)
     requester_email = serializers.EmailField(source="requester.email", read_only=True)
+    requester_company = serializers.SerializerMethodField()
     supplier_user_id = serializers.SerializerMethodField()
     supplier_email = serializers.SerializerMethodField()
     supplier_info = serializers.SerializerMethodField()
@@ -180,14 +181,18 @@ class SupplierInquirySerializer(serializers.ModelSerializer):
             "id", "status", "created_at", "updated_at", "status_updated_at",
             "material_name", "standard", "quantity", "desired_date", "site_address",
             "requester_name", "contact", "message",
-            "requester_id", "requester_email",
+            "requester_id", "requester_email", "requester_company",
             "supplier_user_id", "supplier_email", "supplier_info",
         ]
         read_only_fields = [
             "id", "created_at", "updated_at",
-            "requester_id", "requester_email",
+            "requester_id", "requester_email", "requester_company",
             "supplier_user_id", "supplier_email", "supplier_info",
         ]
+
+    def get_requester_company(self, obj):
+        profile = getattr(obj.requester, "profile", None)
+        return getattr(profile, "company_name", "") or ""
 
     def get_supplier_user_id(self, obj):
         return obj.supplier_user_id
