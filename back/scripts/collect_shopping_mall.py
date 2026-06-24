@@ -30,6 +30,11 @@ OPERATIONS = {
     "third_party": "getThptyUcntrctPrdctInfoList",
     "registered": "getShoppingMallPrdctInfoList",
 }
+SEARCH_PARAMETER_BY_OPERATION = {
+    "getMASCntrctPrdctInfoList": "prdctClsfcNoNm",
+    "getThptyUcntrctPrdctInfoList": "prdctClsfcNoNm",
+    "getShoppingMallPrdctInfoList": "prdctClsfcNoNm",
+}
 KAKAO_GEOCODE_URL = "https://dapi.kakao.com/v2/local/search/address.json"
 API_KEY = os.getenv("SHOPPING_MALL_API_KEY", "")
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY", "")
@@ -99,12 +104,13 @@ def item_text(item: dict) -> str:
 
 
 def fetch_page(operation: str, page: int, search_term: str) -> dict:
+    search_parameter = SEARCH_PARAMETER_BY_OPERATION[operation]
     params = {
         "serviceKey": unquote(API_KEY),
         "pageNo": page,
         "numOfRows": API_PAGE_SIZE,
         "inqryDiv": "1",
-        "prdctClsfcNoNm": search_term,
+        search_parameter: search_term,
         "type": "json",
     }
     try:
@@ -126,13 +132,28 @@ def fetch_page(operation: str, page: int, search_term: str) -> dict:
 
 
 def parse_page(data: dict) -> tuple[list[dict], int]:
-    body = data.get("response", {}).get("body", {})
+    response = data.get("response")
+    if not isinstance(response, dict):
+        raise RuntimeError("응답 파싱 실패: response 객체 없음")
+    body = response.get("body")
+    if not isinstance(body, dict):
+        raise RuntimeError("응답 파싱 실패: response.body 객체 없음")
     items = body.get("items") or []
     if isinstance(items, dict):
         items = items.get("item") or []
     if not isinstance(items, list):
         items = [items]
-    return [item for item in items if isinstance(item, dict)], int(body.get("totalCount") or 0)
+    try:
+        total_count = int(body.get("totalCount") or 0)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("응답 파싱 실패: totalCount 형식 오류") from exc
+    parsed_items = [item for item in items if isinstance(item, dict)]
+    if total_count > 0 and not parsed_items:
+        page_no = body.get("pageNo", "미확인")
+        raise RuntimeError(
+            f"응답 파싱 점검 필요: totalCount={total_count}이나 페이지 {page_no} items가 비어 있음"
+        )
+    return parsed_items, total_count
 
 
 def detect_material(item: dict, requested: set[str]) -> tuple[str | None, str, str, str, str]:
@@ -387,6 +408,11 @@ def main() -> None:
         parser.error("--start-page는 1 이상이어야 합니다.")
 
     operation = OPERATIONS[args.operation]
+    search_parameter = SEARCH_PARAMETER_BY_OPERATION[operation]
+    print(
+        f"[API 진단] operation={args.operation}/{operation} | "
+        f"검색 파라미터={search_parameter} | 응답 필드=response.body.items, totalCount"
+    )
     search_jobs = [
         (group_name, search_term)
         for group_name in SUPPORTED_MATERIALS
@@ -481,8 +507,17 @@ def main() -> None:
             continue
 
         total_pages = math.ceil(total_count / API_PAGE_SIZE) if total_count else 0
-        if not total_pages or args.start_page > total_pages:
-            print(f"[검색] {group_name}/{search_term}: API 결과 0건")
+        if not total_pages:
+            print(
+                f"[검색] {group_name}/{search_term}: 정상 응답 totalCount=0, items=0 "
+                f"(실제 0건 후보; 검색 파라미터={search_parameter}, 응답 파싱 정상)"
+            )
+            continue
+        if args.start_page > total_pages:
+            print(
+                f"[검색] {group_name}/{search_term}: 전체 {total_count}건이나 "
+                f"요청 페이지 {args.start_page}가 마지막 페이지 {total_pages}를 초과"
+            )
             continue
         end_page = (
             min(total_pages, args.start_page + args.pages - 1)
