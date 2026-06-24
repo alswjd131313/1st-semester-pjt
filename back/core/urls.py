@@ -34,4 +34,9 @@ urlpatterns = [
     path("community/contact-requests/", views.CommunityContactRequestListCreateView.as_view(), name="community-contact-list-create"),
     path("community/contact-requests/<int:pk>/", views.CommunityContactRequestDetailView.as_view(), name="community-contact-detail"),
     path("community/profiles/<int:user_id>/", views.community_public_profile, name="community-public-profile"),
+
+    # 공급사 문의
+    path("inquiries/", views.SupplierInquiryListCreateView.as_view(), name="inquiry-list-create"),
+    path("inquiries/<int:pk>/", views.SupplierInquiryDetailView.as_view(), name="inquiry-detail"),
+    path("inquiries/<int:pk>/status/", views.SupplierInquiryStatusView.as_view(), name="inquiry-status"),
 ]

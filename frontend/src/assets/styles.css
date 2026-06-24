@@ -333,8 +333,8 @@ button {
 h1 {
   margin: 0;
   color: #102a56;
-  font-size: clamp(36px, 5vw, 64px);
-  font-weight: 800;
+  font-size: 32px;
+  font-weight: 900;
   line-height: 1.15;
   letter-spacing: -0.04em;
 }

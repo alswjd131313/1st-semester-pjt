@@ -45,3 +45,17 @@ class LoginSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=["requester", "supplier"])
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+
+
+class ProfileUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100, required=False)
+    company_name = serializers.CharField(max_length=100, required=False)
+    current_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    new_password = serializers.CharField(min_length=6, write_only=True, required=False, allow_blank=True)
+
+    def validate(self, data):
+        new_pw = data.get("new_password", "").strip()
+        current_pw = data.get("current_password", "").strip()
+        if new_pw and not current_pw:
+            raise serializers.ValidationError({"current_password": "현재 비밀번호를 입력해 주세요."})
+        return data

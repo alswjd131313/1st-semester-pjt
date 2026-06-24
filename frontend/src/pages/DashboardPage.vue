@@ -2,7 +2,7 @@
   <section class="page-wrap">
     <div class="page-heading dashboard-heading">
       <div>
-        <p class="eyebrow">{{ isSupplier ? "Supplier Requests" : "Dashboard" }}</p>
+        <!-- <p class="eyebrow">{{ isSupplier ? "Supplier Requests" : "Dashboard" }}</p> -->
         <h1>{{ dashboardTitle }}</h1>
         <p>{{ dashboardDescription }}</p>
       </div>

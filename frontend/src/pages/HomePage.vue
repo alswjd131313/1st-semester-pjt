@@ -747,9 +747,9 @@ onBeforeUnmount(() => {
 .supplier-work-eyebrow {
   margin: 0 0 7px;
   color: #1559e8;
-  font-size: 12px;
+  font-size: 1px;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -757,8 +757,8 @@ onBeforeUnmount(() => {
   margin: 0;
   color: #102a56;
   font-size: clamp(22px, 2.4vw, 30px);
-  font-weight: 900;
-  letter-spacing: -0.035em;
+  font-weight: 700;
+  letter-spacing: -0.05em;
 }
 
 .supplier-work-copy p:last-child {
@@ -829,7 +829,7 @@ onBeforeUnmount(() => {
 
 .supplier-work-stats span {
   color: #60738e;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
 }
 

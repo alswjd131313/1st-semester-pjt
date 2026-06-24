@@ -538,6 +538,67 @@ class SupplierMaterialRegistration(models.Model):
 # 8. 커뮤니티 MVP
 # ──────────────────────────────────────────
 
+# ──────────────────────────────────────────
+# 8. 공급사 문의
+# ──────────────────────────────────────────
+
+class SupplierInquiry(models.Model):
+    STATUS_CHOICES = [
+        ("pending",   "확인 대기"),
+        ("reviewing", "검토 중"),
+        ("accepted",  "납품 가능"),
+        ("rejected",  "거절"),
+    ]
+
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_inquiries",
+        verbose_name="요청자 계정",
+    )
+    supplier_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="received_inquiries",
+        verbose_name="공급사 계정",
+    )
+
+    material_name = models.CharField(max_length=200, verbose_name="자재명")
+    standard = models.CharField(max_length=200, blank=True, verbose_name="규격")
+    quantity = models.CharField(max_length=100, blank=True, verbose_name="문의 수량")
+    desired_date = models.DateField(null=True, blank=True, verbose_name="희망 납기일")
+    site_address = models.TextField(blank=True, verbose_name="현장 주소")
+    requester_name = models.CharField(max_length=100, blank=True, verbose_name="담당자명")
+    contact = models.CharField(max_length=50, blank=True, verbose_name="연락처")
+    message = models.TextField(blank=True, verbose_name="요청 메모")
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        db_index=True,
+        verbose_name="문의 상태",
+    )
+    status_updated_at = models.DateTimeField(null=True, blank=True, verbose_name="상태 변경 일시")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "supplier_inquiries"
+        ordering = ["-created_at"]
+        verbose_name = "공급사 문의"
+        verbose_name_plural = "공급사 문의 목록"
+
+    def __str__(self):
+        return f"{self.requester} → {self.supplier_user} / {self.material_name} / {self.status}"
+
+
+# ──────────────────────────────────────────
+# 9. 커뮤니티 MVP
+# ──────────────────────────────────────────
+
 class CommunityPost(models.Model):
     DISPLAY_CHOICES = [
         ("profile", "실명/프로필"),
