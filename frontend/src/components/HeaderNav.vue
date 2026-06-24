@@ -26,7 +26,10 @@
             :class="['profile-trigger', { 'is-active': myPageRouteNames.includes(route.name) }]"
             @click.stop="toggleDropdown"
           >
-            <span class="profile-avatar">{{ userInitials }}</span>
+            <span class="profile-avatar">
+              <img v-if="profileImage" :src="profileImage" class="profile-avatar-img" alt="" />
+              <span v-else>{{ userInitials }}</span>
+            </span>
             <span class="profile-name">{{ displayName }}</span>
             <span class="profile-chevron" :class="{ open: showDropdown }">▾</span>
           </button>
@@ -111,13 +114,15 @@ const dropdownWrapRef = ref(null);
 const showDropdown = ref(false);
 
 const userInitials = computed(() => {
-  const name = authState.user?.name || "";
+  const name = authState.user?.name || authState.user?.companyName || "";
   return name.slice(0, 2).toUpperCase();
 });
 
 const displayName = computed(() =>
-  authState.user?.companyName || authState.user?.name || ""
+  authState.user?.name || authState.user?.companyName || ""
 );
+
+const profileImage = computed(() => localStorage.getItem("paceflow_profile_img") || null);
 
 watch(showDropdown, (val) => {
   if (val) {
@@ -195,6 +200,14 @@ async function handleLogout() {
   font-size: 11px;
   font-weight: 900;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .profile-name {
@@ -273,7 +286,7 @@ async function handleLogout() {
 
 :global(.app-shell:has(.home-page)) .profile-name,
 :global(.app-shell:has(.community-page)) .profile-name {
-  color: #f8fafc;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 :global(.app-shell:has(.home-page)) .profile-chevron,

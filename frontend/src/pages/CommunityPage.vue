@@ -2,7 +2,6 @@
   <main class="community-page page-wrap">
     <header class="community-hero">
       <div>
-        <p class="eyebrow">PaceFlow Community</p>
         <h1>커뮤니티</h1>
         <p>자재 수급 정보와 대체 자재 사용 경험을 공유하세요.</p>
       </div>
@@ -171,7 +170,7 @@ function formatDate(value) {
 .community-page { padding-top:clamp(36px,6vw,64px); padding-bottom:72px; }
 .community-hero { display:flex; align-items:flex-end; justify-content:space-between; gap:32px; margin-bottom:24px; padding:4px 2px 22px; border-bottom:1px solid #dbe6f8; }
 .community-hero .eyebrow { margin-bottom:12px; color:#1d66eb; }
-.community-hero h1 { margin:0; color:#102a56; font-size:clamp(36px,5vw,64px); line-height:1.08; letter-spacing:0; }
+.community-hero h1 { margin:0; color:#102a56; font-size:32px; font-weight:900; line-height:1.08; letter-spacing:0; }
 .community-hero div>p:last-child { max-width:700px; margin:14px 0 0; color:#65748d; font-size:16px; line-height:1.7; }
 .community-write-button { display:inline-flex; min-height:46px; align-items:center; justify-content:center; border-radius:999px; padding:0 22px; color:#fff; background:linear-gradient(135deg,#1559e8,#1f8df2); box-shadow:0 10px 24px rgba(21,89,232,.2); text-decoration:none; font-weight:900; white-space:nowrap; transition:transform .18s,box-shadow .18s; }
 .community-write-button:hover { transform:translateY(-2px); box-shadow:0 14px 30px rgba(21,89,232,.26); }

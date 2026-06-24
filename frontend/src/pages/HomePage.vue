@@ -164,11 +164,7 @@
             <h3>{{ item.title }}</h3>
             <p>{{ item.description }}</p>
           </div>
-          <div :class="['flow-visual', item.visualType]" aria-hidden="true">
-            <span></span>
-            <i></i>
-            <b></b>
-          </div>
+          <img class="flow-visual-img" :src="item.image" :alt="item.title" aria-hidden="true" />
         </article>
       </div>
     </section>
@@ -397,19 +393,19 @@ const workflowCards = [
     step: "01",
     title: "자재와 현장 정보 입력",
     description: "찾고 있는 자재와 현장 정보를 입력하면 비교 기준이 자동으로 설정됩니다.",
-    visualType: "visual-document",
+    image: "/step_01.png",
   },
   {
     step: "02",
     title: "대체 가능 후보 자동 검토",
     description: "규격과 물성 조건을 분석해 적용 가능한 자재와 공급사를 선별합니다.",
-    visualType: "visual-shield",
+    image: "/step_02.png",
   },
   {
     step: "03",
     title: "문의 우선순위 확인",
     description: "거리, 단가, 납품 실적을 종합해 우선 연락할 업체를 정리합니다.",
-    visualType: "visual-ranking",
+    image: "/step_03.png",
   },
 ];
 
