@@ -866,8 +866,8 @@ h1 {
   max-width: 980px;
   margin: 0 0 28px;
   color: #fff;
-  font-size: clamp(40px, 4vw, 76px);
-  font-weight: 800;
+  font-size: clamp(27px, 3.2vw, 40px);
+  font-weight: 600;
   line-height: 1.15;
   letter-spacing: -0.035em;
   text-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
@@ -1195,7 +1195,7 @@ h1 {
 .recommend-reason-section,
 .service-scope-section,
 .bottom-cta-section {
-  padding: clamp(40px, 5vw, 68px) clamp(20px, 5vw, 72px);
+  padding: clamp(64px, 7vw, 100px) clamp(20px, 5vw, 72px);
 }
 
 .material-proof-section {
@@ -1295,8 +1295,18 @@ h1 {
   position: relative;
   display: grid;
   min-height: 250px;
-  padding: 34px 150px 34px 30px;
+  padding: 34px 140px 34px 30px;
   overflow: hidden;
+}
+
+.flow-visual-img {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .flow-step {

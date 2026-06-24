@@ -8,11 +8,13 @@ import RecommendationPage from "../pages/RecommendationPage.vue";
 import SupplierRegisterPage from "../pages/SupplierRegisterPage.vue";
 import DashboardPage from "../pages/DashboardPage.vue";
 import InquiryDetailPage from "../pages/InquiryDetailPage.vue";
+import CommunityProfilePage from "../pages/CommunityProfilePage.vue";
 
 const routes = [
   { path: "/", name: "home", component: HomePage },
   { path: "/login", name: "login", component: LoginPage },
   { path: "/signup", name: "signup", component: SignupPage },
+  { path: "/profile/:id", name: "community-profile", component: CommunityProfilePage },
   {
     path: "/dashboard",
     name: "dashboard",
