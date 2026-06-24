@@ -6,9 +6,6 @@
           <h1>추천 결과</h1>
           <p>입력하신 자재와 현장 정보를 기반으로 최적의 공급사를 추천했습니다.<br />랭킹은 KS 적합도, 납품 신뢰도, 거리, 가격을 종합적으로 반영합니다.</p>
         </div>
-        <button type="button" class="btn-summary-toggle" @click="showRequestSummary = !showRequestSummary">
-          요청 정보 요약 보기 {{ showRequestSummary ? '▲' : '▾' }}
-        </button>
       </div>
       <div v-if="showRequestSummary && request" class="request-summary-panel">
         <span>{{ request.materialName }} · {{ request.standard }} · {{ request.siteAddress }}</span>
@@ -86,34 +83,23 @@
           :key="`${item.supplierName}-${item.materialName}-${item.standard}`"
           class="rec-row"
         >
+          <!-- 순위 -->
           <div class="rec-rank">
-            <span :class="['rank-num', { 'rank-first': item.displayRank === 1 }]">{{ item.displayRank }}</span>
+            <div class="rank-circle" :style="getRankCircleStyle(item.displayRank)">
+              {{ item.displayRank }}
+            </div>
           </div>
 
+          <!-- 공급사 정보 -->
           <div class="rec-main">
             <h2>{{ item.supplierName }}</h2>
             <p class="rec-material">{{ item.materialName }} · {{ item.standard }}</p>
             <div class="rec-tags">
-              <span class="rec-tag rec-tag-blue">{{ getRankingLabel(item) }}</span>
-              <span class="rec-tag rec-tag-gray">{{ getMaterialTypeLabel(item) }}</span>
-              <span :class="['rec-tag', getMatchSignalClass(item) === 'high' ? 'rec-tag-green' : 'rec-tag-gray']">{{ getMatchConfidenceLabel(item) }}</span>
-            </div>
-            <div class="rec-metrics-row">
-              <span class="metric-pill">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
-                단가 {{ item.price }}
-              </span>
-              <span class="metric-pill">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                {{ getDistanceSignal(item) }}
-              </span>
-              <span class="metric-pill">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-2.18c.07-.44.18-.88.18-1.25C18 2.68 16.32 1 14.25 1c-1.19 0-2.14.56-2.86 1.38L10 4.5 8.61 2.38C7.89 1.56 6.94 1 5.75 1 3.68 1 2 2.68 2 4.75c0 .37.11.81.18 1.25H0v14h24V6h-4zm-7.27-2.12c.38-.49.9-.76 1.52-.76 1.04 0 1.75.71 1.75 1.75 0 .37-.12.81-.32 1.13H13.5l-.77-2.12zM5.75 2.98c.62 0 1.14.27 1.52.76L6.5 5.75H4.07c-.2-.32-.32-.76-.32-1.13 0-1.04.71-1.64 2-1.64zM22 18H2V8h20v10z"/></svg>
-                납품 {{ item.deliveryCount }}회
-              </span>
+              <span v-for="tag in getCardTags(item)" :key="tag" class="rec-tag-chip">{{ tag }}</span>
             </div>
           </div>
 
+          <!-- 점수 -->
           <div class="rec-score-col">
             <span class="rec-score-label">종합 점수</span>
             <strong class="rec-score-num">{{ item.totalScore }}점</strong>
@@ -122,28 +108,16 @@
               <span v-if="getScoreStarsHalf(item.totalScore)" class="star-half">★</span>
               <span v-for="n in getScoreStarsEmpty(item.totalScore)" :key="`e${n}`" class="star-empty">★</span>
             </div>
-            <button type="button" class="btn-score-detail" @click.stop="toggleScoreExpand(getItemKey(item))">
-              점수 상세 보기 {{ isScoreExpanded(getItemKey(item)) ? '▲' : '▾' }}
-            </button>
-            <div v-if="isScoreExpanded(getItemKey(item))" class="score-detail-panel">
-              <div class="sub-score-item"><span>적합성</span><strong>{{ Math.round(getMaterialFitScore(item) * 0.45) }}</strong></div>
-              <div class="sub-score-item"><span>신뢰도</span><strong>{{ Math.round(Number(item.reliabilityScore || 0) * 0.3) }}</strong></div>
-              <div class="sub-score-item"><span>거리</span><strong>{{ hasRouteInformation(item) ? Math.round(Number(item.distanceScore || 0) * 0.15) : '-' }}</strong></div>
-              <div class="sub-score-item"><span>가격</span><strong>{{ Math.round(Number(item.priceScore || 0) * 0.1) }}</strong></div>
-            </div>
           </div>
 
-          <div class="rec-reasons-col">
-            <span class="rec-reasons-label">추천 이유</span>
-            <ul class="rec-reason-list">
-              <li v-for="reason in getReasonItems(item).slice(0, 3)" :key="reason">
-                <span class="reason-check">✓</span>{{ reason }}
-              </li>
-            </ul>
-          </div>
-
+          <!-- 버튼 -->
           <div class="rec-actions">
-            <button type="button" class="btn-detail" @click.stop="openDetail(item)">상세 보기</button>
+            <button type="button" class="btn-detail" @click.stop="openDetail(item)">
+              상세보기
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
             <button type="button" class="btn-inquiry" @click.stop="openInquiry(item)">공급사 문의</button>
           </div>
         </article>
@@ -1498,6 +1472,35 @@ function getScoreStarsEmpty(score) {
   return 5 - getScoreStarsFull(score) - getScoreStarsHalf(score);
 }
 
+function getRankCircleStyle(rank) {
+  const palette = [
+    { background: "#102a56", color: "#fff" },
+    { background: "#1559e8", color: "#fff" },
+    { background: "#4a90d9", color: "#fff" },
+    { background: "#c5d7fc", color: "#1559e8" },
+    { background: "#e8f0fe", color: "#71809a" },
+  ];
+  return palette[Math.min(rank - 1, 4)];
+}
+
+function getCardTags(item) {
+  const tags = [];
+  const rel = Number(item.reliabilityScore || 0);
+  const price = Number(item.priceScore || 0);
+  const fit = getMaterialFitScore(item);
+  const delivery = Number(item.deliveryCount || 0);
+
+  if (rel >= 85) tags.push("납품 신뢰 우수");
+  else if (delivery >= 80) tags.push("납품 경험 풍부");
+  else if (delivery >= 30) tags.push("안정적 공급");
+
+  if (price >= 85) tags.push("가격 경쟁력");
+  else if (fit >= 88) tags.push("규격 신뢰 우수");
+  else tags.push("안정적 품질");
+
+  return tags.slice(0, 2);
+}
+
 function getShortDistance(item) {
   const routeItem = getRouteDisplayItem(item);
   if (hasRouteInformation(routeItem)) {
@@ -1552,47 +1555,83 @@ function getShortDistance(item) {
 .reset-btn { margin-left: auto; padding: 7px 16px; font-size: 13px; }
 
 /* ─── Supplier Card (rec-row) ─── */
-.recommendation-list { display: flex; flex-direction: column; gap: 16px; }
-.rec-row { display: grid; grid-template-columns: 52px 1fr 140px 180px 120px; gap: 20px; align-items: start; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 22px 24px; transition: box-shadow .15s; }
-.rec-row:hover { box-shadow: 0 4px 18px rgba(0,0,0,.07); }
+.recommendation-list { display: flex; flex-direction: column; gap: 12px; }
 
-.rec-rank { display: flex; justify-content: center; padding-top: 4px; }
-.rank-num { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; background: #e2e8f0; color: #64748b; }
-.rank-num.rank-first { background: #f59e0b; color: #fff; }
+.rec-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 160px 200px;
+  gap: 20px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 22px 24px;
+  transition: box-shadow .15s, border-color .15s;
+}
+.rec-row:hover { box-shadow: 0 4px 16px rgba(21,89,232,.08); border-color: #c5d7fc; }
 
-.rec-main h2 { font-size: 17px; font-weight: 800; color: #1e293b; margin: 0 0 3px; }
-.rec-material { font-size: 13px; color: #64748b; margin: 0 0 8px; }
-.rec-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.rec-tag { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
-.rec-tag-blue { background: #dbeafe; color: #1d4ed8; }
-.rec-tag-green { background: #dcfce7; color: #15803d; }
-.rec-tag-gray { background: #f1f5f9; color: #475569; }
-.rec-metrics-row { display: flex; flex-wrap: wrap; gap: 10px; }
-.metric-pill { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 8px; }
+.rec-rank { display: flex; justify-content: center; }
+.rank-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.rec-main h2 { font-size: 18px; font-weight: 800; color: #102a56; margin: 0 0 4px; }
+.rec-material { font-size: 13px; color: #64748b; margin: 0 0 10px; }
+.rec-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.rec-tag-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #eff4ff;
+  color: #1559e8;
+}
 
 .rec-score-col { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
-.rec-score-label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
-.rec-score-num { font-size: 28px; font-weight: 800; color: #1e293b; line-height: 1.1; }
-.rec-stars { display: flex; gap: 2px; margin: 2px 0; }
-.star-full { color: #f59e0b; font-size: 16px; }
-.star-half { color: #f59e0b; font-size: 16px; opacity: .55; }
-.star-empty { color: #e2e8f0; font-size: 16px; }
-.btn-score-detail { font-size: 11px; color: #2563eb; background: none; border: none; cursor: pointer; padding: 2px 0; white-space: nowrap; }
-.btn-score-detail:hover { text-decoration: underline; }
-.score-detail-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; width: 100%; }
-.sub-score-item { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
-.sub-score-item strong { color: #1e293b; font-weight: 700; }
+.rec-score-label { font-size: 13px; font-weight: 600; color: #94a3b8; }
+.rec-score-num { font-size: 32px; font-weight: 700; color: #102a56; line-height: 1; }
+.rec-stars { display: flex; gap: 2px; margin-top: 4px; }
+.star-full { color: #f59e0b; font-size: 18px; }
+.star-half { color: #f59e0b; font-size: 18px; opacity: .5; }
+.star-empty { color: #e2e8f0; font-size: 18px; }
 
-.rec-reasons-col { }
-.rec-reasons-label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 6px; }
-.rec-reason-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 5px; }
-.rec-reason-list li { font-size: 12.5px; color: #334155; display: flex; gap: 5px; align-items: flex-start; line-height: 1.4; }
-.reason-check { color: #16a34a; font-weight: 700; flex-shrink: 0; }
-
-.rec-actions { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; }
-.btn-detail { padding: 8px 16px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #fff; font-size: 13px; font-weight: 600; color: #334155; cursor: pointer; white-space: nowrap; }
-.btn-detail:hover { background: #f8fafc; }
-.btn-inquiry { padding: 8px 16px; border-radius: 8px; background: var(--color-primary, #2563eb); border: none; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; white-space: nowrap; }
+.rec-actions { display: flex; flex-direction: column; gap: 8px; }
+.btn-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border: 1.5px solid #dde7f7;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .15s, color .15s;
+}
+.btn-detail:hover { border-color: #1559e8; color: #1559e8; }
+.btn-inquiry {
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: #1559e8;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity .15s;
+}
 .btn-inquiry:hover { opacity: .88; }
 
 /* ─── Show All Button ─── */
@@ -1649,14 +1688,15 @@ function getShortDistance(item) {
 
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
-  .rec-row { grid-template-columns: 44px 1fr; }
-  .rec-score-col, .rec-reasons-col { grid-column: 1 / -1; border-top: 1px solid #f1f5f9; padding-top: 12px; }
-  .rec-actions { flex-direction: row; grid-column: 1 / -1; }
+  .rec-row { grid-template-columns: 56px 1fr 140px; }
+  .rec-actions { grid-column: 1 / -1; flex-direction: row; }
   .criteria-items { gap: 12px; }
   .criteria-item { min-width: 140px; }
 }
 @media (max-width: 600px) {
-  .rec-row { grid-template-columns: 1fr; }
+  .rec-row { grid-template-columns: 48px 1fr; gap: 12px; }
+  .rec-score-col { grid-column: 2 / 3; align-items: flex-start; text-align: left; }
+  .rec-actions { grid-column: 1 / -1; flex-direction: row; }
   .rec-rank { justify-content: flex-start; }
   .top5-header { gap: 10px; }
   .sort-label { width: 100%; }

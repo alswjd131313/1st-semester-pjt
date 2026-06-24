@@ -172,64 +172,76 @@
     <section class="material-proof-section section-observe">
       <div class="section-heading center-heading">
         <h2>예시로 보는 <span>물성 비교</span></h2>
+        <p class="mp-section-sub">AI가 분석한 두 자재의 물성 데이터 비교 결과입니다.</p>
       </div>
 
-      <div class="material-proof-card">
-        <article class="material-mini-card">
-          <span>원본 자재</span>
-          <h3>{{ materialProof.original.name }}</h3>
-          <div :class="['material-visual', materialProof.original.visualClass]" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
+      <div class="mp-wrap">
+        <!-- 두 자재 헤더 -->
+        <div class="mp-mat-header">
+          <div class="mp-mat-card">
+            <span class="mp-mat-badge mp-badge-blue">원본 자재</span>
+            <h3>{{ materialProof.original.name }}</h3>
           </div>
-          <dl>
-            <div>
-              <dt>제조사</dt>
-              <dd>{{ materialProof.original.maker }}</dd>
-            </div>
-            <div>
-              <dt>등록일</dt>
-              <dd>{{ materialProof.original.registeredAt }}</dd>
-            </div>
-          </dl>
-        </article>
-
-        <div class="property-compare-table">
-          <div class="compare-row compare-head">
-            <span>항목</span>
-            <span>원본 자재</span>
-            <span>추천 자재</span>
-            <span>비교 결과</span>
+          <div class="mp-arrow-ring">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12h14M14 7l5 5-5 5" stroke="#1559e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
-          <div v-for="row in materialComparisonRows" :key="row.label" class="compare-row">
-            <span>{{ row.label }}</span>
-            <span>{{ row.original }}</span>
-            <span>{{ row.candidate }}</span>
-            <strong>{{ row.result }}</strong>
+          <div class="mp-mat-card mp-mat-card-right">
+            <span class="mp-mat-badge mp-badge-green">추천 자재</span>
+            <h3>{{ materialProof.candidate.name }}</h3>
           </div>
-          <p class="comparison-result">물성 동등성 검증 완료</p>
         </div>
 
-        <article class="material-mini-card recommended">
-          <span>추천 자재</span>
-          <h3>{{ materialProof.candidate.name }}</h3>
-          <div :class="['material-visual', materialProof.candidate.visualClass]" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
+        <!-- 비교 테이블 -->
+        <div class="mp-table">
+          <div class="mp-row mp-head">
+            <span>항목</span>
+            <span>원본 자재 ({{ materialProof.original.code }})</span>
+            <span>추천 자재 ({{ materialProof.candidate.code }})</span>
+            <span>비교 결과</span>
           </div>
-          <dl>
-            <div>
-              <dt>제조사</dt>
-              <dd>{{ materialProof.candidate.maker }}</dd>
+          <div v-for="row in materialComparisonRows" :key="row.label" class="mp-row">
+            <span class="mp-label-cell">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="#dbeafe" stroke="#1559e8" stroke-width="1.6"/>
+              </svg>
+              {{ row.label }}
+            </span>
+            <span>{{ row.original }}</span>
+            <span>{{ row.candidate }}</span>
+            <span class="mp-result-cell">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" stroke="#16a34a" stroke-width="1.8"/>
+                <path d="M8 12l3 3 5-5" stroke="#16a34a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              동등
+            </span>
+          </div>
+        </div>
+
+        <!-- 결과 배너 -->
+        <div class="mp-verdict-banner">
+          <div class="mp-verdict-left">
+            <div class="mp-verdict-icon">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="11" fill="#16a34a"/>
+                <path d="M7 12l4 4 6-6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </div>
             <div>
-              <dt>등록일</dt>
-              <dd>{{ materialProof.candidate.registeredAt }}</dd>
+              <strong class="mp-verdict-title">물성 동등성 검증 완료</strong>
+              <p>두 자재의 주요 물성이 동등함을 확인했습니다.</p>
             </div>
-          </dl>
-        </article>
+          </div>
+          <div class="mp-verdict-sep"></div>
+          <div class="mp-verdict-tag">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" stroke="#16a34a" stroke-width="2"/>
+            </svg>
+            대체 가능
+          </div>
+        </div>
       </div>
     </section>
 
@@ -276,8 +288,9 @@
         </p>
         <div class="brand-cta-actions">
           <RouterLink class="brand-btn brand-btn-primary" to="/materials/request">대체 자재 검색하기</RouterLink>
-          <RouterLink class="brand-btn brand-btn-secondary" to="/login?role=supplier">공급사로 참여하기</RouterLink>
+          <button class="brand-btn brand-btn-secondary" type="button" @click="handleSupplierCta">공급사로 참여하기</button>
         </div>
+        <p v-if="supplierCtaNotice" class="supplier-cta-notice">{{ supplierCtaNotice }}</p>
       </div>
     </section>
 
@@ -335,7 +348,7 @@
 import StandardEvidencePanel from '../components/StandardEvidencePanel.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { authState } from "../api/authApi";
+import { authState, isLoggedIn } from "../api/authApi";
 import {
   getMaterialSuggestions,
   filterInquiriesForUser,
@@ -412,12 +425,14 @@ const workflowCards = [
 const materialProof = {
   original: {
     name: "철근 SD400 D10",
+    code: "SD400 D10",
     maker: "A사",
     registeredAt: "2024.05.20",
     visualClass: "material-visual-rebar",
   },
   candidate: {
-    name: "철근 SD400 D10",
+    name: "철근 SD500 D10",
+    code: "SD500 D10",
     maker: "B사",
     registeredAt: "2024.05.18",
     visualClass: "material-visual-rebar",
@@ -684,6 +699,23 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+const supplierCtaNotice = ref("");
+let ctaNoticeTimer;
+
+function handleSupplierCta() {
+  if (!isLoggedIn()) {
+    router.push("/login?role=supplier");
+    return;
+  }
+  if (authState.user?.role === "supplier") {
+    router.push("/dashboard");
+    return;
+  }
+  supplierCtaNotice.value = "공급사 참여는 별도 공급사 계정이 필요합니다. 공급사로 회원가입해 주세요.";
+  clearTimeout(ctaNoticeTimer);
+  ctaNoticeTimer = setTimeout(() => { supplierCtaNotice.value = ""; }, 5000);
+}
+
 onMounted(() => {
   revealObservedSections();
   window.addEventListener("scroll", onScroll, { passive: true });
@@ -697,6 +729,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.supplier-cta-notice { margin-top: 12px; font-size: 13px; color: #9a5b00; background: #fff8e6; border: 1px solid #f6d860; border-radius: 8px; padding: 10px 16px; text-align: center; }
+
 .supplier-work-dock {
   display: grid !important;
   gap: 22px;
