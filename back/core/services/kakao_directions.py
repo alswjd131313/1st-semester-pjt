@@ -54,11 +54,11 @@ def get_driving_route(
         _is_valid_coordinate(origin_lat, origin_lng)
         and _is_valid_coordinate(destination_lat, destination_lng)
     ):
-        return _route_result("unavailable", "위치 정보 확인 필요")
+        return _route_result("missing_coordinates", "위치 정보 확인 필요")
 
     api_key = settings.KAKAO_REST_API_KEY
     if not api_key:
-        return _route_result("unavailable", "카카오 길찾기 설정 확인 필요")
+        return _route_result("api_unavailable", "카카오 길찾기 설정 확인 필요")
 
     coordinates = (
         round(float(origin_lat), 5),
@@ -86,14 +86,14 @@ def get_driving_route(
         )
     except requests.RequestException as exc:
         logger.warning("Kakao directions request failed: %s", exc.__class__.__name__)
-        return _route_result("failed", "거리 정보 확인 필요")
+        return _route_result("unavailable", "거리 정보 확인 필요")
 
     if response.status_code in (401, 403):
         logger.warning("Kakao directions unavailable: HTTP %s", response.status_code)
-        return _route_result("unavailable", "카카오 길찾기 권한 확인 필요")
+        return _route_result("api_unavailable", "카카오 길찾기 권한 확인 필요")
     if response.status_code != 200:
         logger.warning("Kakao directions failed: HTTP %s", response.status_code)
-        return _route_result("failed", "거리 정보 확인 필요")
+        return _route_result("unavailable", "거리 정보 확인 필요")
 
     try:
         payload = response.json()
@@ -102,10 +102,10 @@ def get_driving_route(
         distance_m = int(summary["distance"])
         duration_sec = int(summary["duration"])
     except (ValueError, TypeError, KeyError, IndexError):
-        return _route_result("failed", "차량 경로를 확인할 수 없습니다.")
+        return _route_result("unavailable", "차량 경로를 확인할 수 없습니다.")
 
     if distance_m < 0 or duration_sec < 0:
-        return _route_result("failed", "차량 경로를 확인할 수 없습니다.")
+        return _route_result("unavailable", "차량 경로를 확인할 수 없습니다.")
 
     route_path = []
     if include_path:
@@ -123,7 +123,7 @@ def get_driving_route(
                         route_path.append(point)
 
         if len(route_path) < 2:
-            return _route_result("failed", "차량 경로선을 확인할 수 없습니다.")
+            return _route_result("unavailable", "차량 경로선을 확인할 수 없습니다.")
 
     result = _route_result(
         "success",
