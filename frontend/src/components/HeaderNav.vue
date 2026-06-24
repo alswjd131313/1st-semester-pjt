@@ -213,7 +213,7 @@ async function handleLogout() {
 .profile-name {
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: #102a56;
   white-space: nowrap;
   max-width: 120px;
   overflow: hidden;
@@ -278,24 +278,20 @@ async function handleLogout() {
 }
 
 /* 홈페이지에서 흰색 스타일 */
-:global(.app-shell:has(.home-page)) .profile-trigger,
-:global(.app-shell:has(.community-page)) .profile-trigger {
+:global(.app-shell:has(.home-page)) .profile-trigger {
   border-color: rgba(255, 255, 255, 0.3);
   background: rgba(8, 24, 54, 0.28);
 }
 
-:global(.app-shell:has(.home-page)) .profile-name,
-:global(.app-shell:has(.community-page)) .profile-name {
+:global(.app-shell:has(.home-page)) .profile-name {
   color: rgba(255, 255, 255, 0.92);
 }
 
-:global(.app-shell:has(.home-page)) .profile-chevron,
-:global(.app-shell:has(.community-page)) .profile-chevron {
+:global(.app-shell:has(.home-page)) .profile-chevron {
   color: #cbd5e1;
 }
 
-:global(.app-shell:has(.home-page)) .profile-trigger:hover,
-:global(.app-shell:has(.community-page)) .profile-trigger:hover {
+:global(.app-shell:has(.home-page)) .profile-trigger:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 

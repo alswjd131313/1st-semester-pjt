@@ -137,7 +137,23 @@
     </section>
 
     <section v-if="!isLoading && showAllList" class="ranking-table-section">
-      <h2>전체 랭킹 리스트 (TOP 20)</h2>
+      <div class="ranking-table-header">
+        <h2>전체 랭킹 리스트 (TOP 20)</h2>
+        <div class="ranking-material-tabs" role="tablist" aria-label="자재 필터">
+          <button
+            type="button"
+            :class="['ranking-mtab', { active: rankingMaterialFilter === 'all' }]"
+            @click="rankingMaterialFilter = 'all'"
+          >전체</button>
+          <button
+            v-for="mat in rankingMaterialOptions"
+            :key="mat.id"
+            type="button"
+            :class="['ranking-mtab', { active: rankingMaterialFilter === mat.id }]"
+            @click="rankingMaterialFilter = mat.id"
+          >{{ mat.label }}</button>
+        </div>
+      </div>
       <div class="ranking-table-wrap">
         <table class="ranking-table">
           <thead>
@@ -154,9 +170,9 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in allRankingList" :key="`tbl-${item.supplierName}-${item.materialName}`">
+            <tr v-for="item in filteredRankingList" :key="`tbl-${item.supplierName}-${item.materialName}`">
               <td>
-                <span :class="['rank-badge', { 'rank-badge-first': item.displayRank === 1 }]">{{ item.displayRank }}</span>
+                <span :class="['rank-badge', { 'rank-badge-gold': item.displayRank === 1, 'rank-badge-silver': item.displayRank === 2, 'rank-badge-bronze': item.displayRank === 3 }]">{{ item.displayRank }}</span>
               </td>
               <td>
                 <div class="tbl-supplier-name">{{ item.supplierName }}</div>
@@ -234,6 +250,7 @@
           aria-modal="true"
           aria-labelledby="recommendation-detail-title"
         >
+          <!-- 헤더 -->
           <div class="modal-header">
             <div>
               <p class="eyebrow">Ranking Detail</p>
@@ -246,25 +263,94 @@
                 {{ selectedRecommendation.standard }}
               </span>
             </div>
-            <button type="button" class="icon-button" aria-label="상세 닫기" @click="closeDetail">
-              ×
-            </button>
+            <button type="button" class="icon-button" aria-label="상세 닫기" @click="closeDetail">×</button>
           </div>
 
-          <div class="detail-score-panel">
-            <div>
-              <span>랭킹 점수</span>
-              <strong>{{ selectedRecommendation.totalScore }}점</strong>
+          <!-- AI 추천 요약 -->
+          <div class="ai-summary-card">
+            <div class="ai-summary-body">
+              <div class="ai-summary-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </div>
+              <div class="ai-summary-content">
+                <span class="ai-summary-label">AI 추천 요약</span>
+                <div v-if="aiSummaryLoading" class="ai-loading-wrap">
+                  <span class="ai-loading-dots"><i></i><i></i><i></i></span>
+                  <span class="ai-loading-text">AI가 추천 데이터를 분석하는 중입니다…</span>
+                </div>
+                <p v-else class="ai-summary-text">{{ aiSummary || "AI 요약 내용이 여기에 표시됩니다." }}</p>
+              </div>
             </div>
-            <p>
-              {{ getRankingSummary(selectedRecommendation) }} 가격, 거리, 납품 이력, KS 물성 적합도를 함께 반영했습니다.
-            </p>
+            <div class="ai-score-divider"></div>
+            <div class="ai-score-panel">
+              <span class="ai-score-label">종합 추천 점수</span>
+              <strong class="ai-score-value">{{ selectedRecommendation.totalScore }}점</strong>
+              <span class="ai-score-badge">{{ getScorePercentile(selectedRecommendation.totalScore) }} 수준</span>
+            </div>
           </div>
 
-          <div class="detail-grid">
-            <article>
-              <h3>공급 조건</h3>
-              <dl class="detail-list">
+          <!-- 핵심 평가 요약 -->
+          <div class="core-eval-section">
+            <h3 class="section-subhead">핵심 평가 요약</h3>
+            <div class="core-eval-grid">
+              <div class="eval-card">
+                <div class="eval-icon eval-icon-green">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                </div>
+                <span class="eval-label">물성 적합도</span>
+                <strong class="eval-score eval-score-green">{{ getMaterialFitScore(selectedRecommendation) }}점</strong>
+                <div class="eval-bar-track"><div class="eval-bar-fill eval-bar-green" :style="{ width: getMaterialFitScore(selectedRecommendation) + '%' }"></div></div>
+                <span class="eval-desc">KS 규격 기준 물성 적합도</span>
+              </div>
+              <div class="eval-card">
+                <div class="eval-icon eval-icon-purple">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                </div>
+                <span class="eval-label">신뢰도</span>
+                <strong class="eval-score eval-score-purple">{{ selectedRecommendation.reliabilityScore }}점</strong>
+                <div class="eval-bar-track"><div class="eval-bar-fill eval-bar-purple" :style="{ width: selectedRecommendation.reliabilityScore + '%' }"></div></div>
+                <span class="eval-desc">납품 이력·제품 신뢰도 기반</span>
+              </div>
+              <div class="eval-card">
+                <div class="eval-icon eval-icon-amber">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg>
+                </div>
+                <span class="eval-label">가격 경쟁력</span>
+                <strong class="eval-score eval-score-amber">{{ selectedRecommendation.priceScore }}점</strong>
+                <div class="eval-bar-track"><div class="eval-bar-fill eval-bar-amber" :style="{ width: selectedRecommendation.priceScore + '%' }"></div></div>
+                <span class="eval-desc">최근 거래 단가 기준</span>
+              </div>
+              <div class="eval-card">
+                <div class="eval-icon eval-icon-blue">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                </div>
+                <span class="eval-label">거리 점수</span>
+                <strong class="eval-score eval-score-blue">{{ getDistanceScoreLabel(selectedRecommendation) }}</strong>
+                <div class="eval-bar-track">
+                  <div v-if="hasRouteInformation(selectedRecommendation)" class="eval-bar-fill eval-bar-blue" :style="{ width: selectedRecommendation.distanceScore + '%' }"></div>
+                  <div v-else class="eval-bar-fill eval-bar-gray" style="width:0%"></div>
+                </div>
+                <span class="eval-desc">{{ hasRouteInformation(selectedRecommendation) ? '현장 차량 경로 기준' : '현장 거리 정보 확인 필요' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 추천 이유 + 공급 조건 요약 -->
+          <div class="detail-two-col">
+            <div class="detail-col-card">
+              <h3 class="col-card-title">추천 이유</h3>
+              <ul class="reason-check-list">
+                <li v-for="reason in getReasonItems(selectedRecommendation)" :key="reason">
+                  <span class="reason-check">
+                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143z" clip-rule="evenodd"/></svg>
+                  </span>
+                  <span>{{ reason }}</span>
+                </li>
+              </ul>
+            </div>
+            <div class="detail-col-card">
+              <h3 class="col-card-title">공급 조건 요약</h3>
+              <dl class="supply-cond-list">
                 <div>
                   <dt>자재 분류</dt>
                   <dd>{{ getMaterialTypeLabel(selectedRecommendation) }}</dd>
@@ -274,6 +360,10 @@
                   <dd>{{ selectedRecommendation.price }}</dd>
                 </div>
                 <div>
+                  <dt>납품 이력</dt>
+                  <dd>{{ selectedRecommendation.deliveryCount }}회</dd>
+                </div>
+                <div>
                   <dt>현장 거리</dt>
                   <dd>{{ getDistanceLabel(selectedRecommendation) }}</dd>
                 </div>
@@ -281,203 +371,80 @@
                   <dt>위치 기준</dt>
                   <dd>{{ getLocationBasisLabel(selectedRecommendation) }}</dd>
                 </div>
-                <div>
-                  <dt>납품 이력</dt>
-                  <dd>{{ selectedRecommendation.deliveryCount }}회</dd>
-                </div>
                 <div v-if="selectedRecommendation.contact">
                   <dt>연락처</dt>
                   <dd>{{ selectedRecommendation.contact }}</dd>
                 </div>
-                <div v-if="selectedRecommendation.serviceArea">
-                  <dt>납품 가능 지역</dt>
-                  <dd>{{ selectedRecommendation.serviceArea }}</dd>
-                </div>
               </dl>
-            </article>
-
-            <article>
-              <h3>랭킹 산정 근거</h3>
-              <div class="match-basis-box">
-                <span>규격 판단</span>
-                <strong>{{ getMatchSignalLabel(selectedRecommendation) }}</strong>
-                <p>{{ getMatchSignalDescription(selectedRecommendation) }}</p>
-              </div>
-              <div class="score-breakdown">
-                <div>
-                  <span>물성 적합도</span>
-                  <strong>{{ getMaterialFitScore(selectedRecommendation) }}</strong>
-                  <meter min="0" max="100" :value="getMaterialFitScore(selectedRecommendation)" />
-                </div>
-                <div>
-                  <span>신뢰도 점수</span>
-                  <strong>{{ selectedRecommendation.reliabilityScore }}</strong>
-                  <meter min="0" max="100" :value="selectedRecommendation.reliabilityScore" />
-                </div>
-                <div>
-                  <span>거리 점수</span>
-                  <strong>{{ getDistanceScoreLabel(selectedRecommendation) }}</strong>
-                  <meter
-                    v-if="hasRouteInformation(selectedRecommendation)"
-                    min="0"
-                    max="100"
-                    :value="selectedRecommendation.distanceScore"
-                  />
-                </div>
-                <div>
-                  <span>가격 점수</span>
-                  <strong>{{ selectedRecommendation.priceScore }}</strong>
-                  <meter min="0" max="100" :value="selectedRecommendation.priceScore" />
-                </div>
-              </div>
-            </article>
+            </div>
           </div>
 
-          <div class="detail-note">
-            <h3>단가 트렌드</h3>
-            <div class="price-trend-panel">
-              <div class="trend-summary">
-                <span>최근 단가</span>
-                <strong>{{ selectedRecommendation.price }}</strong>
-                <p>{{ getPriceTrendSummary(selectedRecommendation) }}</p>
+          <!-- 물성 비교 + KS 규격 근거 -->
+          <div class="detail-two-col">
+            <div class="detail-col-card">
+              <div class="col-card-header-row">
+                <h3 class="col-card-title">물성 비교</h3>
+                <span class="pass-badge">{{ getPropertySummary(selectedRecommendation).label }}</span>
               </div>
-              <div v-if="getPriceTrendBars(selectedRecommendation).length" class="trend-chart" aria-label="최근 단가 추이">
-                <div
-                  v-for="point in getPriceTrendBars(selectedRecommendation)"
-                  :key="point.label"
-                  class="trend-bar-item"
-                >
-                  <span>{{ point.display }}</span>
-                  <i :style="{ height: `${point.height}%` }" />
-                  <small>{{ point.label }}</small>
+              <p class="col-card-desc">{{ getPropertySummary(selectedRecommendation).message }}</p>
+              <div class="prop-table" role="table" aria-label="물성 비교표">
+                <div class="prop-row prop-head" role="row">
+                  <span>항목</span><span>기준 자재</span><span>추천 자재</span><span>기준</span><span>결과</span>
+                </div>
+                <div v-for="row in getPropertyComparison(selectedRecommendation)" :key="row.label" class="prop-row" role="row">
+                  <span>{{ row.label }}</span>
+                  <span>{{ row.original }}</span>
+                  <span>{{ row.candidate }}</span>
+                  <span>{{ row.standard }}</span>
+                  <span :class="['prop-result-badge', row.passed === true ? 'prop-pass' : row.passed === false ? 'prop-fail' : 'prop-check']">{{ getPropertyResultLabel(row) }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="detail-col-card">
+              <h3 class="col-card-title">KS 규격 근거</h3>
+              <div class="ks-spec-list">
+                <div class="ks-spec-item">
+                  <span class="ks-spec-key">적용 기준</span>
+                  <strong class="ks-spec-val">{{ getStandardEvidence(selectedRecommendation).standard }}</strong>
+                  <p class="ks-spec-desc">{{ getStandardEvidence(selectedRecommendation).title }} · {{ getEvidenceVerificationLabel(selectedRecommendation) }}</p>
+                </div>
+                <div class="ks-spec-item">
+                  <span class="ks-spec-key">규격 근거</span>
+                  <strong class="ks-spec-val">{{ getMaterialTypeLabel(selectedRecommendation) }}</strong>
+                  <p class="ks-spec-desc">{{ getStandardEvidence(selectedRecommendation).specificationBasis }}</p>
+                </div>
+                <div class="ks-spec-item">
+                  <span class="ks-spec-key">승인 리스크</span>
+                  <strong :class="['ks-risk-val', { 'ks-risk-warn': isApprovalReviewRequired(selectedRecommendation) }]">
+                    {{ isApprovalReviewRequired(selectedRecommendation) ? "검토 필요" : "낮음" }}
+                  </strong>
+                  <p class="ks-spec-desc">{{ getStandardEvidence(selectedRecommendation).approvalRisk }}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="detail-note">
-            <h3>추천 이유</h3>
-            <ul class="reason-list">
-              <li
-                v-for="reason in getReasonItems(selectedRecommendation)"
-                :key="reason"
-              >
-                {{ reason }}
-              </li>
-            </ul>
-          </div>
-
-          <div class="detail-note">
-            <h3>핵심 검토 근거</h3>
-            <div class="hard-filter-grid">
-              <article
-                v-for="evidence in getHardFilterEvidence(selectedRecommendation)"
-                :key="evidence.label"
-                :class="{ warn: isHardFilterWarning(evidence) }"
-              >
-                <span>{{ evidence.label }}</span>
-                <strong>{{ evidence.status }}</strong>
-                <p>{{ evidence.description }}</p>
-              </article>
+          <!-- 승인 리스크 배너 -->
+          <div :class="['approval-banner', { 'approval-banner-warn': isApprovalReviewRequired(selectedRecommendation) }]">
+            <div class="approval-banner-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            </div>
+            <div class="approval-banner-body">
+              <strong>{{ getApprovalRiskLabel(selectedRecommendation) }}</strong>
+              <p>{{ getApprovalRiskNote(selectedRecommendation) }}</p>
+            </div>
+            <div class="approval-banner-tags">
+              <span v-for="risk in getApprovalChecklist(selectedRecommendation)" :key="risk.label" class="approval-tag">
+                {{ risk.label }} · {{ risk.status }}
+              </span>
             </div>
           </div>
 
-          <div class="detail-note">
-            <h3>KS·규격 근거</h3>
-            <div class="standard-detail-grid">
-              <article>
-                <span>적용 기준</span>
-                <strong>{{ getStandardEvidence(selectedRecommendation).standard }}</strong>
-                <p>{{ getStandardEvidence(selectedRecommendation).title }} · {{ getEvidenceVerificationLabel(selectedRecommendation) }}</p>
-              </article>
-              <article>
-                <span>규격 근거</span>
-                <strong>{{ getMaterialTypeLabel(selectedRecommendation) }}</strong>
-                <p>{{ getStandardEvidence(selectedRecommendation).specificationBasis }}</p>
-              </article>
-              <article>
-                <span>승인 리스크</span>
-                <strong>{{ isApprovalReviewRequired(selectedRecommendation) ? "검토 필요" : "낮음" }}</strong>
-                <p>{{ getStandardEvidence(selectedRecommendation).approvalRisk }}</p>
-              </article>
-            </div>
-          </div>
-
-          <div class="detail-note">
-            <h3>물성 비교</h3>
-            <div class="property-summary">
-              <strong>{{ getPropertySummary(selectedRecommendation).label }}</strong>
-              <span>{{ getPropertySummary(selectedRecommendation).message }}</span>
-            </div>
-            <div class="property-table" role="table" aria-label="물성 비교표">
-              <div class="property-row property-head" role="row">
-                <span>항목</span>
-                <span>기준 자재</span>
-                <span>추천 자재</span>
-                <span>기준</span>
-              </div>
-              <div
-                v-for="row in getPropertyComparison(selectedRecommendation)"
-                :key="row.label"
-                class="property-row"
-                role="row"
-              >
-                <span>{{ row.label }}</span>
-                <span>{{ row.original }}</span>
-                <span>
-                  {{ row.candidate }}
-                  <b :class="['property-result', { fail: row.passed === false }]">
-                    {{ getPropertyResultLabel(row) }}
-                  </b>
-                </span>
-                <span>{{ row.standard }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="detail-note">
-            <h3>랭킹 점수 근거</h3>
-            <div class="evidence-grid">
-              <article>
-                <strong>물성 {{ getMaterialFitScore(selectedRecommendation) }}점</strong>
-                <p>{{ getScoreEvidence(selectedRecommendation).materialFit }}</p>
-              </article>
-              <article>
-                <strong>신뢰도 {{ selectedRecommendation.reliabilityScore }}점</strong>
-                <p>{{ getScoreEvidence(selectedRecommendation).reliability }}</p>
-              </article>
-              <article>
-                <strong>거리 {{ getDistanceScoreLabel(selectedRecommendation) }}</strong>
-                <p>{{ getScoreEvidence(selectedRecommendation).distance }}</p>
-              </article>
-              <article>
-                <strong>가격 {{ selectedRecommendation.priceScore }}점</strong>
-                <p>{{ getScoreEvidence(selectedRecommendation).price }}</p>
-              </article>
-            </div>
-          </div>
-
-          <div :class="['approval-note', { warn: isApprovalReviewRequired(selectedRecommendation) }]">
-            <strong>
-              {{ getApprovalRiskLabel(selectedRecommendation) }}
-            </strong>
-            <p>{{ getApprovalRiskNote(selectedRecommendation) }}</p>
-            <ul class="approval-checklist">
-              <li
-                v-for="risk in getApprovalChecklist(selectedRecommendation)"
-                :key="risk.label"
-              >
-                <span>{{ risk.label }}</span>
-                <strong>{{ risk.status }}</strong>
-                <small>{{ risk.description }}</small>
-              </li>
-            </ul>
-          </div>
-
+          <!-- 액션 버튼 -->
           <div class="modal-actions">
             <button type="button" class="secondary-button" @click="closeDetail">닫기</button>
             <button type="button" class="primary-button" @click="openInquiry(selectedRecommendation)">
-              공급사 문의
+              공급사 문의하기
             </button>
           </div>
         </section>
@@ -1349,10 +1316,64 @@ function getStandardEvidence(item) {
 
 function openDetail(item) {
   selectedRecommendation.value = item;
+  fetchAiSummary(item);
 }
 
 function closeDetail() {
   selectedRecommendation.value = null;
+  aiSummary.value = "";
+  aiSummaryLoading.value = false;
+}
+
+function getScorePercentile(score) {
+  const s = Number(score);
+  if (s >= 97) return "상위 3%";
+  if (s >= 94) return "상위 5%";
+  if (s >= 90) return "상위 10%";
+  if (s >= 85) return "상위 15%";
+  if (s >= 80) return "상위 20%";
+  if (s >= 75) return "상위 30%";
+  return "상위 40%";
+}
+
+async function fetchAiSummary(item) {
+  const gmsKey = import.meta.env.VITE_GMS_KEY;
+  if (!gmsKey) {
+    aiSummary.value = "GMS 키가 설정되지 않아 AI 요약을 사용할 수 없습니다.";
+    return;
+  }
+  aiSummaryLoading.value = true;
+  aiSummary.value = "";
+  const prompt = `당신은 건설 자재 구매 전문가입니다. 아래 공급사 추천 데이터를 바탕으로 발주 담당자를 위해 핵심 강점과 주의사항이 담긴 추천 요약을 3~4문장으로 간결하게 작성해주세요.
+
+공급사: ${item.supplierName}
+자재: ${item.materialName} (${item.standard})
+종합 점수: ${item.totalScore}점
+물성 적합도: ${getMaterialFitScore(item)}점
+신뢰도: ${item.reliabilityScore}점
+가격 점수: ${item.priceScore}점
+납품 이력: ${item.deliveryCount}회
+최근 단가: ${item.price}
+현장 거리: ${getDistanceLabel(item)}
+추천 이유: ${getReasonItems(item).join(", ")}
+승인 리스크: ${isApprovalReviewRequired(item) ? "검토 필요" : "낮음"}`;
+  try {
+    const response = await fetch("https://gms.ssafy.io/gmsapi/api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${gmsKey}`,
+      },
+      body: JSON.stringify({ model: "gpt-4.1", input: prompt }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    aiSummary.value = data.output_text?.trim() || data.output?.[0]?.content?.[0]?.text?.trim() || "요약을 생성하지 못했습니다.";
+  } catch {
+    aiSummary.value = "AI 요약 생성 중 오류가 발생했습니다.";
+  } finally {
+    aiSummaryLoading.value = false;
+  }
 }
 
 function openInquiry(item) {
@@ -1438,6 +1459,9 @@ async function loadRecommendations() {
 const showAllList = ref(false);
 const showRequestSummary = ref(false);
 const expandedScores = ref({});
+const rankingMaterialFilter = ref("all");
+const aiSummary = ref("");
+const aiSummaryLoading = ref(false);
 
 const allRankingList = computed(() =>
   filteredRecommendations.value.slice(0, 20).map((item, index) => ({
@@ -1445,6 +1469,31 @@ const allRankingList = computed(() =>
     displayRank: index + 1,
   })),
 );
+
+const rankingMaterialOptions = computed(() => {
+  const seen = new Set();
+  const options = [];
+  for (const item of allRankingList.value) {
+    const evidence = getStandardEvidence(item);
+    const group = getMaterialTaxonomyByEvidenceId(evidence.id);
+    const id = group?.id || "etc";
+    const label = group?.label || "기타";
+    if (!seen.has(id)) {
+      seen.add(id);
+      options.push({ id, label });
+    }
+  }
+  return options;
+});
+
+const filteredRankingList = computed(() => {
+  if (rankingMaterialFilter.value === "all") return allRankingList.value;
+  return allRankingList.value.filter((item) => {
+    const evidence = getStandardEvidence(item);
+    const group = getMaterialTaxonomyByEvidenceId(evidence.id);
+    return (group?.id || "etc") === rankingMaterialFilter.value;
+  });
+});
 
 function getItemKey(item) {
   return `${item.supplierName}|${item.materialName}|${item.standard}`;
@@ -1641,7 +1690,12 @@ function getShortDistance(item) {
 
 /* ─── Full Ranking Table ─── */
 .ranking-table-section { margin-bottom: 40px; }
-.ranking-table-section h2 { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 16px; }
+.ranking-table-header { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px; }
+.ranking-table-header h2 { font-size: 18px; font-weight: 800; color: #1e293b; margin:0; }
+.ranking-material-tabs { display:flex;flex-wrap:wrap;gap:6px; }
+.ranking-mtab { border:1px solid #d7e3f5;border-radius:999px;padding:6px 14px;background:#fff;color:#51627e;font-size:13px;font-weight:700;cursor:pointer;transition:background .12s,color .12s,border-color .12s; }
+.ranking-mtab.active { border-color:#1559e8;background:#edf4ff;color:#1559e8; }
+.ranking-mtab:not(.active):hover { border-color:#a0b8e0;color:#1559e8; }
 .ranking-table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid #e2e8f0; }
 .ranking-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .ranking-table thead th { background: #f8fafc; padding: 12px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #64748b; white-space: nowrap; border-bottom: 1px solid #e2e8f0; }
@@ -1649,7 +1703,9 @@ function getShortDistance(item) {
 .ranking-table tbody td { padding: 13px 14px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; color: #334155; }
 .ranking-table tbody tr:last-child td { border-bottom: none; }
 .rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; color: #64748b; font-size: 13px; font-weight: 700; }
-.rank-badge.rank-badge-first { background: #f59e0b; color: #fff; }
+.rank-badge.rank-badge-gold { background: linear-gradient(135deg,#f59e0b,#fbbf24); color: #fff; box-shadow: 0 3px 10px rgba(245,158,11,.4); }
+.rank-badge.rank-badge-silver { background: linear-gradient(135deg,#94a3b8,#cbd5e1); color: #fff; box-shadow: 0 3px 10px rgba(148,163,184,.35); }
+.rank-badge.rank-badge-bronze { background: linear-gradient(135deg,#cd7c2e,#e09550); color: #fff; box-shadow: 0 3px 10px rgba(205,124,46,.35); }
 .tbl-supplier-name { font-weight: 700; color: #1e293b; margin-bottom: 2px; }
 .tbl-supplier-type { font-size: 11px; color: #94a3b8; }
 .tbl-material { color: #475569; }
