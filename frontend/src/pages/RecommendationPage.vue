@@ -131,14 +131,14 @@
 
       <div class="show-all-wrap">
         <button type="button" class="btn-show-all" @click="showAllList = !showAllList">
-          전체 랭킹 리스트 보기 (TOP 20) ›
+          {{ showAllList ? "추천 후보 전체 목록 닫기" : "추천 후보 전체 보기" }} ›
         </button>
       </div>
     </section>
 
     <section v-if="!isLoading && showAllList" class="ranking-table-section">
       <div class="ranking-table-header">
-        <h2>전체 랭킹 리스트 (TOP 20)</h2>
+        <h2>추천 후보 전체 랭킹</h2>
         <div class="ranking-material-tabs" role="tablist" aria-label="자재 필터">
           <button
             type="button"
@@ -217,12 +217,31 @@
 
     <section v-if="!isLoading" class="map-section">
       <div class="map-section-header">
-        <h2>지도로 보는 공급사 위치</h2>
-        <ul class="map-legend">
-          <li><span class="legend-dot legend-site"></span> 현장 위치</li>
-          <li><span class="legend-dot legend-top"></span> 추천 공급사 (TOP 5)</li>
-          <li><span class="legend-dot legend-other"></span> 기타 공급사</li>
-        </ul>
+        <div class="map-title-group">
+          <h2>지도로 보는 공급사 위치</h2>
+          <p>{{ mapScopeLabel }}</p>
+        </div>
+        <div class="map-header-actions">
+          <div class="map-scope-toggle" role="group" aria-label="지도 표시 범위">
+            <button
+              type="button"
+              :class="{ active: mapDisplayMode === 'top10' }"
+              :aria-pressed="mapDisplayMode === 'top10'"
+              @click="mapDisplayMode = 'top10'"
+            >추천 TOP 10</button>
+            <button
+              type="button"
+              :class="{ active: mapDisplayMode === 'all' }"
+              :aria-pressed="mapDisplayMode === 'all'"
+              @click="mapDisplayMode = 'all'"
+            >추천 후보 전체 보기</button>
+          </div>
+          <ul class="map-legend">
+            <li><span class="legend-dot legend-site"></span> 현장 위치</li>
+            <li><span class="legend-dot legend-top"></span> 추천 공급사 (TOP 5)</li>
+            <li><span class="legend-dot legend-other"></span> 기타 공급사</li>
+          </ul>
+        </div>
       </div>
       <KakaoMap
         :site="rankingMapSite"
@@ -570,6 +589,7 @@ const sortOption = ref("score");
 const activeRankingTab = ref("all");
 const hideApprovalRequired = ref(false);
 const registeredOnly = ref(false);
+const mapDisplayMode = ref("top10");
 const inquiryForm = reactive({
   requesterName: "",
   contact: "",
@@ -627,9 +647,15 @@ const displayedRecommendations = computed(() =>
 );
 
 const mapRecommendations = computed(() =>
-  filteredRecommendations.value
-    .filter((item) => hasKoreaCoordinate(item.latitude, item.longitude))
-    .slice(0, 30),
+  mapDisplayMode.value === "all"
+    ? filteredRecommendations.value
+    : filteredRecommendations.value.slice(0, 10),
+);
+
+const mapScopeLabel = computed(() =>
+  mapDisplayMode.value === "all"
+    ? "현재 조건에 맞는 추천 후보 전체"
+    : "추천 점수 기준 상위 10개 공급사",
 );
 
 const activeFilterLabel = computed(() => {
@@ -1473,7 +1499,7 @@ const aiSummary = ref("");
 const aiSummaryLoading = ref(false);
 
 const allRankingList = computed(() =>
-  filteredRecommendations.value.slice(0, 20).map((item, index) => ({
+  filteredRecommendations.value.map((item, index) => ({
     ...item,
     displayRank: index + 1,
   })),
@@ -1741,6 +1767,13 @@ function getShortDistance(item) {
 .map-section { margin-bottom: 32px; }
 .map-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 12px; }
 .map-section-header h2 { font-size: 18px; font-weight: 800; color: #1e293b; margin: 0; }
+.map-title-group { display: grid; gap: 5px; }
+.map-title-group p { margin: 0; color: #64748b; font-size: 13px; }
+.map-header-actions { display: flex; align-items: flex-end; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
+.map-scope-toggle { display: inline-flex; padding: 3px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8fafc; }
+.map-scope-toggle button { border: 0; border-radius: 7px; padding: 7px 12px; color: #64748b; background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; }
+.map-scope-toggle button.active { color: #fff; background: #1559e8; box-shadow: 0 2px 7px rgba(21, 89, 232, .2); }
+.map-scope-toggle button:focus-visible { outline: 3px solid rgba(21, 89, 232, .2); outline-offset: 1px; }
 .map-legend { display: flex; gap: 16px; list-style: none; padding: 0; margin: 0; flex-wrap: wrap; }
 .map-legend li { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #64748b; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -1766,5 +1799,8 @@ function getShortDistance(item) {
   .top5-header { gap: 10px; }
   .sort-label { width: 100%; }
   .criteria-card { flex-direction: column; align-items: flex-start; }
+  .map-header-actions { width: 100%; align-items: flex-start; justify-content: flex-start; }
+  .map-scope-toggle { width: 100%; }
+  .map-scope-toggle button { flex: 1; }
 }
 </style>
