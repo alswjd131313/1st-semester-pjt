@@ -1358,19 +1358,28 @@ async function fetchAiSummary(item) {
 추천 이유: ${getReasonItems(item).join(", ")}
 승인 리스크: ${isApprovalReviewRequired(item) ? "검토 필요" : "낮음"}`;
   try {
-    const response = await fetch("https://gms.ssafy.io/gmsapi/api.openai.com/v1/responses", {
+    const response = await fetch("/gmsapi/api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${gmsKey}`,
       },
-      body: JSON.stringify({ model: "gpt-4.1", input: prompt }),
+      body: JSON.stringify({
+        model: "gpt-4.1",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 400,
+        temperature: 0.7,
+      }),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`HTTP ${response.status}: ${errText}`);
+    }
     const data = await response.json();
-    aiSummary.value = data.output_text?.trim() || data.output?.[0]?.content?.[0]?.text?.trim() || "요약을 생성하지 못했습니다.";
-  } catch {
-    aiSummary.value = "AI 요약 생성 중 오류가 발생했습니다.";
+    aiSummary.value = data.choices?.[0]?.message?.content?.trim() || "요약을 생성하지 못했습니다.";
+  } catch (err) {
+    console.error("[GMS AI Summary Error]", err);
+    aiSummary.value = `AI 요약 생성 중 오류가 발생했습니다. (${err.message})`;
   } finally {
     aiSummaryLoading.value = false;
   }
