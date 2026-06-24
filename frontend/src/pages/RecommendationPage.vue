@@ -346,10 +346,10 @@
                 <span class="eval-label">거리 점수</span>
                 <strong class="eval-score eval-score-blue">{{ getDistanceScoreLabel(selectedRecommendation) }}</strong>
                 <div class="eval-bar-track">
-                  <div v-if="hasRouteInformation(selectedRecommendation)" class="eval-bar-fill eval-bar-blue" :style="{ width: selectedRecommendation.distanceScore + '%' }"></div>
+                  <div v-if="hasDistanceScoreInformation(selectedRecommendation)" class="eval-bar-fill eval-bar-blue" :style="{ width: selectedRecommendation.distanceScore + '%' }"></div>
                   <div v-else class="eval-bar-fill eval-bar-gray" style="width:0%"></div>
                 </div>
-                <span class="eval-desc">{{ hasRouteInformation(selectedRecommendation) ? '현장 차량 경로 기준' : '현장 거리 정보 확인 필요' }}</span>
+                <span class="eval-desc">{{ getDistanceScoreDescription(selectedRecommendation) }}</span>
               </div>
             </div>
           </div>
@@ -1024,9 +1024,31 @@ async function selectSupplierForRoute(item) {
 }
 
 function getDistanceScoreLabel(item) {
-  return hasRouteInformation(item)
+  return hasDistanceScoreInformation(item)
     ? `${Math.round(Number(item.distanceScore || 0))}점`
     : "미확인";
+}
+
+function hasDistanceScoreInformation(item) {
+  const routeItem = getRouteDisplayItem(item);
+  const distanceScore = item?.distanceScore;
+  const hasDistanceScore = distanceScore !== null
+    && distanceScore !== undefined
+    && distanceScore !== ""
+    && Number.isFinite(Number(distanceScore));
+  const distanceKm = routeItem?.distanceKm;
+  const hasDistanceKm = distanceKm !== null
+    && distanceKm !== undefined
+    && distanceKm !== ""
+    && Number.isFinite(Number(distanceKm));
+  return hasDistanceScore && (hasRouteInformation(routeItem) || hasDistanceKm);
+}
+
+function getDistanceScoreDescription(item) {
+  const routeItem = getRouteDisplayItem(item);
+  if (hasRouteInformation(routeItem)) return "현장 차량 경로 기준";
+  if (hasDistanceScoreInformation(item)) return "현장 거리 기준";
+  return "현장 거리 정보 확인 필요";
 }
 
 function getMatchSignalLabel(item) {

@@ -3,9 +3,11 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.cache import cache
+from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase, override_settings
+from rest_framework.test import APIClient
 
-from .models import CategoryContractHistory, Material, Supplier, SupplyHistory
+from .models import CategoryContractHistory, CommunityComment, CommunityPost, Material, Supplier, SupplyHistory
 from .services.kakao_directions import get_driving_route
 from .views import calculate_category_experience_score
 
@@ -121,6 +123,54 @@ class CategoryContractHistoryTests(TestCase):
 
         self.assertEqual(matched, [cd_16])
         self.assertEqual(item["_paceflow_match_basis"], "전선관 명시 규격 매핑: CD관 16CD")
+
+
+class CommunityCommentPermissionTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="comment-owner", password="test-password")
+        self.other_user = User.objects.create_user(username="comment-other", password="test-password")
+        self.post = CommunityPost.objects.create(
+            author=self.owner,
+            post_type="field_question",
+            title="댓글 권한 테스트",
+            content="본문",
+        )
+        self.comment = CommunityComment.objects.create(
+            post=self.post,
+            author=self.owner,
+            display_mode="anonymous",
+            anonymous_alias="익명TEST1",
+            content="수정 전 댓글",
+        )
+        self.url = f"/api/v1/community/comments/{self.comment.id}/"
+        self.client = APIClient()
+
+    def test_owner_can_update_content_without_changing_anonymous_identity(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.patch(self.url, {"content": "수정된 댓글", "display_mode": "profile"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.content, "수정된 댓글")
+        self.assertEqual(self.comment.display_mode, "anonymous")
+        self.assertEqual(self.comment.anonymous_alias, "익명TEST1")
+
+    def test_other_user_cannot_update_or_delete_comment(self):
+        self.client.force_authenticate(self.other_user)
+
+        patch_response = self.client.patch(self.url, {"content": "권한 없는 수정"}, format="json")
+        delete_response = self.client.delete(self.url)
+
+        self.assertEqual(patch_response.status_code, 403)
+        self.assertEqual(delete_response.status_code, 403)
+        self.assertTrue(CommunityComment.objects.filter(pk=self.comment.pk).exists())
+
+    def test_owner_can_delete_comment(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(CommunityComment.objects.filter(pk=self.comment.pk).exists())
 
 
 class KakaoDirectionsTests(SimpleTestCase):

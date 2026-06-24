@@ -1144,6 +1144,21 @@ class CommunityCommentListCreateView(generics.ListCreateAPIView):
         serializer.save(post=post, author=self.request.user, anonymous_alias=alias)
 
 
+class CommunityCommentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CommunityCommentSerializer
+    permission_classes = [IsAuthenticated, IsCommunityAuthorOrReadOnly]
+    queryset = CommunityComment.objects.select_related("post", "author", "author__profile")
+
+    def perform_update(self, serializer):
+        comment = self.get_object()
+        serializer.save(
+            post=comment.post,
+            author=comment.author,
+            display_mode=comment.display_mode,
+            anonymous_alias=comment.anonymous_alias,
+        )
+
+
 class CommunityContactRequestListCreateView(generics.ListCreateAPIView):
     serializer_class = CommunityContactRequestSerializer
     permission_classes = [IsAuthenticated]

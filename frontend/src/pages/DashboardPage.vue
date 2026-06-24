@@ -8,7 +8,7 @@
       </div>
     </div>
 
-    <div v-if="!isSupplier" class="inquiry-type-tabs" role="tablist" aria-label="문의 유형">
+    <div class="inquiry-type-tabs" role="tablist" aria-label="문의 유형">
       <button type="button" :class="{ active: activeTab === 'supplier' }" @click="activeTab = 'supplier'">공급사 문의</button>
       <button type="button" :class="{ active: activeTab === 'community' }" @click="activeTab = 'community'">커뮤니티 대화 요청</button>
     </div>
@@ -282,7 +282,7 @@
       </template>
     </div>
 
-    <template v-if="!isSupplier && activeTab === 'community'">
+    <template v-if="activeTab === 'community'">
       <p v-if="communityLoading" class="loading-message">커뮤니티 대화 요청을 불러오는 중입니다.</p>
       <p v-if="communityError" class="error-message">{{ communityError }}</p>
       <div v-if="!communityLoading && communityRequests.length" class="community-request-list">
@@ -366,7 +366,7 @@ const dashboardTitle = computed(() =>
 const isSupplier = computed(() => authState.user?.role === "supplier");
 const dashboardDescription = computed(() =>
   isSupplier.value
-    ? "요청자가 보낸 자재 문의를 확인하고 상태를 관리합니다."
+    ? "받은 자재 문의와 커뮤니티 대화 요청을 구분해 확인하고 관리합니다."
     : "내가 보낸 공급사 문의와 커뮤니티 대화 요청을 확인하고 후속 상태를 관리합니다.",
 );
 const roleInquiries = computed(() => filterInquiriesForUser(inquiries.value, authState.user));
@@ -401,7 +401,7 @@ const latestInquiryLabel = computed(() => {
 
 onMounted(() => {
   loadInquiries();
-  if (!isSupplier.value) loadCommunityRequests();
+  loadCommunityRequests();
 });
 
 async function loadCommunityRequests() {

@@ -144,6 +144,21 @@ export function deleteReadNotifications(user) {
   writeNotifications(notifications);
 }
 
+export function deleteNotification(notificationId, user) {
+  const recipientKeys = getUserRecipientKeys(user);
+  let changed = false;
+  const notifications = readNotifications().filter((item) => {
+    const shouldDelete = (
+      item.id === notificationId
+      && item.recipient_role === user.role
+      && recipientKeys.has(item.recipient_key)
+    );
+    if (shouldDelete) changed = true;
+    return !shouldDelete;
+  });
+  if (changed) writeNotifications(notifications);
+}
+
 export function subscribeToNotificationChanges(listener) {
   const handleStorage = (event) => {
     if (event.key === NOTIFICATION_STORAGE_KEY) listener();

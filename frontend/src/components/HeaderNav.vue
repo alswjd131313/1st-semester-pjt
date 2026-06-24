@@ -211,10 +211,17 @@ async function handleLogout() {
 }
 
 .profile-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  box-sizing: border-box;
+  padding: 0 9px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
   font-size: 14px;
   font-weight: 700;
-  color: #334155;
-
   color: #102a56;
   white-space: nowrap;
   max-width: 120px;
@@ -286,7 +293,10 @@ async function handleLogout() {
 }
 
 :global(.app-shell:has(.home-page)) .profile-name {
-  color: rgba(255, 255, 255, 0.92);
+  color: #102a56;
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 5px 16px rgba(3, 15, 36, 0.18);
 }
 
 :global(.app-shell:has(.home-page)) .profile-chevron {
@@ -307,5 +317,20 @@ async function handleLogout() {
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+@media (max-width: 820px) {
+  .profile-wrap,
+  .profile-trigger {
+    width: 100%;
+  }
+
+  .profile-trigger {
+    justify-content: center;
+  }
+
+  .profile-name {
+    max-width: min(160px, 45vw);
+  }
 }
 </style>

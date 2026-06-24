@@ -42,6 +42,18 @@ export async function createCommunityComment(postId, content, displayMode = "pro
   return data;
 }
 
+export async function updateCommunityComment(commentId, content) {
+  const { data } = await apiClient.patch(
+    buildApiUrl(`/api/v1/community/comments/${commentId}/`),
+    { content },
+  );
+  return data;
+}
+
+export async function deleteCommunityComment(commentId) {
+  await apiClient.delete(buildApiUrl(`/api/v1/community/comments/${commentId}/`));
+}
+
 export async function createCommunityContactRequest(postId, message) {
   const { data } = await apiClient.post(buildApiUrl("/api/v1/community/contact-requests/"), {
     post: Number(postId),

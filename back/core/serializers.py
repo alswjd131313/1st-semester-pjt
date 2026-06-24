@@ -236,6 +236,7 @@ def community_author_payload(user, anonymous=False, alias=""):
     name = user.first_name or user.username or "PaceFlow 사용자"
     return {
         "profile_id": user.id,
+        "account_role": getattr(profile, "role", ""),
         "display_name": name,
         "role": role_labels.get(getattr(profile, "role", ""), "PaceFlow 사용자"),
         "affiliation": getattr(profile, "company_name", ""),
