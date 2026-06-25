@@ -16,7 +16,16 @@
       <!-- 프로필 헤로 카드 -->
       <section class="profile-hero-card">
         <div class="profile-avatar-wrap">
-          <div class="profile-avatar">{{ avatarText }}</div>
+          <div class="profile-avatar">
+            <img
+              v-if="resolvedProfileImage && !profileImageFailed"
+              :src="resolvedProfileImage"
+              class="profile-avatar-img"
+              alt=""
+              @error="profileImageFailed = true"
+            />
+            <DefaultBeaverAvatar v-else />
+          </div>
           <div class="avatar-check-badge" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
           </div>
@@ -152,14 +161,24 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import { authState, getProfileImageUrl } from "../api/authApi";
 import { getCommunityProfile } from "../api/communityApi";
+import DefaultBeaverAvatar from "../components/DefaultBeaverAvatar.vue";
 
 const route = useRoute();
 const profile = ref(null);
 const loading = ref(false);
 const errorMessage = ref("");
+const profileImageFailed = ref(false);
 
-const avatarText = computed(() => (profile.value?.display_name || "PF").slice(0, 2));
+const resolvedProfileImage = computed(() => {
+  const image = getProfileImageUrl(profile.value);
+  if (image) return image;
+  if (profile.value?.id != null && profile.value.id === authState.user?.id) {
+    return getProfileImageUrl(authState.user) || "";
+  }
+  return "";
+});
 
 const joinedLabel = computed(() => {
   const raw = profile.value?.joined_at || profile.value?.date_joined;
@@ -176,6 +195,7 @@ async function loadProfile() {
   try {
     loading.value = true;
     errorMessage.value = "";
+    profileImageFailed.value = false;
     profile.value = await getCommunityProfile(route.params.id);
   } catch {
     profile.value = null;
@@ -196,7 +216,8 @@ async function loadProfile() {
 /* Hero Card */
 .profile-hero-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 28px 32px 0; margin-bottom: 20px; overflow: hidden; }
 .profile-avatar-wrap { position: relative; width: 110px; height: 110px; margin-bottom: 16px; }
-.profile-avatar { width: 110px; height: 110px; border-radius: 50%; background: linear-gradient(135deg, #93c5fd, #1d66eb); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; font-weight: 800; letter-spacing: .02em; }
+.profile-avatar { width: 110px; height: 110px; border-radius: 50%; background: #eaf3ff; box-shadow: inset 0 0 0 1px rgba(93,143,207,.2), 0 10px 24px rgba(21,89,232,.14); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.profile-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .avatar-check-badge { position: absolute; bottom: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #1d66eb; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; }
 .profile-hero-info { padding-bottom: 20px; }
 .profile-hero-info h1 { font-size: 30px; font-weight: 900; color: #1e293b; margin: 0 0 6px; }

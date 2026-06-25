@@ -11,7 +11,7 @@
         <div class="avatar-wrap">
           <div class="avatar" @click="fileInput?.click()">
             <img v-if="profileImage" :src="profileImage" class="avatar-img" alt="프로필 사진" />
-            <span v-else class="avatar-letter">{{ initial }}</span>
+            <DefaultBeaverAvatar v-else class="profile-beaver-avatar" />
           </div>
           <button class="avatar-edit-btn" type="button" title="사진 변경" @click.stop="fileInput?.click()">
             <svg width="11" height="11" viewBox="0 0 20 20" fill="none">
@@ -273,12 +273,13 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { authState, logoutUser as authLogout, updateProfile } from "../api/authApi";
+import { authState, getProfileImageUrl, logoutUser as authLogout, updateProfile } from "../api/authApi";
 import {
   filterInquiriesForUser,
   getSupplierInquiries,
   getSupplierMaterials,
 } from "../api/materialApi";
+import DefaultBeaverAvatar from "../components/DefaultBeaverAvatar.vue";
 
 const router = useRouter();
 const inquiries = ref([]);
@@ -294,9 +295,9 @@ const pw = reactive({ current: "", next: "", confirm: "" });
 const editForm = reactive({ name: "", companyName: "" });
 
 const displayName = computed(() => authState.user?.name ?? authState.user?.companyName ?? authState.user?.email ?? "공급사");
-const initial = computed(() => (displayName.value[0] ?? "S").toUpperCase());
 const fileInput = ref(null);
-const profileImage = ref(localStorage.getItem("paceflow_profile_img") || null);
+const imageUploadError = ref("");
+const profileImage = computed(() => getProfileImageUrl(authState.user) || null);
 const profileEmail = computed(() => authState.user?.email || "-");
 
 const joinDate = computed(() => {
@@ -327,27 +328,14 @@ onMounted(async () => {
 async function handleImageUpload(event) {
   const file = event.target.files?.[0];
   if (!file) return;
-  const dataUrl = await resizeImage(file, 200);
-  profileImage.value = dataUrl;
-  localStorage.setItem("paceflow_profile_img", dataUrl);
-  event.target.value = "";
-}
-
-function resizeImage(file, maxSize) {
-  return new Promise((resolve) => {
-    const canvas = document.createElement("canvas");
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
-      canvas.width = img.width * ratio;
-      canvas.height = img.height * ratio;
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.src = url;
-  });
+  imageUploadError.value = "";
+  try {
+    await updateProfile({ profileImage: file });
+  } catch (e) {
+    imageUploadError.value = e.message;
+  } finally {
+    event.target.value = "";
+  }
 }
 
 function openProfileModal() {
@@ -460,8 +448,9 @@ async function changePw() {
   box-shadow: 0 4px 16px rgba(21, 89, 232, 0.25);
 }
 
-.avatar-letter { font-size: 28px; font-weight: 800; }
 .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+
+.profile-beaver-avatar { background: #eaf3ff; }
 
 .avatar-edit-btn {
   position: absolute;

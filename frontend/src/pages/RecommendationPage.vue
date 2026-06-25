@@ -82,6 +82,12 @@
           v-for="item in displayedRecommendations"
           :key="`${item.supplierName}-${item.materialName}-${item.standard}`"
           class="rec-row"
+          role="button"
+          tabindex="0"
+          :aria-label="`${item.supplierName} 지도에서 보기`"
+          @click="handleSupplierCardClick(item)"
+          @keydown.enter.prevent="handleSupplierCardClick(item)"
+          @keydown.space.prevent="handleSupplierCardClick(item)"
         >
           <!-- 순위 -->
           <div class="rec-rank">
@@ -102,11 +108,11 @@
           <!-- 점수 -->
           <div class="rec-score-col">
             <span class="rec-score-label">종합 점수</span>
-            <strong class="rec-score-num">{{ item.totalScore }}점</strong>
+            <strong class="rec-score-num">{{ getTotalScore(item) }}점</strong>
             <div class="rec-stars">
-              <span v-for="n in getScoreStarsFull(item.totalScore)" :key="`f${n}`" class="star-full">★</span>
-              <span v-if="getScoreStarsHalf(item.totalScore)" class="star-half">★</span>
-              <span v-for="n in getScoreStarsEmpty(item.totalScore)" :key="`e${n}`" class="star-empty">★</span>
+              <span v-for="n in getScoreStarsFull(getTotalScore(item))" :key="`f${n}`" class="star-full">★</span>
+              <span v-if="getScoreStarsHalf(getTotalScore(item))" class="star-half">★</span>
+              <span v-for="n in getScoreStarsEmpty(getTotalScore(item))" :key="`e${n}`" class="star-empty">★</span>
             </div>
           </div>
 
@@ -123,8 +129,8 @@
         </article>
 
         <div v-if="!displayedRecommendations.length" class="empty-state">
-          <strong>추천 결과가 없습니다.</strong>
-          <p>필터를 초기화하거나 다른 조건으로 검색해보세요.</p>
+          <strong>현재 조건에 맞는 검증된 공급사를 찾을 수 없습니다.</strong>
+          <p>더미/시드 후보는 표시하지 않습니다. 실제 수집 데이터가 부족하면 추가 수집 또는 공급사 등록이 필요합니다.</p>
           <button type="button" class="primary-button" @click="resetFilters">필터 초기화</button>
         </div>
       </div>
@@ -179,7 +185,7 @@
                 <div class="tbl-supplier-type">{{ getMaterialTypeLabel(item) }}</div>
               </td>
               <td class="tbl-material">{{ item.materialName }}<br /><small>{{ item.standard }}</small></td>
-              <td class="tbl-score-cell">{{ item.totalScore }}<small>점</small></td>
+              <td class="tbl-score-cell">{{ getTotalScore(item) }}<small>점</small></td>
               <td class="tbl-sub-scores">
                 <div class="sub-score-bar-row">
                   <span class="sub-label">적합</span>
@@ -193,8 +199,8 @@
                 </div>
                 <div class="sub-score-bar-row">
                   <span class="sub-label">거리</span>
-                  <div class="bar-wrap"><div class="bar-fill bar-green" :style="{ width: Number(item.distanceScore || 0) + '%' }"></div></div>
-                  <span class="sub-val">{{ hasRouteInformation(item) ? Math.round(Number(item.distanceScore || 0) * 0.15) : '-' }}</span>
+                  <div class="bar-wrap"><div class="bar-fill bar-green" :style="{ width: (getDistanceScore(item) || 0) + '%' }"></div></div>
+                  <span class="sub-val">{{ hasDistanceScoreInformation(item) ? Math.round(getDistanceScore(item) * 0.15) : '-' }}</span>
                 </div>
                 <div class="sub-score-bar-row">
                   <span class="sub-label">가격</span>
@@ -215,31 +221,36 @@
       </div>
     </section>
 
-    <section v-if="!isLoading" class="map-section">
+    <section v-if="!isLoading" ref="mapSectionRef" class="map-section">
       <div class="map-section-header">
         <div class="map-title-group">
           <h2>지도로 보는 공급사 위치</h2>
           <p>{{ mapScopeLabel }}</p>
+          <p v-if="mapFocusMessage" class="map-focus-message">{{ mapFocusMessage }}</p>
+          <p v-if="isMapCandidatesLoading" class="map-loading-message">지도 공급사 후보를 불러오는 중입니다.</p>
+          <div class="map-count-summary" aria-label="지도 표시 공급사 요약">
+            <span>{{ selectedMapMaterialFilter.label }} 후보 {{ mapSourceRecommendations.length }}개</span>
+            <span>실제 위치 {{ actualMapSupplierCount }}개</span>
+            <span>참고 위치 {{ estimatedMapSupplierCount }}개</span>
+            <span>위치 미확인 {{ mapUnavailableCount }}개</span>
+          </div>
         </div>
         <div class="map-header-actions">
-          <div class="map-scope-toggle" role="group" aria-label="지도 표시 범위">
+          <div class="map-material-filter" role="group" aria-label="지도 표시 자재 선택">
             <button
+              v-for="filter in MAP_MATERIAL_FILTERS"
+              :key="filter.value"
               type="button"
-              :class="{ active: mapDisplayMode === 'top10' }"
-              :aria-pressed="mapDisplayMode === 'top10'"
-              @click="mapDisplayMode = 'top10'"
-            >추천 TOP 10</button>
-            <button
-              type="button"
-              :class="{ active: mapDisplayMode === 'all' }"
-              :aria-pressed="mapDisplayMode === 'all'"
-              @click="mapDisplayMode = 'all'"
-            >추천 후보 전체 보기</button>
+              :class="{ active: mapMaterialFilter === filter.value }"
+              :aria-pressed="mapMaterialFilter === filter.value"
+              @click="mapMaterialFilter = filter.value"
+            >{{ filter.label }}</button>
           </div>
           <ul class="map-legend">
             <li><span class="legend-dot legend-site"></span> 현장 위치</li>
-            <li><span class="legend-dot legend-top"></span> 추천 공급사 (TOP 5)</li>
-            <li><span class="legend-dot legend-other"></span> 기타 공급사</li>
+            <li><span class="legend-dot legend-top"></span> 실제 공급사 위치</li>
+            <li><span class="legend-dot legend-estimated"></span> 참고·추정 위치</li>
+            <li><span class="legend-dot legend-other"></span> 위치 미확인</li>
           </ul>
         </div>
       </div>
@@ -255,6 +266,9 @@
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;margin-top:1px"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
       본 추천 결과는 입력하신 정보와 당사의 데이터 기반으로 산출되었으며, 실제 거래 조건은 공급사와의 협의가 필요합니다.
     </p>
+    <div v-if="!isLoading" class="back-to-top-wrap">
+      <button type="button" class="back-to-top-button" @click="scrollToTop">↑ 맨 위로</button>
+    </div>
 
     <Teleport to="body">
       <div
@@ -303,8 +317,8 @@
             <div class="ai-score-divider"></div>
             <div class="ai-score-panel">
               <span class="ai-score-label">종합 추천 점수</span>
-              <strong class="ai-score-value">{{ selectedRecommendation.totalScore }}점</strong>
-              <span class="ai-score-badge">{{ getScorePercentile(selectedRecommendation.totalScore) }} 수준</span>
+              <strong class="ai-score-value">{{ getTotalScore(selectedRecommendation) }}점</strong>
+              <span class="ai-score-badge">{{ getScorePercentile(getTotalScore(selectedRecommendation)) }} 수준</span>
             </div>
           </div>
 
@@ -346,7 +360,7 @@
                 <span class="eval-label">거리 점수</span>
                 <strong class="eval-score eval-score-blue">{{ getDistanceScoreLabel(selectedRecommendation) }}</strong>
                 <div class="eval-bar-track">
-                  <div v-if="hasDistanceScoreInformation(selectedRecommendation)" class="eval-bar-fill eval-bar-blue" :style="{ width: selectedRecommendation.distanceScore + '%' }"></div>
+                  <div v-if="hasDistanceScoreInformation(selectedRecommendation)" class="eval-bar-fill eval-bar-blue" :style="{ width: getDistanceScore(selectedRecommendation) + '%' }"></div>
                   <div v-else class="eval-bar-fill eval-bar-gray" style="width:0%"></div>
                 </div>
                 <span class="eval-desc">{{ getDistanceScoreDescription(selectedRecommendation) }}</span>
@@ -395,6 +409,9 @@
                   <dd>{{ selectedRecommendation.contact }}</dd>
                 </div>
               </dl>
+              <p v-if="getLocationStatus(selectedRecommendation) === 'estimated'" class="location-reference-note">
+                이 위치는 실제 공급사 사업장 주소가 아닌 계약 지역 또는 주소 기반 참고 위치입니다. 거리 점수에는 패널티가 적용됩니다.
+              </p>
             </div>
           </div>
 
@@ -558,6 +575,7 @@ import {
   getDrivingRoute,
   getLatestMaterialRequest,
   getRecommendations,
+  getSupplierMapCandidates,
 } from "../api/materialApi";
 import { buildSupplierRecipientKey, buildUserRecipientKey } from "../api/notificationApi";
 import KakaoMap from "../components/KakaoMap.vue";
@@ -577,6 +595,7 @@ const request = ref(null);
 const recommendations = ref([]);
 const selectedRouteSupplier = ref(null);
 const selectedRoute = ref(null);
+const routeOverrides = reactive({});
 const routeResultCache = new Map();
 const selectedRecommendation = ref(null);
 const selectedInquirySupplier = ref(null);
@@ -589,7 +608,11 @@ const sortOption = ref("score");
 const activeRankingTab = ref("all");
 const hideApprovalRequired = ref(false);
 const registeredOnly = ref(false);
-const mapDisplayMode = ref("top10");
+const mapMaterialFilter = ref("current");
+const mapExplorationRecommendations = ref([]);
+const isMapCandidatesLoading = ref(false);
+const mapSectionRef = ref(null);
+const mapFocusMessage = ref("");
 const inquiryForm = reactive({
   requesterName: "",
   contact: "",
@@ -597,6 +620,20 @@ const inquiryForm = reactive({
   desiredDate: "",
   message: "",
 });
+
+let routeEnrichmentSequence = 0;
+const UNRELIABLE_SUPPLIER_ADDRESS_PATTERN =
+  /조달청|지방조달청|서울주택도시개발공사|한국공항공사|건강보험심사평가원|법무부|교육청|지원청|환경청|학교|시청|군청|구청|사업소|관리사업소|맑은물사업소|맑은물사업본부|종합건설본부|본부|센터|관리단|공사|공단|행정복지센터|주민센터/;
+const MAP_MATERIAL_FILTERS = [
+  { value: "current", label: "현재 요청 자재", scope: "current", material: "" },
+  { value: "all", label: "전체 자재", scope: "all", material: "" },
+  { value: "rebar", label: "철근", scope: "material", material: "철근" },
+  { value: "hbeam", label: "H빔", scope: "material", material: "H빔" },
+  { value: "cement", label: "시멘트", scope: "material", material: "시멘트" },
+  { value: "insulation", label: "단열재", scope: "material", material: "단열재" },
+  { value: "conduit", label: "전선관", scope: "material", material: "전선관" },
+];
+const mapCandidateCache = new Map();
 
 onMounted(() => {
   syncRankingTabFromKeyword();
@@ -614,17 +651,28 @@ watch(
   },
 );
 
+watch(mapMaterialFilter, () => {
+  selectedRouteSupplier.value = null;
+  selectedRoute.value = null;
+  mapFocusMessage.value = "";
+  loadMapCandidatesForFilter();
+});
+
 const rankingTabs = [
   { id: "all", label: "전체 TOP", description: "자재 구분 없이 종합 점수순" },
   ...materialTaxonomy,
 ];
 
 const rankedRecommendations = computed(() =>
-  recommendations.value.map((item) => ({
-    ...item,
-    materialFitScore: getMaterialFitScore(item),
-    totalScore: calculateRankingScore(item),
-  })),
+  recommendations.value.map((item) => {
+    const routeItem = getRouteDisplayItem(item);
+    return {
+      ...routeItem,
+      materialFitScore: getMaterialFitScore(routeItem),
+      distanceScore: getDistanceScore(routeItem),
+      totalScore: calculateRankingScore(routeItem),
+    };
+  }),
 );
 
 const filteredRecommendations = computed(() => {
@@ -639,6 +687,43 @@ const filteredRecommendations = computed(() => {
     .sort((a, b) => compareRecommendations(a, b));
 });
 
+const selectedMapMaterialFilter = computed(() =>
+  MAP_MATERIAL_FILTERS.find((item) => item.value === mapMaterialFilter.value) || MAP_MATERIAL_FILTERS[0],
+);
+
+const mapSourceRecommendations = computed(() => {
+  if (mapMaterialFilter.value !== "current") {
+    return mapExplorationRecommendations.value;
+  }
+
+  return mergeMapCandidatesWithCurrentRecommendations(
+    mapExplorationRecommendations.value,
+    filteredRecommendations.value,
+  );
+});
+
+const mapDisplayableRecommendations = computed(() =>
+  mapSourceRecommendations.value
+    .filter((item) => hasMapDisplayCoordinates(item))
+    .map((item, index) => ({
+      ...item,
+      mapDisplayRank: index + 1,
+      isTopRecommendation: index < 5,
+    })),
+);
+
+const mapUnavailableCount = computed(() =>
+  mapSourceRecommendations.value.length - mapDisplayableRecommendations.value.length,
+);
+
+const actualMapSupplierCount = computed(() =>
+  mapDisplayableRecommendations.value.filter((item) => getLocationStatus(item) === "actual").length,
+);
+
+const estimatedMapSupplierCount = computed(() =>
+  mapDisplayableRecommendations.value.filter((item) => getLocationStatus(item) === "estimated").length,
+);
+
 const displayedRecommendations = computed(() =>
   filteredRecommendations.value.slice(0, 5).map((item, index) => ({
     ...item,
@@ -646,16 +731,10 @@ const displayedRecommendations = computed(() =>
   })),
 );
 
-const mapRecommendations = computed(() =>
-  mapDisplayMode.value === "all"
-    ? filteredRecommendations.value
-    : filteredRecommendations.value.slice(0, 10),
-);
+const mapRecommendations = computed(() => mapDisplayableRecommendations.value);
 
 const mapScopeLabel = computed(() =>
-  mapDisplayMode.value === "all"
-    ? "현재 조건에 맞는 추천 후보 전체"
-    : "추천 점수 기준 상위 10개 공급사",
+  `${selectedMapMaterialFilter.value.label} · 전국 지도 표시 ${mapRecommendations.value.length}곳 / 실제 ${actualMapSupplierCount.value}곳 · 참고 ${estimatedMapSupplierCount.value}곳 · 위치 미확인 ${mapUnavailableCount.value}곳`
 );
 
 const activeFilterLabel = computed(() => {
@@ -686,7 +765,7 @@ const activeRankingEvidenceText = computed(() => {
 
 const selectedMapSupplier = computed(() =>
   selectedRouteSupplier.value
-    ? { ...selectedRouteSupplier.value, ...(selectedRoute.value || {}) }
+    ? getRouteDisplayItem(selectedRouteSupplier.value)
     : null,
 );
 
@@ -700,6 +779,75 @@ const rankingMapSite = computed(() => ({
   address: request.value?.siteAddress || "현장 주소 확인 필요",
 }));
 
+function handleSupplierCardClick(item) {
+  const mapItem = findMatchingMapSupplier(item) || item;
+  if (!hasMapDisplayCoordinates(mapItem)) {
+    mapFocusMessage.value = `${item.supplierName}의 위치 정보가 없어 지도에 표시할 수 없습니다.`;
+    return;
+  }
+
+  mapFocusMessage.value = "";
+  mapSectionRef.value?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+  focusSupplierOnMap(mapItem);
+}
+
+function focusSupplierOnMap(item) {
+  const mapItem = findMatchingMapSupplier(item) || item;
+  selectedRouteSupplier.value = mapItem;
+  selectSupplierForRoute(mapItem);
+}
+
+function findMatchingMapSupplier(item) {
+  const targetKey = getSupplierStableKey(item);
+  if (!targetKey) return null;
+  return mapRecommendations.value.find((candidate) => getSupplierStableKey(candidate) === targetKey) || null;
+}
+
+function mergeMapCandidatesWithCurrentRecommendations(mapCandidates, currentRecommendations) {
+  const merged = new Map();
+  [...currentRecommendations, ...mapCandidates].forEach((item) => {
+    const key = getSupplierStableKey(item) || getRouteCandidateKey(item);
+    if (!key) return;
+
+    const previous = merged.get(key);
+    if (!previous || getMapMergePriority(item) > getMapMergePriority(previous)) {
+      merged.set(key, item);
+    }
+  });
+  return Array.from(merged.values());
+}
+
+function getMapMergePriority(item) {
+  if (hasValidSupplierCoordinates(item)) return 3;
+  if (hasEstimatedSupplierCoordinates(item)) return 2;
+  if (hasMapDisplayCoordinates(item)) return 1;
+  return 0;
+}
+
+function hasValidSupplierCoordinates(item) {
+  return item?.locationBasis === "supplier_address"
+    && hasKoreaCoordinate(item?.latitude, item?.longitude)
+    && !isUnreliableSupplierAddress(item?.address || item?.supplierAddress || item?.locationLabel || "");
+}
+
+function hasEstimatedSupplierCoordinates(item) {
+  return hasKoreaCoordinate(item?.latitude, item?.longitude)
+    && ["contract_agency_estimated", "reference_estimated"].includes(item?.locationBasis);
+}
+
+function hasMapDisplayCoordinates(item) {
+  return hasValidSupplierCoordinates(item) || hasEstimatedSupplierCoordinates(item);
+}
+
+function getLocationStatus(item) {
+  if (hasValidSupplierCoordinates(item)) return "actual";
+  if (hasEstimatedSupplierCoordinates(item)) return "estimated";
+  return "unavailable";
+}
+
 function getRankingLabel(item) {
   if (item.displayRank === 1 || item.rank === 1) {
     return item.approvalRequired ? "검토형 1위" : "종합 1위 추천";
@@ -709,7 +857,7 @@ function getRankingLabel(item) {
     return "승인 검토 후보";
   }
 
-  if (hasRouteInformation(item) && Number(item.distanceScore || 0) >= 90) {
+  if (hasRouteInformation(item) && getDistanceScore(item) >= 90) {
     return "긴급 납품 후보";
   }
 
@@ -729,7 +877,7 @@ function getRankingSummary(item) {
     return "물성 조건은 맞지만 승인 리스크를 함께 확인해야 하는 비교 후보입니다.";
   }
 
-  if (hasRouteInformation(item) && Number(item.distanceScore || 0) >= 90) {
+  if (hasRouteInformation(item) && getDistanceScore(item) >= 90) {
     return "현장 접근성이 좋아 긴급 문의 우선순위가 높은 후보입니다.";
   }
 
@@ -809,7 +957,7 @@ function getMaterialFitScore(item) {
 function calculateRankingScore(item) {
   const materialFitScore = getMaterialFitScore(item);
   const reliabilityScore = Number(item.reliabilityScore || 0);
-  const distanceScore = Number(item.distanceScore || 0);
+  const distanceScore = getDistanceScore(item);
   const priceScore = Number(item.priceScore || 0);
   let weightedScore =
     materialFitScore * 0.45 +
@@ -817,12 +965,16 @@ function calculateRankingScore(item) {
     priceScore * 0.1;
   let knownWeight = 0.85;
 
-  if (hasRouteInformation(item)) {
+  if (hasDistanceScoreInformation(item)) {
     weightedScore += distanceScore * 0.15;
     knownWeight += 0.15;
   }
 
   return Math.round(weightedScore / knownWeight);
+}
+
+function getTotalScore(item) {
+  return calculateRankingScore(item);
 }
 
 function syncRankingTabFromKeyword() {
@@ -853,11 +1005,15 @@ function compareRecommendations(a, b) {
   }
 
   if (sortOption.value === "price") {
-    return compareNumber(parsePrice(a.price), parsePrice(b.price), "asc") || compareNumber(b.totalScore, a.totalScore, "asc");
+    return compareNumber(getDistanceConfidenceScore(b), getDistanceConfidenceScore(a), "asc") ||
+      compareNumber(parsePrice(a.price), parsePrice(b.price), "asc") ||
+      compareNumber(b.totalScore, a.totalScore, "asc");
   }
 
   if (sortOption.value === "delivery") {
-    return compareNumber(b.deliveryCount, a.deliveryCount, "asc") || compareNumber(b.totalScore, a.totalScore, "asc");
+    return compareNumber(getDistanceConfidenceScore(b), getDistanceConfidenceScore(a), "asc") ||
+      compareNumber(b.deliveryCount, a.deliveryCount, "asc") ||
+      compareNumber(b.totalScore, a.totalScore, "asc");
   }
 
   if (sortOption.value === "spec") {
@@ -866,18 +1022,18 @@ function compareRecommendations(a, b) {
       compareNumber(b.totalScore, a.totalScore, "asc");
   }
 
-  return compareNumber(b.totalScore, a.totalScore, "asc") || compareNumber(getSortableDistance(a), getSortableDistance(b), "asc");
+  return compareNumber(getDistanceConfidenceScore(b), getDistanceConfidenceScore(a), "asc") ||
+    compareNumber(b.totalScore, a.totalScore, "asc") ||
+    compareNumber(getSortableDistance(a), getSortableDistance(b), "asc");
 }
 
 function getSortableDistance(item) {
-  const distance = Number(item.routeDistanceM);
-  return hasRouteInformation(item) && Number.isFinite(distance)
-    ? distance
-    : Number.MAX_SAFE_INTEGER;
+  const distanceKm = getDisplayDistanceKm(item);
+  return distanceKm !== null ? distanceKm * 1000 : Number.MAX_SAFE_INTEGER;
 }
 
 function hasActualSupplierDistance(item) {
-  return hasRouteInformation(item);
+  return hasRouteInformation(getRouteDisplayItem(item));
 }
 
 function hasRouteInformation(item) {
@@ -888,10 +1044,14 @@ function hasRouteInformation(item) {
 
 function getDistanceConfidenceScore(item) {
   if (hasActualSupplierDistance(item)) {
+    return 3;
+  }
+
+  if (hasValidSupplierCoordinates(item)) {
     return 2;
   }
 
-  if (item.locationBasis === "contract_agency_estimated") {
+  if (hasEstimatedSupplierCoordinates(item)) {
     return 1;
   }
 
@@ -906,7 +1066,12 @@ function getDistanceLabel(item) {
     return `차량 기준 약 ${minutes}분 · ${distanceKm}km`;
   }
 
-  return routeItem.routeNote || "거리 정보 확인 필요";
+  const distanceKm = getDisplayDistanceKm(routeItem);
+  if (distanceKm !== null) {
+    return `현장 기준 약 ${distanceKm.toFixed(1)}km`;
+  }
+
+  return routeItem.routeNote || "거리 확인 불가";
 }
 
 function getDistanceSignal(item) {
@@ -917,15 +1082,43 @@ function getDistanceSignal(item) {
     return `차량 ${minutes}분 · ${distanceKm}km`;
   }
 
-  return routeItem.routeNote || "거리 정보 확인 필요";
+  const distanceKm = getDisplayDistanceKm(routeItem);
+  if (distanceKm !== null) {
+    return `현장 ${distanceKm.toFixed(1)}km`;
+  }
+
+  return routeItem.routeNote || "거리 확인 불가";
 }
 
 function getRouteDisplayItem(item) {
+  const override = getRouteOverride(item);
+  if (override) {
+    return { ...item, ...override };
+  }
+
   return selectedRouteSupplier.value
     && getRouteCandidateKey(selectedRouteSupplier.value) === getRouteCandidateKey(item)
     && selectedRoute.value
-    ? { ...item, ...selectedRoute.value }
+    ? { ...item, ...normalizeRouteResult(selectedRoute.value) }
     : item;
+}
+
+function getRouteOverride(item) {
+  return routeOverrides[getRouteCandidateKey(item)] || null;
+}
+
+function setRouteOverride(item, routeResult) {
+  const targetKey = getRouteCandidateKey(item);
+  const normalizedRoute = normalizeRouteResult(routeResult);
+  if (normalizedRoute.routeStatus === "success" || !getRouteOverride(item)) {
+    routeOverrides[targetKey] = normalizedRoute;
+  }
+}
+
+function clearRouteOverrides() {
+  Object.keys(routeOverrides).forEach((key) => {
+    delete routeOverrides[key];
+  });
 }
 
 function getRouteCandidateKey(item) {
@@ -936,6 +1129,20 @@ function getRouteCandidateKey(item) {
     item?.materialName || "",
     item?.standard || "",
   ].join("|");
+}
+
+function getSupplierStableKey(item) {
+  if (item?.supplierId || item?.supplier_id) {
+    return `supplier:${item.supplierId || item.supplier_id}`;
+  }
+
+  if (item?.id && item?.dataSource === "supplier_map") {
+    return `supplier:${item.id}`;
+  }
+
+  const name = String(item?.supplierName || item?.name || "").trim().toLocaleLowerCase("ko-KR");
+  const address = String(item?.address || item?.supplierAddress || "").trim().toLocaleLowerCase("ko-KR");
+  return name ? `name:${name}|${address}` : "";
 }
 
 function getRouteCacheKey(item) {
@@ -957,17 +1164,26 @@ function hasKoreaCoordinate(latitude, longitude) {
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 32 && lat <= 39 && lng >= 124 && lng <= 132;
 }
 
+function isUnreliableSupplierAddress(address) {
+  const normalized = String(address || "").replace(/\s+/g, "");
+  if (!normalized) return true;
+  if (UNRELIABLE_SUPPLIER_ADDRESS_PATTERN.test(normalized)) return true;
+  return normalized.length <= 8 && !/\d/.test(normalized);
+}
+
 let routeRequestSequence = 0;
 async function selectSupplierForRoute(item) {
   const currentRequest = ++routeRequestSequence;
   selectedRouteSupplier.value = item;
 
-  if (!hasKoreaCoordinate(item?.latitude, item?.longitude)) {
+  if (!hasValidSupplierCoordinates(item)) {
     selectedRoute.value = {
       routeDistanceM: null,
       routeDurationSec: null,
       routeStatus: "unavailable",
-      routeNote: "위치 정보 확인 필요",
+      routeNote: hasEstimatedSupplierCoordinates(item)
+        ? "참고·추정 위치로 차량 거리 계산에서 제외됩니다."
+        : "위치 정보 확인 필요",
       routePath: [],
     };
     return;
@@ -987,6 +1203,7 @@ async function selectSupplierForRoute(item) {
   const cachedRoute = routeResultCache.get(cacheKey);
   if (cachedRoute) {
     selectedRoute.value = cachedRoute;
+    mergeRouteIntoRecommendations(item, cachedRoute);
     return;
   }
 
@@ -1008,6 +1225,7 @@ async function selectSupplierForRoute(item) {
       selectedRoute.value = result;
       if (result.routeStatus === "success") {
         routeResultCache.set(cacheKey, result);
+        mergeRouteIntoRecommendations(item, result);
       }
     }
   } catch {
@@ -1025,30 +1243,88 @@ async function selectSupplierForRoute(item) {
 
 function getDistanceScoreLabel(item) {
   return hasDistanceScoreInformation(item)
-    ? `${Math.round(Number(item.distanceScore || 0))}점`
+    ? `${getDistanceScore(item)}점`
     : "미확인";
 }
 
 function hasDistanceScoreInformation(item) {
-  const routeItem = getRouteDisplayItem(item);
-  const distanceScore = item?.distanceScore;
-  const hasDistanceScore = distanceScore !== null
-    && distanceScore !== undefined
-    && distanceScore !== ""
-    && Number.isFinite(Number(distanceScore));
-  const distanceKm = routeItem?.distanceKm;
-  const hasDistanceKm = distanceKm !== null
-    && distanceKm !== undefined
-    && distanceKm !== ""
-    && Number.isFinite(Number(distanceKm));
-  return hasDistanceScore && (hasRouteInformation(routeItem) || hasDistanceKm);
+  return getDistanceScore(item) !== null;
 }
 
 function getDistanceScoreDescription(item) {
   const routeItem = getRouteDisplayItem(item);
   if (hasRouteInformation(routeItem)) return "현장 차량 경로 기준";
-  if (hasDistanceScoreInformation(item)) return "현장 거리 기준";
+  if (getDisplayDistanceKm(item) !== null) return "현장 거리 기준";
+  if (hasEstimatedSupplierCoordinates(routeItem)) return "참고·추정 위치로 거리 점수 패널티";
+  if (!hasValidSupplierCoordinates(routeItem)) return "공급사 주소 미확인으로 거리 계산 제외";
+  if (hasDistanceScoreInformation(item)) return "거리 확인 불가";
   return "현장 거리 정보 확인 필요";
+}
+
+function getDisplayDistanceKm(item) {
+  const routeItem = getRouteDisplayItem(item);
+  const routeDistanceM = Number(routeItem?.routeDistanceM);
+  if (hasRouteInformation(routeItem) && Number.isFinite(routeDistanceM)) {
+    return routeDistanceM / 1000;
+  }
+
+  if (!hasValidSupplierCoordinates(routeItem)) {
+    return null;
+  }
+
+  const routeDistanceKm = Number(routeItem?.routeDistanceKm);
+  if (
+    routeItem?.routeDistanceKm !== null
+    && routeItem?.routeDistanceKm !== undefined
+    && routeItem?.routeDistanceKm !== ""
+    && Number.isFinite(routeDistanceKm)
+    && routeDistanceKm >= 0
+  ) {
+    return routeDistanceKm;
+  }
+
+  const distanceKm = Number(routeItem?.distanceKm);
+  if (
+    routeItem?.distanceKm !== null
+    && routeItem?.distanceKm !== undefined
+    && routeItem?.distanceKm !== ""
+    && Number.isFinite(distanceKm)
+    && distanceKm >= 0
+  ) {
+    return distanceKm;
+  }
+
+  return null;
+}
+
+function getDistanceScore(item) {
+  if (!hasValidSupplierCoordinates(item)) {
+    return 0;
+  }
+
+  const distanceKm = getDisplayDistanceKm(item);
+  if (distanceKm !== null) {
+    return calculateDistanceScoreFromKm(distanceKm);
+  }
+
+  if (hasNumericScore(item?.distanceScore)) {
+    return clampScore(item.distanceScore);
+  }
+
+  return null;
+}
+
+function calculateDistanceScoreFromKm(distanceKm) {
+  if (!Number.isFinite(distanceKm) || distanceKm < 0) return null;
+  return clampScore(100 - distanceKm * 3);
+}
+
+function hasNumericScore(value) {
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+}
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value))));
 }
 
 function getMatchSignalLabel(item) {
@@ -1117,7 +1393,11 @@ function getLocationBasisLabel(item) {
   }
 
   if (item.locationBasis === "contract_agency_estimated") {
-    return `${item.locationLabel || "계약기관"} 기준 추정`;
+    return `${item.locationLabel || "계약 지역"} 기준 참고 위치`;
+  }
+
+  if (item.locationBasis === "reference_estimated") {
+    return `${item.locationLabel || "주소"} 기준 참고 위치`;
   }
 
   return "좌표 확인 필요";
@@ -1141,6 +1421,10 @@ function resetFilters() {
   sortOption.value = "score";
   hideApprovalRequired.value = false;
   registeredOnly.value = false;
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function getReasonItems(item) {
@@ -1396,7 +1680,7 @@ async function fetchAiSummary(item) {
 
 공급사: ${item.supplierName}
 자재: ${item.materialName} (${item.standard})
-종합 점수: ${item.totalScore}점
+종합 점수: ${getTotalScore(item)}점
 물성 적합도: ${getMaterialFitScore(item)}점
 신뢰도: ${item.reliabilityScore}점
 가격 점수: ${item.priceScore}점
@@ -1500,17 +1784,214 @@ async function loadRecommendations() {
     errorMessage.value = "";
     selectedRouteSupplier.value = null;
     selectedRoute.value = null;
+    clearRouteOverrides();
+    routeResultCache.clear();
+    routeEnrichmentSequence += 1;
     request.value = await getLatestMaterialRequest();
+    if (!request.value?.siteAddress || !hasKoreaCoordinate(request.value?.siteLat, request.value?.siteLng)) {
+      recommendations.value = [];
+      errorMessage.value = "현장 주소를 입력해야 거리 기반 추천이 가능합니다. 자재 요청 화면에서 주소 검색으로 현장 위치를 선택해 주세요.";
+      return;
+    }
     recommendations.value = await getRecommendations(route.query.requestId, {
       includeInternational: !hideApprovalRequired.value,
       keyword: route.query.keyword || "",
       request: request.value,
     });
-  } catch {
-    errorMessage.value = "추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
+    mapCandidateCache.clear();
+    await loadMapCandidatesForFilter();
+    enrichRecommendationRoutes();
+  } catch (error) {
+    errorMessage.value = error.message || "추천 결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
   } finally {
     isLoading.value = false;
   }
+}
+
+async function loadMapCandidatesForFilter() {
+  const selectedFilter = selectedMapMaterialFilter.value;
+  const material = selectedFilter.value === "current"
+    ? getCurrentRequestMaterialKeyword()
+    : selectedFilter.material;
+  const cacheKey = `${selectedFilter.scope}:${material}`;
+  if (mapCandidateCache.has(cacheKey)) {
+    mapExplorationRecommendations.value = mapCandidateCache.get(cacheKey);
+    return;
+  }
+
+  try {
+    isMapCandidatesLoading.value = true;
+    const candidates = await getSupplierMapCandidates(route.query.requestId || "map", {
+      scope: selectedFilter.scope,
+      material,
+    });
+    mapCandidateCache.set(cacheKey, candidates);
+    mapExplorationRecommendations.value = candidates;
+  } catch {
+    mapExplorationRecommendations.value = [];
+    mapFocusMessage.value = "지도 공급사 후보를 불러오지 못했습니다.";
+  } finally {
+    isMapCandidatesLoading.value = false;
+  }
+}
+
+function getCurrentRequestMaterialKeyword() {
+  return (
+    request.value?.materialName
+    || request.value?.category
+    || route.query.keyword
+    || ""
+  );
+}
+
+async function enrichRecommendationRoutes() {
+  const sequence = ++routeEnrichmentSequence;
+  if (!hasKoreaCoordinate(request.value?.siteLat, request.value?.siteLng)) {
+    debugRecommendationScores("skip-route-enrichment:no-site");
+    return;
+  }
+
+  const candidates = recommendations.value
+    .filter((item) => hasValidSupplierCoordinates(item))
+    .slice()
+    .sort((a, b) => compareNumber(calculateRankingScore(b), calculateRankingScore(a), "asc"))
+    .slice(0, 20);
+
+  if (!candidates.length) {
+    debugRecommendationScores("skip-route-enrichment:no-candidates");
+    return;
+  }
+
+  await Promise.all(
+    candidates.map(async (item) => {
+      const cacheKey = getRouteCacheKey(item);
+      if (hasRouteInformation(item)) {
+        const routeResult = routeResultFromItem(item);
+        routeResultCache.set(cacheKey, routeResult);
+        setRouteOverride(item, routeResult);
+        return;
+      }
+
+      const cachedRoute = routeResultCache.get(cacheKey);
+      if (cachedRoute) {
+        mergeRouteIntoRecommendations(item, cachedRoute);
+        return;
+      }
+
+      try {
+        const result = await getDrivingRoute({
+          originLat: request.value.siteLat,
+          originLng: request.value.siteLng,
+          destinationLat: item.latitude,
+          destinationLng: item.longitude,
+        });
+        if (sequence !== routeEnrichmentSequence) return;
+        if (result.routeStatus === "success") {
+          routeResultCache.set(cacheKey, result);
+        }
+        mergeRouteIntoRecommendations(item, result);
+      } catch {
+        if (sequence !== routeEnrichmentSequence) return;
+        mergeRouteIntoRecommendations(item, {
+          routeDistanceM: null,
+          routeDurationSec: null,
+          routeStatus: "failed",
+          routeNote: "거리 정보 확인 필요",
+          routePath: [],
+        });
+      }
+    }),
+  );
+
+  if (sequence === routeEnrichmentSequence) {
+    debugRecommendationScores("after-route-enrichment");
+  }
+}
+
+function mergeRouteIntoRecommendations(targetItem, routeResult) {
+  const targetKey = getRouteCandidateKey(targetItem);
+  setRouteOverride(targetItem, routeResult);
+
+  recommendations.value = recommendations.value.map((item) => {
+    if (getRouteCandidateKey(item) !== targetKey) return item;
+    return normalizeRouteResultForItem(item, routeResult);
+  });
+
+  mapExplorationRecommendations.value = mapExplorationRecommendations.value.map((item) => {
+    if (getRouteCandidateKey(item) !== targetKey) return item;
+    return normalizeRouteResultForItem(item, routeResult);
+  });
+
+  if (selectedRecommendation.value && getRouteCandidateKey(selectedRecommendation.value) === targetKey) {
+    selectedRecommendation.value = normalizeRouteResultForItem(selectedRecommendation.value, routeResult);
+  }
+
+  if (selectedRouteSupplier.value && getRouteCandidateKey(selectedRouteSupplier.value) === targetKey) {
+    selectedRouteSupplier.value = normalizeRouteResultForItem(selectedRouteSupplier.value, routeResult);
+    selectedRoute.value = routeResult;
+  }
+}
+
+function normalizeRouteResultForItem(item, routeResult) {
+  if (hasRouteInformation(item) && routeResult?.routeStatus !== "success") {
+    return item;
+  }
+
+  return {
+    ...item,
+    ...normalizeRouteResult(routeResult),
+  };
+}
+
+function normalizeRouteResult(routeResult) {
+  const routeDistanceM = hasNumericScore(routeResult?.routeDistanceM)
+    ? Number(routeResult.routeDistanceM)
+    : null;
+  const routeDistanceKm = hasNumericScore(routeResult?.routeDistanceKm)
+    ? Number(routeResult.routeDistanceKm)
+    : routeDistanceM !== null ? routeDistanceM / 1000 : null;
+
+  return {
+    routeDistanceM,
+    routeDistanceKm,
+    routeDurationSec: hasNumericScore(routeResult?.routeDurationSec)
+      ? Number(routeResult.routeDurationSec)
+      : null,
+    routeStatus: routeResult?.routeStatus || "failed",
+    routeNote: routeResult?.routeNote || "거리 정보 확인 필요",
+    routePath: Array.isArray(routeResult?.routePath) ? routeResult.routePath : [],
+  };
+}
+
+function routeResultFromItem(item) {
+  return {
+    routeDistanceM: item.routeDistanceM,
+    routeDurationSec: item.routeDurationSec,
+    routeStatus: item.routeStatus,
+    routeNote: item.routeNote,
+    routePath: Array.isArray(item.routePath) ? item.routePath : [],
+  };
+}
+
+function debugRecommendationScores(label) {
+  if (!import.meta.env.DEV) return;
+  console.table(
+    recommendations.value.map((item) => {
+      const routeItem = getRouteDisplayItem(item);
+      return {
+        label,
+        name: item.supplierName || item.name,
+        tableDistanceKm: item.distanceKm,
+        routeDistanceM: routeItem.routeDistanceM,
+        routeDistanceKm: routeItem.routeDistanceKm,
+        displayDistanceKm: getDisplayDistanceKm(item),
+        oldDistanceScore: item.distanceScore,
+        computedDistanceScore: getDistanceScore(item),
+        oldTotalScore: item.totalScore,
+        computedTotalScore: getTotalScore(item),
+      };
+    }),
+  );
 }
 
 const showAllList = ref(false);
@@ -1596,6 +2077,10 @@ function getCardTags(item) {
   const fit = getMaterialFitScore(item);
   const delivery = Number(item.deliveryCount || 0);
 
+  if (getLocationStatus(item) === "actual") tags.push("실제 위치 확인");
+  else if (getLocationStatus(item) === "estimated") tags.push("참고 위치");
+  else tags.push("위치 미확인");
+
   if (rel >= 85) tags.push("납품 신뢰 우수");
   else if (delivery >= 80) tags.push("납품 경험 풍부");
   else if (delivery >= 30) tags.push("안정적 공급");
@@ -1604,7 +2089,7 @@ function getCardTags(item) {
   else if (fit >= 88) tags.push("규격 신뢰 우수");
   else tags.push("안정적 품질");
 
-  return tags.slice(0, 2);
+  return tags.slice(0, 3);
 }
 
 function getShortDistance(item) {
@@ -1612,6 +2097,10 @@ function getShortDistance(item) {
   if (hasRouteInformation(routeItem)) {
     const distanceKm = (Number(routeItem.routeDistanceM) / 1000).toFixed(1);
     return `${distanceKm}km`;
+  }
+  const distanceKm = getDisplayDistanceKm(routeItem);
+  if (distanceKm !== null) {
+    return `${distanceKm.toFixed(1)}km`;
   }
   return routeItem.routeNote || "-";
 }
@@ -1672,9 +2161,11 @@ function getShortDistance(item) {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 22px 24px;
+  cursor: pointer;
   transition: box-shadow .15s, border-color .15s;
 }
 .rec-row:hover { box-shadow: 0 4px 16px rgba(21,89,232,.08); border-color: #c5d7fc; }
+.rec-row:focus-visible { outline: 3px solid rgba(21, 89, 232, .22); outline-offset: 3px; }
 
 .rec-rank { display: flex; justify-content: center; }
 .rank-circle {
@@ -1791,20 +2282,29 @@ function getShortDistance(item) {
 .map-section-header h2 { font-size: 18px; font-weight: 800; color: #1e293b; margin: 0; }
 .map-title-group { display: grid; gap: 5px; }
 .map-title-group p { margin: 0; color: #64748b; font-size: 13px; }
+.map-count-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.map-count-summary span { display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 800; }
+.map-focus-message { color: #dc2626 !important; font-weight: 700; }
+.map-loading-message { color: #64748b !important; font-weight: 700; }
 .map-header-actions { display: flex; align-items: flex-end; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
-.map-scope-toggle { display: inline-flex; padding: 3px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8fafc; }
-.map-scope-toggle button { border: 0; border-radius: 7px; padding: 7px 12px; color: #64748b; background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; }
-.map-scope-toggle button.active { color: #fff; background: #1559e8; box-shadow: 0 2px 7px rgba(21, 89, 232, .2); }
-.map-scope-toggle button:focus-visible { outline: 3px solid rgba(21, 89, 232, .2); outline-offset: 1px; }
+.map-material-filter { display: flex; flex-wrap: wrap; gap: 6px; max-width: 560px; justify-content: flex-end; }
+.map-material-filter button { border: 1px solid #dbe3ef; border-radius: 999px; padding: 7px 11px; color: #64748b; background: #fff; font-size: 12px; font-weight: 800; cursor: pointer; transition: .15s; }
+.map-material-filter button.active { border-color: #1559e8; color: #1559e8; background: #eef5ff; box-shadow: 0 4px 12px rgba(21, 89, 232, .12); }
+.map-material-filter button:hover { border-color: #b9cae5; background: #f8fafc; }
 .map-legend { display: flex; gap: 16px; list-style: none; padding: 0; margin: 0; flex-wrap: wrap; }
 .map-legend li { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #64748b; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .legend-site { background: #ef4444; }
-.legend-top { background: #f59e0b; }
+.legend-top { background: #0f766e; }
+.legend-estimated { background: #f97316; }
 .legend-other { background: #94a3b8; border: 2px solid #cbd5e1; }
+.location-reference-note { margin: 14px 0 0; border: 1px solid #fed7aa; border-radius: 12px; padding: 11px 13px; color: #9a3412; background: #fff7ed; font-size: 13px; font-weight: 800; line-height: 1.55; }
 
 /* ─── Disclaimer ─── */
 .rec-disclaimer { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; color: #94a3b8; line-height: 1.5; padding: 14px 18px; background: #f8fafc; border-radius: 10px; margin-top: 8px; }
+.back-to-top-wrap { display: flex; justify-content: center; margin: 18px 0 8px; }
+.back-to-top-button { border: 1px solid #cbd8ec; border-radius: 999px; padding: 10px 18px; color: #1559e8; background: #fff; box-shadow: 0 8px 22px rgba(15, 23, 42, .08); cursor: pointer; font-weight: 900; }
+.back-to-top-button:hover { border-color: #1559e8; background: #f3f7ff; }
 
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
@@ -1822,7 +2322,5 @@ function getShortDistance(item) {
   .sort-label { width: 100%; }
   .criteria-card { flex-direction: column; align-items: flex-start; }
   .map-header-actions { width: 100%; align-items: flex-start; justify-content: flex-start; }
-  .map-scope-toggle { width: 100%; }
-  .map-scope-toggle button { flex: 1; }
 }
 </style>

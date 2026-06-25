@@ -147,6 +147,14 @@
               </div>
             </label>
             <RouterLink class="btn-card-detail" :to="`/inquiries/${inquiry.id}`" @click.stop>상세 보기</RouterLink>
+            <button
+              type="button"
+              class="btn-card-delete"
+              :disabled="deletingInquiryId === inquiry.id"
+              @click.stop="deleteInquiryForSupplier(inquiry.id)"
+            >
+              {{ deletingInquiryId === inquiry.id ? "삭제 중" : "삭제" }}
+            </button>
           </div>
         </template>
 
@@ -323,6 +331,7 @@ import { authState } from "../api/authApi";
 import {
   filterInquiriesForUser,
   getSupplierInquiries,
+  hideSupplierInquiryForSupplier,
   updateSupplierInquiryStatus,
 } from "../api/materialApi";
 import { getCommunityContactRequests, updateCommunityContactRequest } from "../api/communityApi";
@@ -336,6 +345,7 @@ const communityError = ref("");
 const isLoading = ref(false);
 const errorMessage = ref("");
 const updatingInquiryId = ref("");
+const deletingInquiryId = ref("");
 const inquiryStatusFilter = ref("all");
 const statusLabels = {
   received: "협의 필요",
@@ -441,6 +451,25 @@ async function changeInquiryStatus(inquiryId, status) {
     errorMessage.value = "문의 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.";
   } finally {
     updatingInquiryId.value = "";
+  }
+}
+
+async function deleteInquiryForSupplier(inquiryId) {
+  const confirmed = window.confirm(
+    "이 문의를 삭제하시겠습니까?\n공급자 화면에서만 삭제되며, 요청자 문의 내역은 유지됩니다.",
+  );
+  if (!confirmed) return;
+
+  try {
+    deletingInquiryId.value = inquiryId;
+    errorMessage.value = "";
+    await hideSupplierInquiryForSupplier(inquiryId);
+    inquiries.value = inquiries.value.filter((inquiry) => inquiry.id !== inquiryId);
+    window.alert("문의가 삭제되었습니다.");
+  } catch {
+    errorMessage.value = "문의 삭제에 실패했습니다.";
+  } finally {
+    deletingInquiryId.value = "";
   }
 }
 
@@ -582,7 +611,7 @@ function getSupplierDistance(inquiry) {
 .inq-requester-item span { color:#8492a8; }
 .inq-requester-item strong { color:#102a56;font-weight:700;margin-left:2px; }
 .inq-message { font-size:14px;color:#51627e;margin:4px 0 0;padding:10px 14px;background:#f8f9fb;border-radius:8px; }
-.supplier-footer { display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid #eef2f8; }
+.supplier-footer { display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid #eef2f8; }
 .status-select-wrap { display:flex;align-items:center;gap:10px; }
 .status-select-label { font-size:13px;font-weight:700;color:#65748d; }
 .status-select-box { position:relative;display:flex;align-items:center; }
@@ -591,6 +620,10 @@ function getSupplierDistance(inquiry) {
 .select-chevron { position:absolute;right:10px;pointer-events:none;color:#1559e8; }
 .btn-card-detail { display:inline-flex;align-items:center;justify-content:center;padding:10px 24px;border-radius:10px;background:#1559e8;color:#fff;font-size:14px;font-weight:800;text-decoration:none; }
 .btn-card-detail:hover { opacity:.88; }
+.supplier-card .btn-card-detail { margin-left:auto; }
+.btn-card-delete { display:inline-flex;align-items:center;justify-content:center;border:1px solid #fecaca;border-radius:10px;padding:10px 18px;color:#dc2626;background:#fff5f5;font-size:14px;font-weight:900;cursor:pointer;transition:background .15s,border-color .15s,opacity .15s; }
+.btn-card-delete:hover { border-color:#fca5a5;background:#fee2e2; }
+.btn-card-delete:disabled { cursor:default;opacity:.6; }
 @media(max-width:700px){.inq-info-grid{grid-template-columns:1fr}.inq-requester-row{flex-direction:column;gap:8px}}
 /* ── 요청자 카드 ── */
 .inq-id-badge.rq { background:#1559e8; }

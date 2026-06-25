@@ -25,7 +25,7 @@
       <article v-for="post in posts" :key="post.id" class="community-card" @click="openPost(post.id)">
         <CommunityAuthorHeader
           :author="post.author"
-          :owner="post.is_owner"
+          :owner="isPostOwner(post)"
           @question="askQuestion(post)"
           @profile="viewProfile(post)"
           @report="showReportNotice"
@@ -69,7 +69,7 @@
 <script setup>
 import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { isLoggedIn } from "../api/authApi";
+import { authState, isLoggedIn } from "../api/authApi";
 import { deleteCommunityPost, getCommunityPosts } from "../api/communityApi";
 import CommunityAuthorHeader from "../components/CommunityAuthorHeader.vue";
 import CommunityQuestionModal from "../components/CommunityQuestionModal.vue";
@@ -123,15 +123,34 @@ function viewProfile(post) {
   showNotice("공개 프로필 정보를 확인할 수 없습니다.");
 }
 
+function isPostOwner(post) {
+  return Boolean(
+    post?.is_owner
+    || (
+      authState.user?.id != null
+      && post?.author?.profile_id != null
+      && Number(authState.user.id) === Number(post.author.profile_id)
+    ),
+  );
+}
+
 function showReportNotice() {
   showNotice("신고 접수 기능은 MVP 이후 제공됩니다.");
 }
 
 function editPost(post) {
+  if (!isPostOwner(post)) {
+    showNotice("작성자 본인만 게시글을 수정할 수 있습니다.");
+    return;
+  }
   router.push(`/community/${post.id}/edit`);
 }
 
 async function removePost(post) {
+  if (!isPostOwner(post)) {
+    showNotice("작성자 본인만 게시글을 삭제할 수 있습니다.");
+    return;
+  }
   if (!window.confirm("이 게시글을 삭제하시겠습니까?")) return;
   try {
     await deleteCommunityPost(post.id);

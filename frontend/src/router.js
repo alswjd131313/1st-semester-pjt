@@ -96,9 +96,15 @@ const routes = [
     meta: { requiresAuth: true, role: "supplier" },
   },
   {
+    path: "/supplier/materials",
+    name: "supplier-materials",
+    component: SupplierProfilePage,
+    meta: { requiresAuth: true, role: "supplier" },
+  },
+  {
     path: "/supplier/profile",
     name: "supplier-profile",
-    component: SupplierProfilePage,
+    redirect: { name: "supplier-materials" },
     meta: { requiresAuth: true, role: "supplier" },
   },
 

@@ -8,7 +8,7 @@
       <article class="community-detail-card">
         <CommunityAuthorHeader
           :author="post.author"
-          :owner="post.is_owner"
+          :owner="isPostOwner"
           @question="askQuestion"
           @profile="viewProfile"
           @report="showNotice('신고 접수 기능은 MVP 이후 제공됩니다.')"
@@ -89,9 +89,9 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { isLoggedIn } from "../api/authApi";
+import { authState, isLoggedIn } from "../api/authApi";
 import {
   createCommunityComment,
   deleteCommunityComment,
@@ -118,6 +118,14 @@ const deletingCommentId = ref(null);
 const questionOpen = ref(false);
 const notice = ref("");
 const loggedIn = isLoggedIn();
+const isPostOwner = computed(() => Boolean(
+  post.value?.is_owner
+  || (
+    authState.user?.id != null
+    && post.value?.author?.profile_id != null
+    && Number(authState.user.id) === Number(post.value.author.profile_id)
+  ),
+));
 
 onMounted(loadPost);
 
@@ -225,10 +233,18 @@ function viewProfile() {
 }
 
 function editPost() {
+  if (!isPostOwner.value) {
+    showNotice("작성자 본인만 게시글을 수정할 수 있습니다.");
+    return;
+  }
   router.push(`/community/${post.value.id}/edit`);
 }
 
 async function removePost() {
+  if (!isPostOwner.value) {
+    showNotice("작성자 본인만 게시글을 삭제할 수 있습니다.");
+    return;
+  }
   if (!window.confirm("이 게시글을 삭제하시겠습니까?")) return;
   try {
     await deleteCommunityPost(post.value.id);

@@ -20,12 +20,14 @@ urlpatterns = [
     path("materials/<int:material_id>/price-trend/", views.price_trend, name="price-trend"),
 
     # 수요 등록
-    path("demands/", views.DemandCreateView.as_view(), name="demand-create"),
+    path("demands/", views.DemandListCreateView.as_view(), name="demand-list-create"),
+    path("demands/<int:pk>/", views.DemandDetailView.as_view(), name="demand-detail"),
 
     # 공급사 직접 등록 자재
     path("supplier-materials/", views.SupplierMaterialRegistrationListCreateView.as_view(), name="supplier-material-list-create"),
     path("supplier-materials/<int:pk>/", views.SupplierMaterialRegistrationDetailView.as_view(), name="supplier-material-detail"),
     path("supplier-materials/public/", views.PublicSupplierMaterialRegistrationListView.as_view(), name="supplier-material-public-list"),
+    path("suppliers/map/", views.SupplierMapListView.as_view(), name="supplier-map-list"),
 
     # 커뮤니티 MVP
     path("community/posts/", views.CommunityPostListCreateView.as_view(), name="community-post-list-create"),
@@ -40,4 +42,16 @@ urlpatterns = [
     path("inquiries/", views.SupplierInquiryListCreateView.as_view(), name="inquiry-list-create"),
     path("inquiries/<int:pk>/", views.SupplierInquiryDetailView.as_view(), name="inquiry-detail"),
     path("inquiries/<int:pk>/status/", views.SupplierInquiryStatusView.as_view(), name="inquiry-status"),
+    path(
+        "inquiries/<int:pk>/delete-for-supplier/",
+        views.SupplierInquiryDeleteForSupplierView.as_view(),
+        name="inquiry-delete-for-supplier",
+    ),
+
+    # 알림
+    path("notifications/", views.NotificationListView.as_view(), name="notification-list"),
+    path("notifications/unread-count/", views.NotificationUnreadCountView.as_view(), name="notification-unread-count"),
+    path("notifications/<int:pk>/read/", views.NotificationMarkReadView.as_view(), name="notification-mark-read"),
+    path("notifications/read-all/", views.NotificationMarkAllReadView.as_view(), name="notification-read-all"),
+    path("notifications/<int:pk>/", views.NotificationDeleteView.as_view(), name="notification-delete"),
 ]

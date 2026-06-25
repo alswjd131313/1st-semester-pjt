@@ -11,6 +11,11 @@ class RegisterSerializer(serializers.Serializer):
     password = serializers.CharField(min_length=6, write_only=True)
     password_confirm = serializers.CharField(write_only=True)
     company_name = serializers.CharField(max_length=100)
+    default_site_address = serializers.CharField(required=False, allow_blank=True)
+    default_site_detail_address = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    default_site_zip_no = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    default_site_latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    default_site_longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
 
     def validate_email(self, value):
         normalized = value.strip().lower()
@@ -28,6 +33,11 @@ class RegisterSerializer(serializers.Serializer):
         role = validated_data.pop("role")
         name = validated_data.pop("name")
         company_name = validated_data.pop("company_name")
+        default_site_address = validated_data.pop("default_site_address", "")
+        default_site_detail_address = validated_data.pop("default_site_detail_address", "")
+        default_site_zip_no = validated_data.pop("default_site_zip_no", "")
+        default_site_latitude = validated_data.pop("default_site_latitude", None)
+        default_site_longitude = validated_data.pop("default_site_longitude", None)
         email = validated_data["email"]
         password = validated_data.pop("password")
 
@@ -37,7 +47,16 @@ class RegisterSerializer(serializers.Serializer):
             first_name=name,
             password=password,
         )
-        UserProfile.objects.create(user=user, role=role, company_name=company_name)
+        UserProfile.objects.create(
+            user=user,
+            role=role,
+            company_name=company_name,
+            default_site_address=default_site_address if role == "requester" else "",
+            default_site_detail_address=default_site_detail_address if role == "requester" else "",
+            default_site_zip_no=default_site_zip_no if role == "requester" else "",
+            default_site_latitude=default_site_latitude if role == "requester" else None,
+            default_site_longitude=default_site_longitude if role == "requester" else None,
+        )
         return user
 
 
@@ -50,6 +69,12 @@ class LoginSerializer(serializers.Serializer):
 class ProfileUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100, required=False)
     company_name = serializers.CharField(max_length=100, required=False)
+    profile_image = serializers.FileField(required=False, allow_empty_file=False)
+    default_site_address = serializers.CharField(required=False, allow_blank=True)
+    default_site_detail_address = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    default_site_zip_no = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    default_site_latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    default_site_longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
     current_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     new_password = serializers.CharField(min_length=6, write_only=True, required=False, allow_blank=True)
 

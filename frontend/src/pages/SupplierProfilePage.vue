@@ -2,8 +2,8 @@
   <main class="supplier-profile-page">
     <header class="page-header">
       <div>
-        <h1>프로필 관리</h1>
-        <p class="page-sub">등록한 회사 위치와 취급 자재 정보는 추천 결과의 공급사 후보, 거리 계산, 납품 가능성 판단에 활용됩니다.</p>
+        <h1>자재 관리</h1>
+        <p class="page-sub">회사 위치와 취급 자재 정보를 관리합니다. 등록한 자재는 추천 결과의 공급사 후보, 거리 계산, 납품 가능성 판단에 활용됩니다.</p>
       </div>
     </header>
 
@@ -113,7 +113,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { authState } from "../api/authApi";
+import { authState, updateProfile } from "../api/authApi";
 import { deleteSupplierMaterial, getSupplierMaterials, registerSupplierMaterial } from "../api/materialApi";
 import AddressSearchField from "../components/AddressSearchField.vue";
 
@@ -162,6 +162,8 @@ function restoreProfile() {
     const saved = JSON.parse(localStorage.getItem(profileStorageKey.value) || "null");
     if (saved) {
       Object.assign(form, saved);
+      form.name = authState.user?.companyName || saved.name || "";
+      form.email = authState.user?.email || saved.email || "";
       profileSaved.value = true;
     } else {
       form.name = authState.user?.companyName || "";
@@ -190,7 +192,15 @@ async function saveProfile() {
   try {
     isSaving.value = true;
     saveMessage.value = "";
+    if (form.name.trim()) {
+      await updateProfile({ companyName: form.name.trim() });
+    }
     localStorage.setItem(profileStorageKey.value, JSON.stringify({ ...form }));
+    materials.value = materials.value.map((material) => ({
+      ...material,
+      supplierName: form.name.trim() || material.supplierName,
+      supplier_name: form.name.trim() || material.supplier_name,
+    }));
     profileSaved.value = true;
     saveMessage.value = "공급사 정보가 저장되었습니다.";
   } catch {

@@ -41,7 +41,7 @@
             </div>
           </div>
 
-          <h2 class="inqd-company">{{ inquiry.requesterCompany || inquiry.requesterName || "요청자" }}</h2>
+          <h2 class="inqd-company">{{ requesterCompanyLabel }}</h2>
           <p class="inqd-material-line">
             {{ inquiry.requestMaterial?.materialName || "" }}<template v-if="inquiry.requestMaterial?.strengthGrade"> · {{ inquiry.requestMaterial.strengthGrade }}</template>
           </p>
@@ -230,6 +230,11 @@ const inquiryStatuses = [
 ];
 
 const isSupplier = computed(() => authState.user?.role === "supplier");
+const requesterCompanyLabel = computed(() =>
+  inquiry.value?.requesterCompany
+  || inquiry.value?.requesterName
+  || "회사명 미등록",
+);
 
 onMounted(loadInquiry);
 

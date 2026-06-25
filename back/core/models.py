@@ -523,6 +523,12 @@ class Demand(models.Model):
     MVP에서는 내부 집계 용도. 추후 공급사 알림 연동 예정.
     """
 
+    STATUS_CHOICES = [
+        ("draft", "임시 저장"),
+        ("submitted", "제출됨"),
+        ("recommended", "추천 완료"),
+    ]
+
     owner      = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -531,13 +537,16 @@ class Demand(models.Model):
         related_name="demands",
         verbose_name="요청자 계정",
     )
-    site_name  = models.CharField(max_length=200, verbose_name="현장명")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="submitted", db_index=True)
+    site_name  = models.CharField(max_length=200, blank=True, verbose_name="현장명")
     site_lat   = models.DecimalField(
         max_digits=9, decimal_places=6,
+        null=True, blank=True,
         verbose_name="현장 위도",
     )
     site_lng   = models.DecimalField(
         max_digits=9, decimal_places=6,
+        null=True, blank=True,
         verbose_name="현장 경도",
     )
     material   = models.ForeignKey(
@@ -547,11 +556,13 @@ class Demand(models.Model):
     )
     quantity   = models.DecimalField(
         max_digits=15, decimal_places=2,
+        null=True, blank=True,
         verbose_name="필요 수량 (kg)",
         validators=[MinValueValidator(0)],
     )
-    deadline   = models.DateField(verbose_name="납기 기한")
+    deadline   = models.DateField(null=True, blank=True, verbose_name="납기 기한")
     memo       = models.TextField(blank=True, verbose_name="메모")
+    draft_payload = models.JSONField(default=dict, blank=True, verbose_name="요청 원본 데이터")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -660,6 +671,7 @@ class SupplierInquiry(models.Model):
         verbose_name="문의 상태",
     )
     status_updated_at = models.DateTimeField(null=True, blank=True, verbose_name="상태 변경 일시")
+    supplier_deleted_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="공급사 목록 삭제 일시")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -671,6 +683,66 @@ class SupplierInquiry(models.Model):
 
     def __str__(self):
         return f"{self.requester} → {self.supplier_user} / {self.material_name} / {self.status}"
+
+
+class Notification(models.Model):
+    """사용자별 알림. 문의 생성/응답, 커뮤니티 이벤트 등 시연 흐름의 알림 배지 원천 데이터."""
+
+    TYPE_CHOICES = [
+        ("supplier_inquiry_created", "공급사 문의 도착"),
+        ("supplier_inquiry_status_changed", "공급사 문의 응답"),
+        ("community_comment_created", "커뮤니티 댓글"),
+        ("community_contact_request", "커뮤니티 대화 요청"),
+    ]
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        verbose_name="수신자",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_notifications",
+        verbose_name="발신자",
+    )
+    type = models.CharField(max_length=60, choices=TYPE_CHOICES, db_index=True, verbose_name="알림 유형")
+    title = models.CharField(max_length=120, verbose_name="제목")
+    message = models.TextField(verbose_name="내용")
+    target_path = models.CharField(max_length=255, blank=True, default="/inquiries", verbose_name="이동 경로")
+    related_inquiry = models.ForeignKey(
+        SupplierInquiry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications",
+        verbose_name="관련 문의",
+    )
+    event_key = models.CharField(max_length=120, blank=True, db_index=True, verbose_name="중복 방지 키")
+    is_read = models.BooleanField(default=False, db_index=True, verbose_name="읽음 여부")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notifications"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["recipient", "is_read", "-created_at"], name="notification_recipient_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipient", "event_key"],
+                condition=~models.Q(event_key=""),
+                name="uniq_notification_recipient_event",
+            ),
+        ]
+        verbose_name = "알림"
+        verbose_name_plural = "알림 목록"
+
+    def __str__(self):
+        return f"{self.recipient} / {self.type} / {self.title}"
 
 
 # ──────────────────────────────────────────

@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIClient
 
-from .models import CategoryContractHistory, CommunityComment, CommunityPost, Material, Supplier, SupplyHistory
+from .models import CategoryContractHistory, CommunityComment, CommunityPost, Material, Notification, Supplier, SupplyHistory
 from .services.kakao_directions import get_driving_route
 from .views import calculate_category_experience_score
 
@@ -171,6 +171,41 @@ class CommunityCommentPermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 204)
         self.assertFalse(CommunityComment.objects.filter(pk=self.comment.pk).exists())
+
+    def test_comment_create_notifies_post_author(self):
+        self.client.force_authenticate(self.other_user)
+        response = self.client.post(
+            f"/api/v1/community/posts/{self.post.id}/comments/",
+            {"content": "새 댓글입니다.", "display_mode": "profile"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        comment_id = response.data["id"]
+        notification = Notification.objects.get(
+            recipient=self.owner,
+            event_key=f"community-comment:{comment_id}",
+        )
+        self.assertEqual(notification.actor, self.other_user)
+        self.assertEqual(notification.type, "community_comment_created")
+        self.assertEqual(notification.target_path, f"/community/{self.post.id}")
+        self.assertFalse(notification.is_read)
+
+    def test_author_comment_does_not_notify_self(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.post(
+            f"/api/v1/community/posts/{self.post.id}/comments/",
+            {"content": "작성자 댓글입니다.", "display_mode": "profile"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(
+            Notification.objects.filter(
+                recipient=self.owner,
+                event_key=f"community-comment:{response.data['id']}",
+            ).exists()
+        )
 
 
 class KakaoDirectionsTests(SimpleTestCase):

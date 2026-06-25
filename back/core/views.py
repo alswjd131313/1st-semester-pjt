@@ -3,6 +3,7 @@ import re
 import requests
 import secrets
 import string
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from datetime import date, timedelta
@@ -24,7 +25,7 @@ from .models import (
     Material, MaterialSpec, Supplier, SupplyHistory, CategoryContractHistory,
     Demand, SupplierMaterialRegistration,
     CommunityPost, CommunityComment, CommunityContactRequest,
-    SupplierInquiry,
+    SupplierInquiry, Notification,
 )
 from .serializers import (
     MaterialListSerializer,
@@ -34,13 +35,18 @@ from .serializers import (
     PriceTrendSerializer,
     DemandSerializer,
     SupplierMaterialRegistrationSerializer,
+    SupplierMapSerializer,
     SupplierInquirySerializer,
     SupplierInquiryStatusSerializer,
+    NotificationSerializer,
     CommunityPostSerializer,
     CommunityCommentSerializer,
     CommunityContactRequestSerializer,
 )
 from .services.kakao_directions import get_driving_route
+
+
+logger = logging.getLogger(__name__)
 
 
 JUSO_SEARCH_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
@@ -50,6 +56,33 @@ NARAJANGTEO_CONTRACT_SEARCH_URL = "https://apis.data.go.kr/1230000/ao/CntrctInfo
 
 SUPPLIER_ADDRESS_FIELDS = ("corpAddr", "cntrctCorpAddr", "spldmdCorpAddr")
 AGENCY_ADDRESS_FIELDS = ("dminsttAddr", "cntrctInsttAddr", "dminsttNm", "cntrctInsttNm")
+UNRELIABLE_SUPPLIER_ADDRESS_KEYWORDS = (
+    "조달청",
+    "지방조달청",
+    "서울주택도시개발공사",
+    "한국공항공사",
+    "건강보험심사평가원",
+    "공사",
+    "공단",
+    "법무부",
+    "교육청",
+    "지원청",
+    "환경청",
+    "학교",
+    "시청",
+    "군청",
+    "구청",
+    "사업소",
+    "관리사업소",
+    "맑은물사업소",
+    "맑은물사업본부",
+    "종합건설본부",
+    "본부",
+    "센터",
+    "관리단",
+    "행정복지센터",
+    "주민센터",
+)
 
 
 def clean_address_keyword(keyword: str) -> str:
@@ -276,6 +309,7 @@ def serialize_cached_contract(history: SupplyHistory) -> dict:
     raw = history.raw_data or {}
     location = resolve_contract_location(raw, history.supplier)
     return {
+        "supplierId": history.supplier.id,
         "supplierName": history.supplier.name,
         "productName": str(history.material),
         "contractName": raw.get("cntrctNm") or raw.get("contractName") or str(history.material),
@@ -323,8 +357,49 @@ def first_present(source: dict, fields: tuple[str, ...]) -> str:
     return ""
 
 
+def is_unreliable_supplier_address(address: str) -> bool:
+    normalized = re.sub(r"\s+", "", str(address or ""))
+    if not normalized:
+        return True
+
+    if any(keyword in normalized for keyword in UNRELIABLE_SUPPLIER_ADDRESS_KEYWORDS):
+        return True
+
+    # "조달청", "전라남도", "경상남도김해시"처럼 기관명/광역 단위만 있는 값은
+    # 공급사 사업장 주소로 보기 어렵다. 회사명에는 적용하지 않고 supplier.address만 판정한다.
+    if len(normalized) <= 8 and not re.search(r"\d", normalized):
+        return True
+
+    return False
+
+
+def is_reference_location_address(address: str) -> bool:
+    normalized = re.sub(r"\s+", "", str(address or ""))
+    if not normalized or any(keyword in normalized for keyword in UNRELIABLE_SUPPLIER_ADDRESS_KEYWORDS):
+        return False
+    return bool(re.search(r"(특별시|광역시|특별자치시|특별자치도|도|시|군|구)", normalized))
+
+
+def has_specific_supplier_address(address: str) -> bool:
+    normalized = re.sub(r"\s+", "", str(address or ""))
+    if not normalized or is_unreliable_supplier_address(address):
+        return False
+    return bool(re.search(r"\d", normalized))
+
+
+def has_reliable_supplier_coordinates(supplier: Supplier | None) -> bool:
+    if not supplier or not supplier.has_coordinates:
+        return False
+    try:
+        lat = float(supplier.latitude)
+        lng = float(supplier.longitude)
+    except (TypeError, ValueError):
+        return False
+    return 33 <= lat <= 39 and 124 <= lng <= 132 and not is_unreliable_supplier_address(supplier.address)
+
+
 def resolve_contract_location(raw: dict, supplier: Supplier | None = None) -> dict:
-    if supplier and supplier.has_coordinates:
+    if supplier and has_reliable_supplier_coordinates(supplier):
         return {
             "basis": "supplier_address",
             "label": supplier.address or supplier.name,
@@ -333,7 +408,7 @@ def resolve_contract_location(raw: dict, supplier: Supplier | None = None) -> di
         }
 
     supplier_address = first_present(raw, SUPPLIER_ADDRESS_FIELDS) or (supplier.address if supplier else "")
-    if supplier_address:
+    if supplier_address and has_specific_supplier_address(supplier_address):
         coords = geocode_with_kakao_address(supplier_address)
         if coords:
             return {
@@ -342,8 +417,17 @@ def resolve_contract_location(raw: dict, supplier: Supplier | None = None) -> di
                 **coords,
             }
 
+    if supplier_address and is_reference_location_address(supplier_address):
+        coords = geocode_with_kakao_address(supplier_address) or search_kakao_place(supplier_address)
+        if coords:
+            return {
+                "basis": "reference_estimated",
+                "label": supplier_address,
+                **coords,
+            }
+
     agency_location = first_present(raw, AGENCY_ADDRESS_FIELDS)
-    if agency_location:
+    if agency_location and is_reference_location_address(agency_location):
         coords = geocode_with_kakao_address(agency_location) or search_kakao_place(agency_location)
         if coords:
             return {
@@ -600,10 +684,18 @@ def alternative_suppliers(request, material_id: int):
 
     # ── 요청 파라미터 파싱
     try:
-        site_lat = float(request.data["site_lat"])
-        site_lng = float(request.data["site_lng"])
-    except (KeyError, ValueError):
-        return Response({"error": "site_lat, site_lng 값이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        site_lat = float(request.data.get("site_lat", request.data.get("site_latitude")))
+        site_lng = float(request.data.get("site_lng", request.data.get("site_longitude")))
+    except (TypeError, ValueError):
+        return Response(
+            {"error": "현장 주소를 입력해야 거리 기반 추천이 가능합니다."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not (33 <= site_lat <= 39 and 124 <= site_lng <= 132):
+        return Response(
+            {"error": "현장 주소를 입력해야 거리 기반 추천이 가능합니다."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     is_seismic           = bool(request.data.get("is_seismic", False))
     include_international = bool(request.data.get("include_international", True))
@@ -696,7 +788,18 @@ def alternative_suppliers(request, material_id: int):
     for info in supplier_material_map.values():
         supplier = info["supplier"]
         straight_distance_km = None
-        if supplier.has_coordinates:
+        has_reliable_coordinates = has_reliable_supplier_coordinates(supplier)
+        display_location = (
+            {
+                "basis": "supplier_address",
+                "label": supplier.address or supplier.name,
+                "latitude": float(supplier.latitude),
+                "longitude": float(supplier.longitude),
+            }
+            if has_reliable_coordinates
+            else resolve_contract_location({}, supplier)
+        )
+        if has_reliable_coordinates:
             straight_distance_km = haversine(
                 site_lat,
                 site_lng,
@@ -709,11 +812,19 @@ def alternative_suppliers(request, material_id: int):
         candidates.append({
             **info,
             "straight_distance_km": straight_distance_km,
+            "has_reliable_coordinates": has_reliable_coordinates,
+            "display_location": display_location,
+            "has_display_coordinates": display_location.get("latitude") is not None
+            and display_location.get("longitude") is not None,
             "route": {
                 "distance_m": None,
                 "duration_sec": None,
-                "status": "missing_coordinates",
-                "note": "거리 정보 확인 필요",
+                "status": "missing_coordinates" if not has_reliable_coordinates else "not_requested",
+                "note": (
+                    "공급사 주소 미확인으로 거리 계산에서 제외되었습니다."
+                    if is_unreliable_supplier_address(supplier.address)
+                    else "공급사 좌표가 없어 거리 계산에서 제외되었습니다."
+                ) if not has_reliable_coordinates else "거리 정보 확인 필요",
             },
         })
 
@@ -738,7 +849,7 @@ def alternative_suppliers(request, material_id: int):
     routable_candidates = [
         candidate
         for candidate in candidates
-        if candidate["supplier"].has_coordinates
+        if candidate["has_reliable_coordinates"]
     ]
     if routable_candidates:
         with ThreadPoolExecutor(max_workers=min(5, len(routable_candidates))) as executor:
@@ -803,7 +914,7 @@ def alternative_suppliers(request, material_id: int):
     # ══════════════════════════════
     # STEP 3: 가중치 스코어링
     # KS 적합도 45% + 신뢰도 30% + 차량 경로 15% + 가격 10%
-    # 경로 미확인 시 15%를 제외한 나머지 점수를 재정규화한다.
+    # 경로 미확인/좌표 없음 후보는 거리 점수를 0점으로 반영한다.
     # ══════════════════════════════
     all_prices       = [float(c["latest_price"]) for c in candidates]
     all_counts       = [c["supply_count"]  for c in candidates]
@@ -832,7 +943,7 @@ def alternative_suppliers(request, material_id: int):
         material_fit_score = 100.0
         price_score = (min_price / price) * 100
         reliability_score = (count / max_count) * 100
-        route_score = None
+        route_score = 0.0
         if route["status"] == "success":
             distance_component = (min_route_distance / max(route["distance_m"], 1)) * 100
             duration_component = (min_route_duration / max(route["duration_sec"], 1)) * 100
@@ -841,21 +952,17 @@ def alternative_suppliers(request, material_id: int):
         weighted_score = (
             material_fit_score * 0.45
             + reliability_score * 0.30
+            + route_score * 0.15
             + price_score * 0.10
         )
-        known_weight = 0.85
-        if route_score is not None:
-            weighted_score += route_score * 0.15
-            known_weight += 0.15
-
-        base_total_score = round(weighted_score / known_weight, 2)
+        base_total_score = round(weighted_score, 2)
         category_experience_score = c["category_experience_score"]
         c["total_score"] = round(min(100.0, base_total_score + category_experience_score), 2)
         c["scores"] = {
             "material_fit_score": round(material_fit_score),
             "price_score": round(price_score),
-            "distance_score": round(route_score) if route_score is not None else None,
-            "route_score": round(route_score) if route_score is not None else None,
+            "distance_score": round(route_score),
+            "route_score": round(route_score),
             "reliability_score": round(reliability_score),
             "category_experience_count": c["category_experience_count"],
             "category_experience_score": category_experience_score,
@@ -863,8 +970,37 @@ def alternative_suppliers(request, material_id: int):
             "total": c["total_score"],
         }
 
-    # 점수 내림차순 정렬 → 상위 3개
-    ranked = sorted(candidates, key=lambda x: x["total_score"], reverse=True)[:3]
+    # supplier_id 기준 중복 제거. 같은 공급사의 여러 이력/자재 후보는 최고 점수 1건만 노출한다.
+    best_by_supplier = {}
+    for candidate in candidates:
+        supplier_id = candidate["supplier"].id
+        previous = best_by_supplier.get(supplier_id)
+        if (
+            not previous
+            or (candidate["has_reliable_coordinates"] and not previous["has_reliable_coordinates"])
+            or (
+                candidate["has_reliable_coordinates"] == previous["has_reliable_coordinates"]
+                and candidate.get("has_display_coordinates", False)
+                and not previous.get("has_display_coordinates", False)
+            )
+            or (
+                candidate["has_reliable_coordinates"] == previous["has_reliable_coordinates"]
+                and candidate.get("has_display_coordinates", False) == previous.get("has_display_coordinates", False)
+                and candidate["total_score"] > previous["total_score"]
+            )
+        ):
+            best_by_supplier[supplier_id] = candidate
+
+    # 좌표 신뢰 가능한 공급사를 우선하고, 그 안에서 점수 내림차순 정렬한다.
+    ranked = sorted(
+        best_by_supplier.values(),
+        key=lambda x: (
+            not x["has_reliable_coordinates"],
+            not x.get("has_display_coordinates", False),
+            -x["total_score"],
+            x["route"]["distance_m"] if x["route"]["status"] == "success" else float("inf"),
+        ),
+    )[:10]
 
     # ══════════════════════════════
     # STEP 4: 응답 조립
@@ -908,6 +1044,10 @@ def alternative_suppliers(request, material_id: int):
             "route_duration_sec": c["route"].get("duration_sec"),
             "route_status": c["route"].get("status", "api_error"),
             "route_note": c["route"].get("note", "거리 정보 확인 필요"),
+            "display_latitude": c["display_location"].get("latitude"),
+            "display_longitude": c["display_location"].get("longitude"),
+            "location_basis": c["display_location"].get("basis", "unknown"),
+            "location_label": c["display_location"].get("label", ""),
             "approval_warning": approval_warning,
             "data_source":      c.get("data_source", ""),
         })
@@ -985,13 +1125,19 @@ def price_trend(request, material_id: int):
 # 4. 수요 등록
 # ══════════════════════════════════════════
 
-class DemandCreateView(generics.CreateAPIView):
+class DemandListCreateView(generics.ListCreateAPIView):
     """
     POST /api/v1/demands/
     """
     serializer_class = DemandSerializer
-    queryset = Demand.objects.all()
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Demand.objects.filter(owner=self.request.user)
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        return queryset
 
     def create(self, request, *args, **kwargs):
         if getattr(request.user, "profile", None) and request.user.profile.role != "requester":
@@ -1000,6 +1146,14 @@ class DemandCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+class DemandDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DemandSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Demand.objects.filter(owner=self.request.user)
 
 
 class SupplierMaterialRegistrationListCreateView(generics.ListCreateAPIView):
@@ -1011,7 +1165,7 @@ class SupplierMaterialRegistrationListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return self.request.user.supplier_material_registrations.all()
+        return self.request.user.supplier_material_registrations.select_related("owner", "owner__profile").all()
 
     def create(self, request, *args, **kwargs):
         if getattr(request.user, "profile", None) and request.user.profile.role != "supplier":
@@ -1038,7 +1192,51 @@ class PublicSupplierMaterialRegistrationListView(generics.ListAPIView):
     수정/관리는 등록 공급사 본인만 가능하지만, 문의 후보로는 전체 공개한다.
     """
     serializer_class = SupplierMaterialRegistrationSerializer
-    queryset = SupplierMaterialRegistration.objects.select_related("owner").all()
+    queryset = SupplierMaterialRegistration.objects.select_related("owner", "owner__profile").all()
+
+
+class SupplierMapListView(generics.ListAPIView):
+    """
+    GET /api/v1/suppliers/map/
+    추천 목록과 분리된 지도 전용 전국 공급사 목록.
+    scope=current|all|material, material=<자재명>
+    """
+    serializer_class = SupplierMapSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        scope = self.request.query_params.get("scope", "current")
+        material = (self.request.query_params.get("material") or "").strip()
+        queryset = Supplier.objects.exclude(
+            latitude__isnull=True,
+        ).exclude(
+            longitude__isnull=True,
+        )
+
+        if scope in {"current", "material"} and material:
+            supplier_ids = SupplyHistory.objects.filter(
+                material__name__icontains=material,
+                supplier__latitude__isnull=False,
+                supplier__longitude__isnull=False,
+            ).values("supplier_id").distinct()
+            queryset = queryset.filter(id__in=Subquery(supplier_ids))
+
+        return queryset.order_by("id")
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        supplier_ids = list(self.get_queryset().values_list("id", flat=True))
+        material_rows = SupplyHistory.objects.filter(
+            supplier_id__in=supplier_ids,
+        ).values("supplier_id", "material__name").distinct().order_by("supplier_id", "material__name")
+        materials_map = defaultdict(list)
+        for row in material_rows:
+            material_name = row.get("material__name")
+            if material_name:
+                materials_map[row["supplier_id"]].append(material_name)
+        context["materials_map"] = dict(materials_map)
+        return context
 
 
 # ══════════════════════════════════════════
@@ -1062,12 +1260,21 @@ def community_public_profile(request, user_id):
     profile = getattr(author, "profile", None)
     role_labels = {"requester": "현장 자재 담당자", "supplier": "공급사 담당자"}
     name = author.first_name or author.username or "PaceFlow 사용자"
+    profile_image = ""
+    image = getattr(profile, "profile_image", None)
+    if image:
+        try:
+            profile_image = request.build_absolute_uri(image.url)
+        except ValueError:
+            profile_image = ""
     return Response({
         "id": author.id,
         "display_name": name,
         "affiliation": getattr(profile, "company_name", ""),
         "role": role_labels.get(getattr(profile, "role", ""), "PaceFlow 사용자"),
         "project_name": "",
+        "profile_image": profile_image,
+        "profileImage": profile_image,
         "avatar_text": (name[:2] or "PF").upper(),
         "community_post_count": author.community_posts.filter(display_mode="profile").count(),
         "received_contact_request_count": author.received_community_contact_requests.filter(
@@ -1141,7 +1348,22 @@ class CommunityCommentListCreateView(generics.ListCreateAPIView):
             if not alias:
                 alphabet = string.ascii_uppercase + string.digits
                 alias = "익명" + "".join(secrets.choice(alphabet) for _ in range(5))
-        serializer.save(post=post, author=self.request.user, anonymous_alias=alias)
+        comment = serializer.save(post=post, author=self.request.user, anonymous_alias=alias)
+        commenter_name = alias if display_mode == "anonymous" else (
+            self.request.user.first_name
+            or getattr(getattr(self.request.user, "profile", None), "company_name", "")
+            or self.request.user.email
+            or "커뮤니티 사용자"
+        )
+        create_notification(
+            recipient=post.author,
+            actor=self.request.user,
+            notification_type="community_comment_created",
+            title="게시글에 새 댓글이 달렸습니다.",
+            message=f"{commenter_name}님이 ‘{post.title}’ 게시글에 댓글을 남겼습니다.",
+            target_path=f"/community/{post.id}",
+            event_key=f"community-comment:{comment.id}",
+        )
 
 
 class CommunityCommentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -1219,7 +1441,8 @@ class SupplierInquiryListCreateView(generics.ListCreateAPIView):
         profile = getattr(user, "profile", None)
         if getattr(profile, "role", None) == "supplier":
             return SupplierInquiry.objects.filter(
-                supplier_user=user
+                supplier_user=user,
+                supplier_deleted_at__isnull=True,
             ).select_related("requester", "requester__profile", "supplier_user", "supplier_user__profile")
         return SupplierInquiry.objects.filter(
             requester=user
@@ -1236,10 +1459,35 @@ class SupplierInquiryListCreateView(generics.ListCreateAPIView):
                 supplier_user = User.objects.get(pk=supplier_user_id)
             except User.DoesNotExist:
                 pass
-        serializer.save(
+        if supplier_user is None:
+            supplier_name = str(self.request.data.get("supplier_name") or "").strip()
+            if supplier_name:
+                User = get_user_model()
+                supplier_user = (
+                    User.objects.filter(profile__role="supplier", profile__company_name__iexact=supplier_name).first()
+                    or User.objects.filter(
+                        supplier_material_registrations__supplier_name__iexact=supplier_name
+                    ).distinct().first()
+                )
+        inquiry = serializer.save(
             requester=user,
             requester_name=serializer.validated_data.get("requester_name") or user.first_name,
             supplier_user=supplier_user,
+        )
+        logger.debug(
+            "Supplier inquiry created id=%s requester=%s supplier=%s",
+            inquiry.id,
+            user.id,
+            getattr(supplier_user, "id", None),
+        )
+        create_notification(
+            recipient=supplier_user,
+            actor=user,
+            notification_type="supplier_inquiry_created",
+            title="새로운 자재 문의가 도착했습니다.",
+            message=build_inquiry_created_message(inquiry),
+            inquiry=inquiry,
+            event_key=f"inquiry-created:{inquiry.id}",
         )
 
 
@@ -1280,7 +1528,25 @@ class SupplierInquiryStatusView(generics.UpdateAPIView):
         next_status = serializer.validated_data.get("status")
         if next_status not in {"pending", "reviewing", "accepted", "rejected"}:
             raise ValidationError({"status": "올바르지 않은 상태입니다."})
-        serializer.save(status_updated_at=timezone.now())
+        inquiry = serializer.save(status_updated_at=timezone.now())
+        logger.debug(
+            "Supplier inquiry status updated id=%s status=%s actor=%s recipient=%s",
+            inquiry.id,
+            inquiry.status,
+            self.request.user.id,
+            inquiry.requester_id,
+        )
+        notification_copy = get_inquiry_status_notification_copy(inquiry.status)
+        if notification_copy:
+            create_notification(
+                recipient=inquiry.requester,
+                actor=self.request.user,
+                notification_type="supplier_inquiry_status_changed",
+                title=notification_copy[0],
+                message=notification_copy[1],
+                inquiry=inquiry,
+                event_key=f"inquiry-status:{inquiry.id}:{inquiry.status}",
+            )
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)
@@ -1290,3 +1556,130 @@ class SupplierInquiryStatusView(generics.UpdateAPIView):
         self.perform_update(serializer)
         full_serializer = SupplierInquirySerializer(instance, context={"request": request})
         return Response(full_serializer.data)
+
+
+class SupplierInquiryDeleteForSupplierView(generics.GenericAPIView):
+    serializer_class = SupplierInquirySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return SupplierInquiry.objects.filter(
+            supplier_user=self.request.user,
+            supplier_deleted_at__isnull=True,
+        ).select_related("requester", "requester__profile", "supplier_user", "supplier_user__profile")
+
+    def patch(self, request, *args, **kwargs):
+        from django.utils import timezone
+
+        inquiry = self.get_object()
+        inquiry.supplier_deleted_at = timezone.now()
+        inquiry.save(update_fields=["supplier_deleted_at", "updated_at"])
+        logger.debug(
+            "Supplier inquiry hidden for supplier inquiry=%s supplier=%s requester=%s",
+            inquiry.id,
+            request.user.id,
+            inquiry.requester_id,
+        )
+        return Response(SupplierInquirySerializer(inquiry, context={"request": request}).data)
+
+
+def build_inquiry_created_message(inquiry):
+    summary = " · ".join(
+        value for value in [inquiry.material_name, inquiry.quantity] if value
+    )
+    return f"{summary} 문의가 도착했습니다." if summary else "요청자가 자재 납품 가능 여부를 문의했습니다."
+
+
+def get_inquiry_status_notification_copy(status_value):
+    messages = {
+        "reviewing": ("공급사가 요청을 확인 중입니다.", "공급사가 문의 내용을 확인하고 있습니다."),
+        "accepted": ("납품 가능 응답이 도착했습니다.", "공급사가 요청 자재에 대해 납품 가능으로 응답했습니다."),
+        "rejected": ("공급사가 요청을 거절했습니다.", "공급사가 해당 요청에 대해 거절로 응답했습니다."),
+    }
+    return messages.get(status_value)
+
+
+def create_notification(
+    *,
+    recipient,
+    actor,
+    notification_type,
+    title,
+    message,
+    inquiry=None,
+    target_path="",
+    event_key="",
+):
+    if not recipient:
+        logger.debug("Notification skipped: missing recipient type=%s inquiry=%s", notification_type, getattr(inquiry, "id", None))
+        return None
+    if actor and recipient.pk == actor.pk:
+        logger.debug("Notification skipped: self notification user=%s type=%s", recipient.pk, notification_type)
+        return None
+
+    notification, created = Notification.objects.get_or_create(
+        recipient=recipient,
+        event_key=event_key or "",
+        defaults={
+            "actor": actor,
+            "type": notification_type,
+            "title": title,
+            "message": message or title,
+            "target_path": target_path or (f"/inquiries/{inquiry.id}" if inquiry else "/inquiries"),
+            "related_inquiry": inquiry,
+            "is_read": False,
+        },
+    )
+    logger.debug(
+        "Notification %s recipient=%s actor=%s type=%s inquiry=%s message=%s",
+        "created" if created else "deduped",
+        recipient.pk,
+        getattr(actor, "pk", None),
+        notification_type,
+        getattr(inquiry, "id", None),
+        message or title,
+    )
+    return notification
+
+
+class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(
+            recipient=self.request.user
+        ).select_related("recipient", "actor", "related_inquiry")
+
+
+class NotificationUnreadCountView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        return Response({"count": count})
+
+
+class NotificationMarkReadView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        notification = generics.get_object_or_404(Notification, pk=pk, recipient=request.user)
+        notification.is_read = True
+        notification.save(update_fields=["is_read"])
+        return Response(NotificationSerializer(notification).data)
+
+
+class NotificationMarkAllReadView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        updated = Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+        return Response({"updated": updated})
+
+
+class NotificationDeleteView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user)

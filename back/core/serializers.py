@@ -8,6 +8,7 @@ from .models import (
     Demand,
     SupplierMaterialRegistration,
     SupplierInquiry,
+    Notification,
     CommunityPost,
     CommunityComment,
     CommunityContactRequest,
@@ -84,6 +85,35 @@ class SupplierSerializer(serializers.ModelSerializer):
         ]
 
 
+class SupplierMapSerializer(serializers.ModelSerializer):
+    supplierName = serializers.CharField(source="name", read_only=True)
+    materials = serializers.SerializerMethodField()
+    materialName = serializers.SerializerMethodField()
+    locationBasis = serializers.SerializerMethodField()
+    location_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Supplier
+        fields = [
+            "id", "name", "supplierName", "address", "phone", "latitude", "longitude",
+            "source", "materials", "materialName", "locationBasis", "location_status",
+        ]
+
+    def get_materials(self, obj):
+        materials_map = self.context.get("materials_map", {})
+        return materials_map.get(obj.id, [])
+
+    def get_materialName(self, obj):
+        materials = self.get_materials(obj)
+        return ", ".join(materials[:3])
+
+    def get_locationBasis(self, obj):
+        return "supplier_address"
+
+    def get_location_status(self, obj):
+        return "verified"
+
+
 # ──────────────────────────────────────────
 # 추천 결과 전용 시리얼라이저
 # ──────────────────────────────────────────
@@ -108,6 +138,10 @@ class RecommendationSerializer(serializers.Serializer):
     route_duration_sec = serializers.IntegerField(allow_null=True, required=False)
     route_status       = serializers.CharField(required=False)
     route_note         = serializers.CharField(required=False)
+    display_latitude   = serializers.FloatField(allow_null=True, required=False)
+    display_longitude  = serializers.FloatField(allow_null=True, required=False)
+    location_basis     = serializers.CharField(required=False)
+    location_label     = serializers.CharField(required=False, allow_blank=True)
     approval_warning   = serializers.CharField(allow_null=True)
     data_source        = serializers.CharField(required=False, allow_blank=True)
 
@@ -145,12 +179,34 @@ class DemandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Demand
         fields = [
-            "id", "site_name", "site_lat", "site_lng",
+            "id", "status", "site_name", "site_lat", "site_lng",
             "owner_email",
             "material", "material_name",
-            "quantity", "deadline", "memo", "created_at",
+            "quantity", "deadline", "memo", "draft_payload", "created_at",
         ]
         read_only_fields = ["id", "created_at", "material_name", "owner_email"]
+
+    def validate(self, attrs):
+        status = attrs.get("status", getattr(self.instance, "status", "submitted"))
+        if status == "draft":
+            return attrs
+
+        merged = {
+            "site_name": getattr(self.instance, "site_name", ""),
+            "site_lat": getattr(self.instance, "site_lat", None),
+            "site_lng": getattr(self.instance, "site_lng", None),
+            "material": getattr(self.instance, "material", None),
+            "quantity": getattr(self.instance, "quantity", None),
+            "deadline": getattr(self.instance, "deadline", None),
+            **attrs,
+        }
+        missing = {}
+        for field in ["site_name", "site_lat", "site_lng", "material", "quantity", "deadline"]:
+            if merged.get(field) in ("", None):
+                missing[field] = "추천 요청 시 필수 항목입니다."
+        if missing:
+            raise serializers.ValidationError(missing)
+        return attrs
 
 
 class SupplierMaterialRegistrationSerializer(serializers.ModelSerializer):
@@ -168,6 +224,14 @@ class SupplierMaterialRegistrationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "owner_email", "owner_user_id", "created_at"]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        profile = getattr(getattr(instance, "owner", None), "profile", None)
+        company_name = getattr(profile, "company_name", "")
+        if company_name:
+            data["supplier_name"] = company_name
+        return data
+
 
 class SupplierInquirySerializer(serializers.ModelSerializer):
     requester_id = serializers.IntegerField(source="requester.id", read_only=True)
@@ -180,14 +244,14 @@ class SupplierInquirySerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierInquiry
         fields = [
-            "id", "status", "created_at", "updated_at", "status_updated_at",
+            "id", "status", "created_at", "updated_at", "status_updated_at", "supplier_deleted_at",
             "material_name", "standard", "quantity", "desired_date", "site_address",
             "requester_name", "contact", "message",
             "requester_id", "requester_email", "requester_company",
             "supplier_user_id", "supplier_email", "supplier_info",
         ]
         read_only_fields = [
-            "id", "created_at", "updated_at",
+            "id", "created_at", "updated_at", "supplier_deleted_at",
             "requester_id", "requester_email", "requester_company",
             "supplier_user_id", "supplier_email", "supplier_info",
         ]
@@ -221,7 +285,39 @@ class SupplierInquiryStatusSerializer(serializers.ModelSerializer):
         fields = ["status"]
 
 
-def community_author_payload(user, anonymous=False, alias=""):
+class NotificationSerializer(serializers.ModelSerializer):
+    recipient_id = serializers.IntegerField(source="recipient.id", read_only=True)
+    actor_id = serializers.IntegerField(source="actor.id", read_only=True)
+    actor_name = serializers.SerializerMethodField()
+    related_inquiry_id = serializers.IntegerField(source="related_inquiry.id", read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id", "recipient_id", "actor_id", "actor_name", "type", "title", "message",
+            "target_path", "related_inquiry_id", "event_key", "is_read", "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_actor_name(self, obj):
+        if not obj.actor:
+            return ""
+        profile = getattr(obj.actor, "profile", None)
+        return obj.actor.first_name or getattr(profile, "company_name", "") or obj.actor.email
+
+
+def profile_image_url(user, request=None):
+    image = getattr(getattr(user, "profile", None), "profile_image", None)
+    if not image:
+        return ""
+    try:
+        url = image.url
+    except ValueError:
+        return ""
+    return request.build_absolute_uri(url) if request else url
+
+
+def community_author_payload(user, anonymous=False, alias="", request=None):
     if anonymous:
         return {
             "display_name": alias or "익명 사용자",
@@ -234,12 +330,15 @@ def community_author_payload(user, anonymous=False, alias=""):
     profile = getattr(user, "profile", None)
     role_labels = {"requester": "현장 자재 담당자", "supplier": "공급사 담당자"}
     name = user.first_name or user.username or "PaceFlow 사용자"
+    image_url = profile_image_url(user, request)
     return {
         "profile_id": user.id,
         "account_role": getattr(profile, "role", ""),
         "display_name": name,
         "role": role_labels.get(getattr(profile, "role", ""), "PaceFlow 사용자"),
         "affiliation": getattr(profile, "company_name", ""),
+        "profile_image": image_url,
+        "profileImage": image_url,
         "avatar_text": (name[:2] or "PF").upper(),
         "is_anonymous": False,
     }
@@ -259,6 +358,7 @@ class CommunityCommentSerializer(serializers.ModelSerializer):
             obj.author,
             anonymous=obj.display_mode == "anonymous",
             alias=obj.anonymous_alias,
+            request=self.context.get("request"),
         )
 
     def get_is_owner(self, obj):
@@ -289,6 +389,7 @@ class CommunityPostSerializer(serializers.ModelSerializer):
             obj.author,
             anonymous=obj.display_mode == "anonymous",
             alias=obj.anonymous_alias,
+            request=self.context.get("request"),
         )
 
     def get_is_owner(self, obj):

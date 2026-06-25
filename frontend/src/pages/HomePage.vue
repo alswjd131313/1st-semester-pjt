@@ -606,7 +606,7 @@ function revealObservedSections() {
 function submitSearch() {
   suggestionsOpen.value = false;
   const query = keyword.value ? { keyword: keyword.value } : {};
-  router.push({ path: "/recommendations", query });
+  router.push({ path: "/materials/request", query });
 }
 
 function showAvailableSuggestions() {

@@ -87,7 +87,7 @@ onMounted(async () => {
   if (!isEditing.value) return;
   try {
     const post = await getCommunityPost(route.params.id);
-    if (!post.is_owner) {
+    if (!isPostOwner(post)) {
       router.replace(`/community/${post.id}`);
       return;
     }
@@ -105,6 +105,17 @@ onMounted(async () => {
     errorMessage.value = "수정할 게시글을 불러오지 못했습니다.";
   }
 });
+
+function isPostOwner(post) {
+  return Boolean(
+    post?.is_owner
+    || (
+      authState.user?.id != null
+      && post?.author?.profile_id != null
+      && Number(authState.user.id) === Number(post.author.profile_id)
+    ),
+  );
+}
 
 async function submitPost() {
   try {

@@ -10,6 +10,30 @@ const REQUEST_STORAGE_KEY = "paceflow_v2_latest_request";
 const SUPPLIER_STORAGE_KEY = "paceflow_v2_supplier_materials";
 const INQUIRY_STORAGE_KEY = "paceflow_v2_supplier_inquiries";
 const DEFAULT_INQUIRY_STATUS = "received";
+const BLOCKED_RECOMMENDATION_SOURCE_KEYS = new Set([
+  "demo_seed",
+  "mvp_seed",
+  "seed",
+  "dummy",
+]);
+const BLOCKED_RECOMMENDATION_KEYWORD_PATTERN = /dummy|test|sample|seed|mvp|시드|더미|테스트|임시|개발용/i;
+const UNRELIABLE_SUPPLIER_ADDRESS_PATTERN =
+  /조달청|지방조달청|서울주택도시개발공사|한국공항공사|건강보험심사평가원|법무부|교육청|지원청|환경청|학교|시청|군청|구청|사업소|관리사업소|맑은물사업소|맑은물사업본부|종합건설본부|본부|센터|관리단|공사|공단|행정복지센터|주민센터/;
+const REFERENCE_LOCATION_COORDINATES = [
+  { pattern: /천안시/, latitude: 36.8151, longitude: 127.1139 },
+  { pattern: /김해시/, latitude: 35.2285, longitude: 128.8894 },
+  { pattern: /장성군/, latitude: 35.3019, longitude: 126.7848 },
+  { pattern: /부산광역시강서구|부산강서구/, latitude: 35.2122, longitude: 128.9806 },
+  { pattern: /서울특별시|서울시/, latitude: 37.5665, longitude: 126.9780 },
+  { pattern: /경기도/, latitude: 37.4138, longitude: 127.5183 },
+  { pattern: /충청남도/, latitude: 36.5184, longitude: 126.8000 },
+  { pattern: /충청북도/, latitude: 36.8000, longitude: 127.7000 },
+  { pattern: /전라남도/, latitude: 34.8161, longitude: 126.4629 },
+  { pattern: /전라북도|전북특별자치도/, latitude: 35.7175, longitude: 127.1530 },
+  { pattern: /경상남도/, latitude: 35.4606, longitude: 128.2132 },
+  { pattern: /경상북도/, latitude: 36.4919, longitude: 128.8889 },
+  { pattern: /강원특별자치도|강원도/, latitude: 37.8228, longitude: 128.1555 },
+];
 const DEFAULT_MATERIAL_SUGGESTIONS = [
   { id: "fallback-rebar", name: "철근", spec: "SD400 D10", material_group: "철근", material_subtype: "이형철근" },
   { id: "fallback-h-beam", name: "H형강", spec: "300x300", material_group: "형강·강재", material_subtype: "H형강" },
@@ -25,6 +49,9 @@ const DEFAULT_MATERIAL_SUGGESTIONS = [
 ];
 
 export async function createMaterialRequest(payload) {
+  assertValidSiteLocation(payload);
+  assertRequiredRecommendationFields(payload);
+
   if (USE_MOCK_API) {
     const request = {
       id: `REQ-${Date.now()}`,
@@ -48,10 +75,67 @@ export async function createMaterialRequest(payload) {
       ? Number(payload.siteLng)
       : null,
   };
-  const { data } = await apiClient.post(buildApiUrl("/api/v1/demands/"), toBackendDemand(request));
+  const { data } = await apiClient.post(buildApiUrl("/api/v1/demands/"), toBackendDemand(request, "submitted"));
   const savedRequest = { ...request, backendDemandId: data.id };
   localStorage.setItem(REQUEST_STORAGE_KEY, JSON.stringify(savedRequest));
+  clearStoredDraft();
   return savedRequest;
+}
+
+export async function saveMaterialRequestDraft(payload) {
+  const draftPayload = normalizeDraftPayload(payload);
+
+  if (USE_MOCK_API) {
+    const draft = {
+      id: payload.draftId || `DRAFT-${Date.now()}`,
+      status: "draft",
+      updatedAt: new Date().toISOString(),
+      ...draftPayload,
+    };
+    localStorage.setItem(getDraftStorageKey(), JSON.stringify(draft));
+    return draft;
+  }
+
+  const body = toBackendDemand(draftPayload, "draft");
+  const draftId = payload.draftId || getStoredDraftId();
+  let response;
+  try {
+    response = draftId
+      ? await apiClient.patch(buildApiUrl(`/api/v1/demands/${draftId}/`), body)
+      : await apiClient.post(buildApiUrl("/api/v1/demands/"), body);
+  } catch (error) {
+    if (!draftId || error?.response?.status !== 404) throw error;
+    response = await apiClient.post(buildApiUrl("/api/v1/demands/"), body);
+  }
+  const { data } = response;
+  localStorage.setItem(getDraftIdStorageKey(), String(data.id));
+  const savedDraft = fromBackendDemandDraft(data);
+  localStorage.setItem(getDraftStorageKey(), JSON.stringify(savedDraft));
+  return savedDraft;
+}
+
+export async function getMaterialRequestDraft() {
+  if (USE_MOCK_API) {
+    try {
+      const saved = localStorage.getItem(getDraftStorageKey());
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const { data } = await apiClient.get(buildApiUrl("/api/v1/demands/"), {
+      params: { status: "draft" },
+    });
+    const results = Array.isArray(data) ? data : data.results || [];
+    const latest = results[0];
+    if (!latest) return null;
+    localStorage.setItem(getDraftIdStorageKey(), String(latest.id));
+    return fromBackendDemandDraft(latest);
+  } catch {
+    return null;
+  }
 }
 
 export async function getLatestMaterialRequest() {
@@ -98,6 +182,9 @@ export async function getMaterialSuggestions(query) {
 }
 
 export async function getRecommendations(requestId, options = {}) {
+  const latestRequest = options.request || await getLatestMaterialRequest();
+  assertValidSiteLocation(latestRequest);
+
   if (USE_MOCK_API) {
     const registeredRecommendations = getStoredSupplierMaterials().map((item, index) =>
       createRecommendationFromSupplier(item, index),
@@ -109,7 +196,6 @@ export async function getRecommendations(requestId, options = {}) {
     ], requestId);
   }
 
-  const latestRequest = options.request || await getLatestMaterialRequest();
   const backendRecommendations = await getBackendAlternativeRecommendations(
     latestRequest,
     requestId,
@@ -117,13 +203,66 @@ export async function getRecommendations(requestId, options = {}) {
   );
   const registeredRecommendations = await getPublicSupplierMaterialRecommendations(requestId, 0);
   const narajangteoRecommendations = await getNarajangteoRecommendationCandidates(options.keyword || "", requestId);
-  return normalizeRecommendationRanking([
+  const actualRecommendations = [
     ...backendRecommendations,
     ...registeredRecommendations,
     ...narajangteoRecommendations,
-    ...recommendationResults,
-    ...additionalRecommendationResults,
-  ], requestId);
+  ];
+
+  if (import.meta.env.DEV && options.useDemoData === true) {
+    actualRecommendations.push(...recommendationResults, ...additionalRecommendationResults);
+  }
+
+  return normalizeRecommendationRanking(actualRecommendations, requestId);
+}
+
+export async function getSupplierMapCandidates(requestId, options = {}) {
+  if (USE_MOCK_API) {
+    return normalizeRecommendationRanking([
+      ...getStoredSupplierMaterials().map((item, index) => createRecommendationFromSupplier(item, index)),
+      ...recommendationResults,
+      ...additionalRecommendationResults,
+    ], requestId);
+  }
+
+  const { data } = await apiClient.get(buildApiUrl("/api/v1/suppliers/map/"), {
+    params: {
+      scope: options.scope || "current",
+      material: options.material || "",
+    },
+  });
+  const results = Array.isArray(data) ? data : data.results || [];
+  return results.map(normalizeMapSupplier);
+}
+
+function normalizeMapSupplier(item) {
+  const materials = Array.isArray(item.materials) ? item.materials.filter(Boolean) : [];
+  return {
+    id: item.id,
+    supplierId: item.id,
+    candidateId: `supplier-map-${item.id}`,
+    supplierName: item.supplierName || item.name || "",
+    materialName: item.materialName || materials.join(", "),
+    materials,
+    standard: materials.length ? `${materials.slice(0, 3).join(", ")} 취급` : "취급 자재 확인 필요",
+    address: item.address || "",
+    contact: item.phone || "",
+    latitude: item.latitude === null || item.latitude === undefined ? null : Number(item.latitude),
+    longitude: item.longitude === null || item.longitude === undefined ? null : Number(item.longitude),
+    locationBasis: item.locationBasis || "supplier_address",
+    locationStatus: item.location_status || "verified",
+    routeStatus: "not_requested",
+    routeNote: "지도 탐색용 공급사",
+    dataSource: "supplier_map",
+    dataSourceLabel: "전국 공급사 DB",
+    isRegisteredSupplier: true,
+    distanceScore: null,
+    priceScore: 0,
+    reliabilityScore: 0,
+    materialFitScore: 0,
+    totalScore: 0,
+    deliveryCount: 0,
+  };
 }
 
 export async function getDrivingRoute({ originLat, originLng, destinationLat, destinationLng }) {
@@ -157,17 +296,103 @@ export async function getDrivingRoute({ originLat, originLng, destinationLat, de
 }
 
 function normalizeRecommendationRanking(items, requestId) {
-  return dedupeRecommendations(items).map((item, index) => ({
+  return dedupeRecommendations(items)
+    .map((item) => {
+      const locationBasis = normalizeRecommendationLocationBasis(item);
+      const fallbackCoordinates = ["contract_agency_estimated", "reference_estimated"].includes(locationBasis)
+        ? getReferenceLocationCoordinates(item.locationLabel || item.address || "")
+        : null;
+      return {
+        ...item,
+        requestId,
+        dataSource: item.dataSource || "unknown",
+        dataSourceLabel: item.dataSourceLabel || "출처 확인 필요",
+        specSourceLabel: item.specSourceLabel || "KS 수동 DB",
+        routeStatus: item.routeStatus || "not_requested",
+        routeNote: item.routeNote || "거리 정보 확인 필요",
+        locationBasis,
+        latitude: hasKoreaCoordinate(item.latitude, item.longitude)
+          ? item.latitude
+          : fallbackCoordinates?.latitude ?? item.latitude,
+        longitude: hasKoreaCoordinate(item.latitude, item.longitude)
+          ? item.longitude
+          : fallbackCoordinates?.longitude ?? item.longitude,
+      };
+    })
+    .filter(isValidRecommendationCandidate)
+    .map((item, index) => ({
       ...item,
       rank: index + 1,
-      requestId,
-      dataSource: item.dataSource || "demo_seed",
-      dataSourceLabel: item.dataSourceLabel || getDemoDataSourceLabel(index),
-      specSourceLabel: item.specSourceLabel || "KS 수동 DB",
-      routeStatus: item.routeStatus || "not_requested",
-      routeNote: item.routeNote || "거리 정보 확인 필요",
-      locationBasis: normalizeRecommendationLocationBasis(item),
     }));
+}
+
+function isValidRecommendationCandidate(item) {
+  if (!item || typeof item !== "object") {
+    return false;
+  }
+
+  if (item.is_demo === true || item.isDemo === true) {
+    return false;
+  }
+
+  if (item.is_verified === false || item.isVerified === false) {
+    return false;
+  }
+
+  const dataSource = String(item.dataSource || item.data_source || item.source || "").trim().toLowerCase();
+  if (BLOCKED_RECOMMENDATION_SOURCE_KEYS.has(dataSource)) {
+    return false;
+  }
+  if (!item.isRegisteredSupplier && dataSource === "unknown") {
+    return false;
+  }
+
+  const searchableText = [
+    dataSource,
+    item.dataSourceLabel,
+    item.specSourceLabel,
+    item.standard,
+    item.reason,
+    item.approvalRiskNote,
+    item.supplierName,
+    item.materialName,
+    ...(Array.isArray(item.reasonItems) ? item.reasonItems : []),
+  ].filter(Boolean).join(" ");
+  if (BLOCKED_RECOMMENDATION_KEYWORD_PATTERN.test(searchableText)) {
+    return false;
+  }
+
+  if (!hasMeaningfulRecommendationText(item.supplierName) || !hasMeaningfulRecommendationText(item.materialName)) {
+    return false;
+  }
+
+  if (!hasValidRecommendationStandard(item)) {
+    return false;
+  }
+
+  return hasValidCandidateLocation(item);
+}
+
+function hasMeaningfulRecommendationText(value) {
+  const text = String(value || "").trim();
+  return Boolean(text) && !/확인 필요|미지정|unknown/i.test(text);
+}
+
+function hasValidRecommendationStandard(item) {
+  const standard = String(item.standard || "").trim();
+  if (!standard || /확인 필요|출처 확인|물성 확인|시드|더미|테스트|임시|개발용/i.test(standard)) {
+    return false;
+  }
+  return true;
+}
+
+function hasValidCandidateLocation(item) {
+  if (hasReliableSupplierLocation(item)) {
+    return true;
+  }
+
+  return [item.address, item.locationLabel, item.serviceArea]
+    .some((value) => hasMeaningfulRecommendationText(value));
 }
 
 function normalizeRecommendationLocationBasis(item) {
@@ -175,15 +400,7 @@ function normalizeRecommendationLocationBasis(item) {
     return item.locationBasis;
   }
 
-  const latitude = Number(item.latitude);
-  const longitude = Number(item.longitude);
-  const hasCoordinates = Number.isFinite(latitude)
-    && Number.isFinite(longitude)
-    && latitude >= 32
-    && latitude <= 39
-    && longitude >= 124
-    && longitude <= 132;
-  if (!hasCoordinates) {
+  if (!hasReliableSupplierLocation(item)) {
     return "unknown";
   }
 
@@ -193,20 +410,20 @@ function normalizeRecommendationLocationBasis(item) {
 }
 
 async function getBackendAlternativeRecommendations(request, requestId, options) {
-  if (
-    !request?.backendMaterialId
-    || !Number.isFinite(Number(request.siteLat))
-    || !Number.isFinite(Number(request.siteLng))
-  ) {
+  if (!request?.backendMaterialId) {
     return [];
   }
+  assertValidSiteLocation(request);
 
   try {
     const { data } = await apiClient.post(
       buildApiUrl(`/api/v1/materials/${request.backendMaterialId}/alternatives/`),
       {
+        site_address: request.siteAddress || "",
         site_lat: Number(request.siteLat),
         site_lng: Number(request.siteLng),
+        site_latitude: Number(request.siteLat),
+        site_longitude: Number(request.siteLng),
         include_international: options.includeInternational !== false,
         radius_km: Number(options.radiusKm || 50),
       },
@@ -215,6 +432,18 @@ async function getBackendAlternativeRecommendations(request, requestId, options)
   } catch {
     return [];
   }
+}
+
+function assertValidSiteLocation(request) {
+  if (!request?.siteAddress || !hasKoreaCoordinate(request.siteLat, request.siteLng)) {
+    throw new Error("현장 주소를 입력해야 거리 기반 추천이 가능합니다.");
+  }
+}
+
+function hasKoreaCoordinate(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;
 }
 
 async function getPublicSupplierMaterialRecommendations(requestId, startIndex = 0) {
@@ -271,8 +500,16 @@ export async function createSupplierInquiry(payload) {
     contact: payload.contact || "",
     message: payload.message || "",
     supplier_user_id: payload.supplierIdentity?.userId || null,
+    supplier_name: payload.supplier?.supplierName || payload.supplierIdentity?.companyName || "",
   };
   const { data } = await apiClient.post(buildApiUrl("/api/v1/inquiries/"), body);
+  if (import.meta.env.DEV) {
+    console.debug("[inquiries] create:success", {
+      inquiryId: data?.id,
+      requesterId: data?.requester_id,
+      supplierUserId: data?.supplier_user_id,
+    });
+  }
   const normalizedInquiry = normalizeBackendInquiry(data);
   const inquiry = {
     ...normalizedInquiry,
@@ -301,11 +538,12 @@ export async function getSupplierInquiries() {
 export function filterInquiriesForUser(inquiries, user) {
   if (!Array.isArray(inquiries) || !user?.role) return [];
   const recipientKeys = getUserRecipientKeys(user);
-  return inquiries.filter((inquiry) => (
-    user.role === "supplier"
+  return inquiries.filter((inquiry) => {
+    if (user.role === "supplier" && inquiry.supplierDeletedAt) return false;
+    return user.role === "supplier"
       ? isInquiryForSupplier(inquiry, user, recipientKeys)
-      : isInquiryForRequester(inquiry, user, recipientKeys)
-  ));
+      : isInquiryForRequester(inquiry, user, recipientKeys);
+  });
 }
 
 function isInquiryForRequester(inquiry, user, recipientKeys) {
@@ -419,6 +657,23 @@ export async function deleteSupplierInquiry(inquiryId) {
   return true;
 }
 
+export async function hideSupplierInquiryForSupplier(inquiryId) {
+  if (USE_MOCK_API) {
+    const normalizedId = String(inquiryId ?? "");
+    const inquiries = getStoredSupplierInquiries();
+    const nextInquiries = inquiries.map((inquiry) =>
+      String(inquiry.id) === normalizedId
+        ? { ...inquiry, supplierDeletedAt: new Date().toISOString() }
+        : inquiry,
+    );
+    localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(nextInquiries));
+    return true;
+  }
+
+  await apiClient.patch(buildApiUrl(`/api/v1/inquiries/${inquiryId}/delete-for-supplier/`));
+  return true;
+}
+
 export async function getNarajangteoContracts(keyword, options = {}) {
   try {
     const endpoint = options.live ? "/api/v1/narajangteo/contracts/" : "/api/v1/narajangteo/cached-contracts/";
@@ -445,7 +700,7 @@ async function getNarajangteoRecommendationCandidates(keyword, requestId) {
       try {
         const contracts = await getNarajangteoContracts(rankingKeyword, {
           rows: keyword ? 20 : 12,
-          includeSeed: true,
+          includeSeed: false,
         });
         return contracts.map((contract) => ({ ...contract, rankingKeyword }));
       } catch {
@@ -465,7 +720,6 @@ async function getNarajangteoRecommendationCandidates(keyword, requestId) {
     const isSeedCandidate = sourceMeta.key === "mvp_seed";
     const deliveryCount = Math.max(1, Number(contract.deliveryCount) || 1);
     const matchConfidence = getNarajangteoMatchConfidence(contract.matchBasis);
-    const hasSupplierDistance = Boolean(contract.supplierDistanceAvailable);
     const latitude = Number(contract.latitude);
     const longitude = Number(contract.longitude);
     const hasCoordinates = contract.latitude !== null
@@ -478,9 +732,19 @@ async function getNarajangteoRecommendationCandidates(keyword, requestId) {
       && latitude <= 39
       && longitude >= 124
       && longitude <= 132;
+    const hasSupplierDistance = Boolean(contract.supplierDistanceAvailable)
+      && (contract.locationBasis || "supplier_address") === "supplier_address"
+      && hasReliableSupplierLocation({
+        latitude,
+        longitude,
+        address: contract.supplierAddress || contract.locationLabel || "",
+      });
+    const hasEstimatedLocation = !hasSupplierDistance
+      && ["contract_agency_estimated", "reference_estimated"].includes(contract.locationBasis)
+      && hasCoordinates;
     const distanceKm = hasSupplierDistance ? Number((4.5 + index * 1.8).toFixed(1)) : null;
     const priceScore = Math.max(72, 92 - index * 2);
-    const distanceScore = hasSupplierDistance ? Math.max(62, Math.round(100 - distanceKm * 3.5)) : 58;
+    const distanceScore = hasSupplierDistance ? Math.max(0, Math.round(100 - distanceKm * 3.5)) : 0;
     const reliabilityScore = isSeedCandidate
       ? Math.min(82, 66 + deliveryCount * 4)
       : Math.min(96, 78 + deliveryCount / 2);
@@ -488,13 +752,18 @@ async function getNarajangteoRecommendationCandidates(keyword, requestId) {
 
     return {
       requestId,
+      supplierId: contract.supplierId || contract.supplier_id || null,
       supplierName: contract.supplierName,
       materialName: contract.productName || contract.rankingKeyword || keyword,
       standard: isSeedCandidate ? "KS 구조화 MVP 시드 기준" : "나라장터 계약 품명 기준",
       price: amount ? `${amount.toLocaleString()}원` : "계약금액 확인 필요",
       distanceKm,
-      distanceLabel: hasSupplierDistance ? `${distanceKm}km` : "공급사 거리 확인 필요",
-      locationBasis: contract.locationBasis || "unknown",
+      distanceLabel: hasSupplierDistance ? `${distanceKm}km` : "거리 확인 불가",
+      locationBasis: hasSupplierDistance
+        ? "supplier_address"
+        : hasEstimatedLocation
+          ? contract.locationBasis
+          : "unknown",
       locationLabel: contract.locationLabel || contract.demandAgency || "",
       deliveryCount,
       priceScore,
@@ -505,6 +774,8 @@ async function getNarajangteoRecommendationCandidates(keyword, requestId) {
       approvalRequired: false,
       dataSource: sourceMeta.key,
       dataSourceLabel: sourceMeta.label,
+      isVerified: contract.is_verified,
+      isDemo: contract.is_demo,
       specSourceLabel: matchConfidence.label,
       reason: isSeedCandidate
         ? "KS 규격 비교를 위한 MVP 시드 후보입니다. 실제 재고와 납품 가능 여부는 문의로 확인해야 합니다."
@@ -523,13 +794,13 @@ async function getNarajangteoRecommendationCandidates(keyword, requestId) {
         price: amount ? `계약금액 ${amount.toLocaleString()}원을 참고했습니다.` : "계약금액 원문 확인이 필요합니다.",
         distance: hasSupplierDistance
           ? "공급사 좌표 기준 거리 점수를 표시합니다."
-          : "공급사 주소가 없어 계약기관 위치만 참고하고 거리 점수는 낮춰 반영했습니다.",
+          : "공급사 주소 미확인으로 거리 계산에서 제외했습니다.",
         reliability: isSeedCandidate
           ? "MVP 시드 이력은 공공 계약 이력보다 보수적인 신뢰도 점수를 적용했습니다."
           : "공공 계약 이력 존재 여부를 신뢰도 점수에 반영했습니다.",
       },
-      latitude: hasCoordinates ? latitude : null,
-      longitude: hasCoordinates ? longitude : null,
+      latitude: (hasSupplierDistance || hasEstimatedLocation) && hasCoordinates ? latitude : null,
+      longitude: (hasSupplierDistance || hasEstimatedLocation) && hasCoordinates ? longitude : null,
       approvalRiskNote: isSeedCandidate
         ? "구조화 시드 후보로 실제 규격서와 공급 조건은 문의 시 확인이 필요합니다."
         : "계약 이력 기반 후보로 세부 규격과 시험성적서는 문의 시 확인이 필요합니다.",
@@ -591,6 +862,14 @@ export async function updateSupplierInquiryStatus(inquiryId, status) {
     buildApiUrl(`/api/v1/inquiries/${inquiryId}/status/`),
     { status },
   );
+  if (import.meta.env.DEV) {
+    console.debug("[inquiries] status:update:success", {
+      inquiryId,
+      status,
+      requesterId: data?.requester_id,
+      supplierUserId: data?.supplier_user_id,
+    });
+  }
   const updatedInquiry = normalizeBackendInquiry(data);
   if (previousInquiry?.status !== status) {
     createRequesterStatusNotification(updatedInquiry, status);
@@ -613,6 +892,7 @@ function normalizeBackendInquiry(raw) {
   return {
     id: String(raw.id),
     status: raw.status,
+    supplierDeletedAt: raw.supplier_deleted_at || "",
     createdAt: raw.created_at,
     statusUpdatedAt: raw.status_updated_at || raw.updated_at || raw.created_at,
     desiredDate: raw.desired_date || "",
@@ -692,8 +972,8 @@ async function findBackendMaterial(payload) {
       const normalizedMaterialName = normalizeMaterialSearchText(payload.materialName);
 
       return (
-        normalizedRequestedText.includes(normalizedGrade) ||
-        normalizedRequestedText.includes(normalizedDiameter) ||
+        (normalizedGrade && normalizedRequestedText.includes(normalizedGrade)) ||
+        (normalizedDiameter && normalizedRequestedText.includes(normalizedDiameter)) ||
         normalizedMaterialText.includes(normalizedMaterialName)
       );
     }) ||
@@ -708,15 +988,20 @@ function normalizeMaterialSearchText(value) {
     .replace(/×/g, "x");
 }
 
-function toBackendDemand(request) {
+function toBackendDemand(request, status = "submitted") {
+  const siteLat = nullableRoundCoordinate(request.siteLat);
+  const siteLng = nullableRoundCoordinate(request.siteLng);
+  const quantity = parseQuantity(request.requiredQuantity);
   return {
+    status,
     site_name: request.siteAddress || "PaceFlow 현장",
-    site_lat: roundCoordinate(request.siteLat),
-    site_lng: roundCoordinate(request.siteLng),
-    material: request.backendMaterialId,
-    quantity: parseQuantity(request.requiredQuantity),
-    deadline: request.requiredDate,
+    site_lat: siteLat,
+    site_lng: siteLng,
+    material: request.backendMaterialId || null,
+    quantity: quantity || null,
+    deadline: request.requiredDate || null,
     memo: request.memo || "",
+    draft_payload: normalizeDraftPayload(request),
   };
 }
 
@@ -724,9 +1009,82 @@ function roundCoordinate(value) {
   return Number(Number(value).toFixed(6));
 }
 
+function nullableRoundCoordinate(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Number(number.toFixed(6)) : null;
+}
+
 function parseQuantity(value) {
   const quantity = Number(String(value).replace(/[^\d.]/g, ""));
-  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : null;
+}
+
+function normalizeDraftPayload(payload = {}) {
+  return {
+    draftId: payload.draftId || null,
+    materialName: payload.materialName || "",
+    category: payload.category || "",
+    standard: payload.standard || "",
+    shape: payload.shape || "",
+    strengthGrade: payload.strengthGrade || "",
+    requiredQuantity: payload.requiredQuantity || "",
+    quantity: payload.quantity || "",
+    unit: payload.unit || "",
+    siteAddress: payload.siteAddress || "",
+    siteZipNo: payload.siteZipNo || "",
+    siteLat: nullableRoundCoordinate(payload.siteLat),
+    siteLng: nullableRoundCoordinate(payload.siteLng),
+    requiredDate: payload.requiredDate || "",
+    isUrgent: Boolean(payload.isUrgent),
+    memo: payload.memo || "",
+    extraGradeNote: payload.extraGradeNote || "",
+    manufacturer: payload.manufacturer || "",
+    extraNote: payload.extraNote || "",
+  };
+}
+
+function fromBackendDemandDraft(raw = {}) {
+  return {
+    id: raw.id,
+    draftId: raw.id,
+    status: raw.status || "draft",
+    ...(raw.draft_payload || {}),
+    siteAddress: raw.draft_payload?.siteAddress || raw.site_name || "",
+    siteLat: raw.draft_payload?.siteLat ?? (raw.site_lat == null ? null : Number(raw.site_lat)),
+    siteLng: raw.draft_payload?.siteLng ?? (raw.site_lng == null ? null : Number(raw.site_lng)),
+    requiredDate: raw.draft_payload?.requiredDate || raw.deadline || "",
+    memo: raw.draft_payload?.memo || raw.memo || "",
+    createdAt: raw.created_at,
+  };
+}
+
+function getDraftStorageKey() {
+  return "paceflow_v2_material_request_draft";
+}
+
+function getDraftIdStorageKey() {
+  return "paceflow_v2_material_request_draft_id";
+}
+
+function getStoredDraftId() {
+  return localStorage.getItem(getDraftIdStorageKey());
+}
+
+function clearStoredDraft() {
+  localStorage.removeItem(getDraftStorageKey());
+  localStorage.removeItem(getDraftIdStorageKey());
+}
+
+function assertRequiredRecommendationFields(payload) {
+  if (!payload?.materialName?.trim()) {
+    throw new Error("추천받을 자재명을 입력해주세요.");
+  }
+  if (!payload?.requiredQuantity || parseQuantity(payload.requiredQuantity) === null) {
+    throw new Error("추천받을 수량을 입력해주세요.");
+  }
+  if (!payload?.requiredDate) {
+    throw new Error("희망 납기일을 입력해주세요.");
+  }
 }
 
 function toFrontendRecommendations(data, requestId) {
@@ -737,6 +1095,14 @@ function toFrontendRecommendations(data, requestId) {
     const scores = normalizeBackendScores(item.scores);
     const approvalRequired = Boolean(item.approval_warning || material?.regulation?.requires_approval);
     const dataSource = getDataSourceMeta(item.data_source, supplier?.source);
+    const responseLocationBasis = item.location_basis || item.locationBasis || "";
+    const hasEstimatedLocation = ["contract_agency_estimated", "reference_estimated"].includes(responseLocationBasis);
+    const hasReliableLocation = hasReliableSupplierLocation({
+      ...supplier,
+      latitude: item.display_latitude ?? supplier?.latitude,
+      longitude: item.display_longitude ?? supplier?.longitude,
+      address: item.location_label || supplier?.address,
+    }) && !["contract_agency_estimated", "reference_estimated"].includes(responseLocationBasis);
     const hardFilterEvidence = buildHardFilterEvidence(original, material, {
       includeInternational: !approvalRequired,
       approvalWarning: item.approval_warning,
@@ -745,6 +1111,7 @@ function toFrontendRecommendations(data, requestId) {
     return {
       rank: item.rank || index + 1,
       requestId,
+      supplierId: supplier?.id ?? item.supplier_id ?? null,
       supplierName: supplier?.name || "공급사 미지정",
       materialName: formatMaterialName(material),
       standard: formatStandard(material),
@@ -762,6 +1129,8 @@ function toFrontendRecommendations(data, requestId) {
       approvalRequired,
       dataSource: dataSource.key,
       dataSourceLabel: dataSource.label,
+      isVerified: item.is_verified ?? material?.is_verified ?? supplier?.is_verified,
+      isDemo: item.is_demo ?? material?.is_demo ?? supplier?.is_demo,
       specSourceLabel: material?.spec?.source || (material?.spec ? "KS 수동 DB" : "물성 확인 필요"),
       reason: approvalRequired
         ? "물성 조건은 충족하지만 감리 승인 확인이 필요한 후보입니다."
@@ -775,7 +1144,7 @@ function toFrontendRecommendations(data, requestId) {
         price: `최신 단가 ${Number(item.latest_unit_price || 0).toLocaleString()}원을 기준으로 산정했습니다.`,
         distance: item.route_status === "success"
           ? `카카오 차량 경로 ${formatRouteDuration(item.route_duration_sec)} · ${formatRouteDistance(item.route_distance_m)}를 반영했습니다.`
-          : item.route_note || "차량 경로가 확인되지 않아 거리 가중치를 제외했습니다.",
+          : item.route_note || "공급사 위치가 확인되지 않아 거리 점수 0점을 반영했습니다.",
         reliability: `납품 이력 ${item.supply_count}회를 신뢰도 점수에 반영했습니다.`,
       },
       approvalChecklist: buildApprovalChecklist(material, approvalRequired, item.approval_warning),
@@ -784,11 +1153,20 @@ function toFrontendRecommendations(data, requestId) {
         "백엔드 물성 필터를 통과한 후보입니다. 최종 납품 가능 여부는 공급사 확인이 필요합니다.",
       contact: supplier?.phone,
       address: supplier?.address,
-      latitude: supplier?.latitude,
-      longitude: supplier?.longitude,
-      locationBasis: supplier?.latitude != null && supplier?.longitude != null
+      latitude: (hasReliableLocation || hasEstimatedLocation)
+        && hasKoreaCoordinate(item.display_latitude ?? supplier?.latitude, item.display_longitude ?? supplier?.longitude)
+        ? Number(item.display_latitude ?? supplier?.latitude)
+        : null,
+      longitude: (hasReliableLocation || hasEstimatedLocation)
+        && hasKoreaCoordinate(item.display_latitude ?? supplier?.latitude, item.display_longitude ?? supplier?.longitude)
+        ? Number(item.display_longitude ?? supplier?.longitude)
+        : null,
+      locationBasis: hasReliableLocation
         ? "supplier_address"
-        : "unknown",
+        : hasEstimatedLocation
+          ? responseLocationBasis
+          : "unknown",
+      locationLabel: item.location_label || supplier?.address || "",
       isRegisteredSupplier: false,
     };
   });
@@ -1234,18 +1612,64 @@ function dedupeRecommendations(items) {
   const seen = new Map();
 
   items.forEach((item) => {
-    const key = [item.supplierName, item.materialName, item.standard]
+    const key = item.supplierId || item.supplier_id
+      ? `supplier:${item.supplierId || item.supplier_id}`
+      : [item.supplierName, item.materialName, item.standard]
       .filter(Boolean)
       .join("|")
       .toLowerCase();
 
     const previous = seen.get(key);
-    if (!previous || Number(item.totalScore || 0) > Number(previous.totalScore || 0)) {
+    const itemLocationPriority = getCandidateLocationPriority(item);
+    const previousLocationPriority = previous ? getCandidateLocationPriority(previous) : -1;
+    if (
+      !previous
+      || itemLocationPriority > previousLocationPriority
+      || (
+        itemLocationPriority === previousLocationPriority
+        && Number(item.totalScore || 0) > Number(previous.totalScore || 0)
+      )
+    ) {
       seen.set(key, item);
     }
   });
 
   return Array.from(seen.values());
+}
+
+function isUnreliableSupplierAddress(address) {
+  const normalized = String(address || "").replace(/\s+/g, "");
+  if (!normalized) return true;
+  if (UNRELIABLE_SUPPLIER_ADDRESS_PATTERN.test(normalized)) return true;
+  return normalized.length <= 8 && !/\d/.test(normalized);
+}
+
+function hasReliableSupplierLocation(item = {}) {
+  return hasKoreaCoordinate(item.latitude, item.longitude)
+    && !isUnreliableSupplierAddress(item.address || item.supplierAddress || item.locationLabel || "");
+}
+
+function hasEstimatedSupplierLocation(item = {}) {
+  return hasKoreaCoordinate(item.latitude, item.longitude)
+    && ["contract_agency_estimated", "reference_estimated"].includes(item.locationBasis);
+}
+
+function getReferenceLocationCoordinates(label) {
+  const normalized = String(label || "").replace(/\s+/g, "");
+  if (!normalized || UNRELIABLE_SUPPLIER_ADDRESS_PATTERN.test(normalized)) {
+    return null;
+  }
+  if (!/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)/.test(normalized)) {
+    return null;
+  }
+  const match = REFERENCE_LOCATION_COORDINATES.find((entry) => entry.pattern.test(normalized));
+  return match ? { latitude: match.latitude, longitude: match.longitude } : null;
+}
+
+function getCandidateLocationPriority(item = {}) {
+  if (hasReliableSupplierLocation(item) && !["contract_agency_estimated", "reference_estimated"].includes(item.locationBasis)) return 2;
+  if (hasEstimatedSupplierLocation(item)) return 1;
+  return 0;
 }
 
 function toBackendSupplierMaterial(payload) {
@@ -1308,10 +1732,11 @@ function toFrontendSupplierMaterial(item) {
 
 
 function createRecommendationFromSupplier(item, index) {
-  const distanceKm = Number(item.distanceKm || 6 + index * 2);
+  const hasReliableLocation = hasReliableSupplierLocation(item);
+  const distanceKm = hasReliableLocation ? Number(item.distanceKm || 6 + index * 2) : null;
   const deliveryCount = Number(item.deliveryCount || 0);
   const priceScore = Math.max(70, 96 - index * 3);
-  const distanceScore = Math.max(65, Math.round(100 - distanceKm * 4));
+  const distanceScore = hasReliableLocation ? Math.max(0, Math.round(100 - distanceKm * 4)) : 0;
   const reliabilityScore = Math.min(98, 70 + deliveryCount);
   const materialFitScore = item.standard?.includes("ASTM") || item.standard?.includes("JIS") ? 78 : 88;
   const totalScore = Math.round(materialFitScore * 0.45 + reliabilityScore * 0.3 + distanceScore * 0.15 + priceScore * 0.1);
@@ -1333,6 +1758,8 @@ function createRecommendationFromSupplier(item, index) {
     approvalRequired: item.standard?.includes("ASTM") || item.standard?.includes("JIS"),
     dataSource: "supplier_registered",
     dataSourceLabel: "공급사 직접 등록",
+    isVerified: item.isVerified ?? item.is_verified,
+    isDemo: item.isDemo ?? item.is_demo,
     specSourceLabel: "물성 서류 확인 필요",
     reason: "공급사가 직접 등록한 취급 자재로, 실제 납품 가능 여부는 문의 확인이 필요합니다.",
     reasonItems: [
@@ -1355,9 +1782,9 @@ function createRecommendationFromSupplier(item, index) {
     ],
     contact: item.contact,
     address: item.address,
-    latitude: item.latitude,
-    longitude: item.longitude,
-    locationBasis: item.latitude != null && item.longitude != null
+    latitude: hasReliableLocation ? item.latitude : null,
+    longitude: hasReliableLocation ? item.longitude : null,
+    locationBasis: hasReliableLocation
       ? "supplier_address"
       : "unknown",
     serviceArea: item.serviceArea,

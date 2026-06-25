@@ -806,12 +806,13 @@ h1 {
 
 .home-page .pace-hero {
   position: relative;
+  z-index: 10;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-  gap: clamp(28px, 5vw, 72px);
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
   align-items: center;
   min-height: 100svh;
-  padding: 128px clamp(24px, 6vw, 92px) 170px;
+  padding: 118px clamp(24px, 4.4vw, 84px) 150px;
   overflow: visible;
   color: #fff;
 }
@@ -840,11 +841,12 @@ h1 {
   position: relative;
   z-index: 1;
   max-width: 1040px;
+  transform: translateY(22px);
 }
 
 .home-page .pace-hero-copy h1 {
   max-width: 980px;
-  margin: 0 0 28px;
+  margin: 0 0 24px;
   color: #fff;
   font-size: clamp(27px, 3.2vw, 40px);
   font-weight: 600;
@@ -860,7 +862,7 @@ h1 {
 
 .home-page .pace-hero-copy .hero-description {
   max-width: 850px;
-  margin-bottom: 32px;
+  margin-bottom: 28px;
   color: rgba(255, 255, 255, 0.86);
   font-size: clamp(15px, 2vw, 20px);
   line-height: 1.65;
@@ -885,16 +887,16 @@ h1 {
 
 .home-page .hero-search-dock {
   position: absolute;
-  right: clamp(18px, 5vw, 64px);
-  bottom: clamp(24px, 4vw, 48px);
-  left: clamp(18px, 5vw, 64px);
-  z-index: 2;
+  right: clamp(56px, 4.4vw, 72px);
+  bottom: clamp(28px, 3.2vw, 40px);
+  left: clamp(56px, 4.4vw, 72px);
+  z-index: 40;
   display: flex;
   flex-direction: column;
   gap: 14px;
   border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 22px;
-  padding: 22px 24px 18px;
+  border-radius: 24px;
+  padding: 20px 24px 18px;
   color: #102a56;
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 26px 70px rgba(0, 0, 0, 0.28);
@@ -902,7 +904,7 @@ h1 {
 
 .home-page > .home-standard-evidence.standard-evidence-panel {
   position: relative;
-  z-index: 1;
+  z-index: 0;
   isolation: isolate;
   box-sizing: border-box;
   width: min(calc(100% - clamp(40px, 10vw, 144px)), 1240px);
@@ -910,17 +912,19 @@ h1 {
 }
 
 .home-page .hero-search-dock .search-field {
+  position: relative;
   display: grid;
-  gap: 11px;
+  gap: 10px;
 }
 
 .home-page .hero-search-dock .search-field > label {
   color: #102a56;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 1000;
 }
 
 .home-page .hero-search-dock .search-control-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 12px;
@@ -934,7 +938,7 @@ h1 {
 
 .home-page .hero-search-dock input {
   width: 100%;
-  min-height: 58px;
+  min-height: 52px;
   border: 1px solid #dde7f7;
   border-radius: 12px;
   padding: 0 18px;
@@ -979,9 +983,9 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 48px;
+  height: 52px;
   border-radius: 12px;
-  padding: 0 22px;
+  padding: 0 20px;
   font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
@@ -1086,9 +1090,9 @@ h1 {
   top: calc(100% + 8px);
   right: 0;
   left: 0;
-  z-index: 30;
+  z-index: 1000;
   overflow-y: auto;
-  max-height: min(460px, calc(100vh - 180px));
+  max-height: min(360px, calc(100svh - 180px));
   border: 1px solid #c8d8f2;
   border-radius: 16px;
   background: #fff;
@@ -1159,6 +1163,10 @@ h1 {
 }
 
 @media (max-width: 620px) {
+  .home-page .hero-search-dock .material-suggestion-dropdown {
+    max-height: min(300px, calc(100svh - 160px));
+  }
+
   .home-page .hero-search-dock .material-suggestion-dropdown > button {
     grid-template-columns: minmax(0, 1fr);
     gap: 5px;

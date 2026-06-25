@@ -26,6 +26,7 @@
     </div>
 
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+    <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
 
     <form class="mrf" @submit.prevent="submitRequest">
 
@@ -44,31 +45,45 @@
               <input v-model="form.materialName" type="text" placeholder="예: 철근" required />
             </label>
             <label class="mrf-label">
-              KS 규격 <span class="req">*</span>
-              <select v-model="form.standard" required>
-                <option value="" disabled>선택하세요</option>
-                <option v-for="s in KS_STANDARDS" :key="s.value" :value="s.value">{{ s.label }}</option>
+              KS 규격
+              <select v-model="form.standard">
+                <option value="">선택 안함</option>
+                <option v-for="s in currentMaterialOptions.ksStandards" :key="s.value" :value="s.value">{{ s.label }}</option>
               </select>
             </label>
           </div>
 
           <div class="mrf-row-3">
             <label class="mrf-label">
-              강도 등급 <span class="req">*</span>
-              <select v-model="form.strengthGrade" required>
-                <option value="" disabled>선택하세요</option>
-                <option v-for="g in STRENGTH_GRADES" :key="g" :value="g">{{ g }}</option>
+              강도 등급
+              <select v-model="form.strengthGrade">
+                <option value="">선택 안함</option>
+                <option v-for="g in currentMaterialOptions.strengthGrades" :key="g" :value="g">{{ g }}</option>
               </select>
             </label>
             <label class="mrf-label">
-              직경 / 사이즈 <span class="req">*</span>
-              <input v-model="form.size" type="text" placeholder="예: D10" required />
+              직경 / 사이즈
+              <input
+                v-model.trim="form.size"
+                type="text"
+                :list="sizeDatalistId"
+                :placeholder="currentMaterialOptions.sizePlaceholder"
+              />
+              <datalist :id="sizeDatalistId">
+                <option v-for="size in currentMaterialOptions.sizes" :key="size" :value="size" />
+              </datalist>
             </label>
             <label class="mrf-label">
               형태
-              <input v-model="form.shape" type="text" placeholder="예: H형강, 앵글 등 (선택)" />
+              <select v-model="form.shape">
+                <option value="">선택 안함</option>
+                <option v-for="shape in currentMaterialOptions.shapes" :key="shape" :value="shape">{{ shape }}</option>
+              </select>
             </label>
           </div>
+          <p class="material-option-help">
+            규격을 모르는 경우 선택 안함으로 두면 더 넓은 후보군을 추천받을 수 있습니다. 정확한 규격을 입력할수록 추천 정확도가 높아집니다.
+          </p>
 
           <!-- 추가 조건 -->
           <div class="mrf-extra">
@@ -116,7 +131,7 @@
       </div>
 
       <!-- 2. 현장 정보 -->
-      <div class="mrf-section">
+      <div class="mrf-section" ref="siteSectionRef">
         <div class="mrf-section-header">
           <span class="step-num">2</span>
           <strong>현장 정보</strong>
@@ -204,17 +219,17 @@
 
       <!-- 액션 바 -->
       <div class="form-actions">
-        <button type="button" class="btn-save-draft">
+        <button type="button" class="btn-save-draft" :disabled="isDraftSaving" @click="saveDraft">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/>
             <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          임시 저장
+          {{ isDraftSaving ? '저장 중…' : '임시 저장' }}
         </button>
         <div class="form-actions-right">
           <RouterLink class="btn-cancel" to="/">취소</RouterLink>
           <button type="submit" class="btn-submit" :disabled="isSubmitting">
-            {{ isSubmitting ? '저장 중…' : '공급사 추천 받기 →' }}
+            {{ isSubmitting ? '추천 준비 중…' : '공급사 추천 받기 →' }}
           </button>
         </div>
       </div>
@@ -231,23 +246,85 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { createMaterialRequest } from '../api/materialApi'
+import { authState } from '../api/authApi'
+import { createMaterialRequest, getMaterialRequestDraft, saveMaterialRequestDraft } from '../api/materialApi'
 import { categories } from '../data/dummyData'
 import AddressSearchField from '../components/AddressSearchField.vue'
 
-const KS_STANDARDS = [
-  { value: 'KS D 3504', label: 'KS D 3504 — 철근 콘크리트용 봉강' },
-  { value: 'KS D 3503', label: 'KS D 3503 — 일반구조용 압연강재' },
-  { value: 'KS D 3502', label: 'KS D 3502 — 열간 압연 형강' },
-  { value: 'KS D 3566', label: 'KS D 3566 — 일반구조용 탄소강관' },
-  { value: 'KS D 3568', label: 'KS D 3568 — 일반구조용 각형강관' },
-  { value: 'KS F 2563', label: 'KS F 2563 — 포틀랜드 시멘트' },
-  { value: 'KS F 2561', label: 'KS F 2561 — 고로슬래그 시멘트' },
-]
-
-const STRENGTH_GRADES = ['SD300', 'SD400', 'SD500', 'SD600', 'SM275', 'SM355', 'SM420', 'SS275', 'SS355']
+const MATERIAL_OPTION_MAP = {
+  rebar: {
+    labels: ['철근', '이형철근', '원형철근'],
+    category: '철근',
+    ksStandards: [
+      { value: 'KS D 3504', label: 'KS D 3504 — 철근 콘크리트용 봉강' },
+    ],
+    strengthGrades: ['SD300', 'SD400', 'SD500', 'SD600'],
+    shapes: ['이형철근', '원형철근'],
+    sizes: ['D10', 'D13', 'D16', 'D19', 'D22', 'D25'],
+    sizePlaceholder: '선택 안함 또는 예: D13',
+  },
+  hbeam: {
+    labels: ['H빔', 'H형강', '형강', '강재', '철강빔'],
+    category: '형강·강재',
+    ksStandards: [
+      { value: 'KS D 3503', label: 'KS D 3503 — 일반구조용 압연강재' },
+      { value: 'KS D 3502', label: 'KS D 3502 — 열간 압연 형강' },
+    ],
+    strengthGrades: ['SS275', 'SS355', 'SM275', 'SM355', 'SM420'],
+    shapes: ['H형강', '형강', '강재'],
+    sizes: ['H-100x100', 'H-150x150', 'H-200x200', 'H-300x300'],
+    sizePlaceholder: '선택 안함 또는 예: H-200x200',
+  },
+  cement: {
+    labels: ['시멘트', '포틀랜드 시멘트', '고로슬래그 시멘트', '벌크시멘트'],
+    category: '시멘트',
+    ksStandards: [
+      { value: 'KS L 5201', label: 'KS L 5201 — 포틀랜드 시멘트' },
+      { value: 'KS L 5210', label: 'KS L 5210 — 고로슬래그 시멘트' },
+    ],
+    strengthGrades: [],
+    shapes: ['포틀랜드 시멘트', '벌크시멘트', '1종 시멘트', '고로슬래그 시멘트'],
+    sizes: ['40kg 포대', '벌크'],
+    sizePlaceholder: '선택 안함 또는 예: 40kg 포대',
+  },
+  insulation: {
+    labels: ['단열재', '글라스울', 'EPS', 'XPS', '보온판', '발포폴리스티렌'],
+    category: '단열재',
+    ksStandards: [
+      { value: 'KS M 3880', label: 'KS M 3880 — 단열재 관련 규격' },
+      { value: 'KS M 3871', label: 'KS M 3871 — 발포 플라스틱 보온재' },
+      { value: 'KS M ISO 4898', label: 'KS M ISO 4898 — 발포 플라스틱 단열재' },
+    ],
+    strengthGrades: [],
+    shapes: ['EPS', 'XPS', '글라스울', '발포폴리스티렌단열재', '압출법보온판', '비드법보온판'],
+    sizes: ['50T', '75T', '100T'],
+    sizePlaceholder: '선택 안함 또는 예: 100T',
+  },
+  conduit: {
+    labels: ['전선관', '가요 전선관', '합성수지제 전선관', 'CD관', 'PF관'],
+    category: '전기 배관재',
+    ksStandards: [
+      { value: 'KS C 8401', label: 'KS C 8401 — 강제 전선관' },
+      { value: 'KS C 8431', label: 'KS C 8431 — 경질 폴리염화비닐 전선관' },
+      { value: 'KS C 8454', label: 'KS C 8454 — 합성수지제 가요 전선관' },
+    ],
+    strengthGrades: [],
+    shapes: ['전선관', '가요 전선관', '합성수지제 전선관', 'CD관', 'PF관'],
+    sizes: ['16F', '22F', '28F', '36F'],
+    sizePlaceholder: '선택 안함 또는 예: 22F',
+  },
+  generic: {
+    labels: [],
+    category: '',
+    ksStandards: [],
+    strengthGrades: [],
+    shapes: [],
+    sizes: [],
+    sizePlaceholder: '선택 안함 또는 직접 입력',
+  },
+}
 const UNITS = ['kg', 'ton', '개', 'm', 'm²', 'm³', 'bag']
 
 const steps = [
@@ -261,11 +338,15 @@ const route = useRoute()
 const router = useRouter()
 const keyword = String(route.query.keyword || '')
 const isSubmitting = ref(false)
+const isDraftSaving = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
 const expandedInfo = ref(false)
+const siteSectionRef = ref(null)
+const sizeDatalistId = 'material-size-options'
 
 const stepDone = computed(() => [
-  !!(form.materialName && form.standard && form.strengthGrade && form.size),
+  !!form.materialName,
   !!(form.siteAddress && Number.isFinite(form.siteLat) && Number.isFinite(form.siteLng)),
   !!(form.requiredDate && form.quantity),
   !!form.memo,
@@ -280,9 +361,10 @@ function stepStatus(i) {
 
 const form = reactive({
   materialName: parseMaterialName(keyword),
+  draftId: null,
   category: parseCategory(keyword),
-  standard: keyword.includes('SD') ? 'KS D 3504' : '',
-  strengthGrade: keyword.includes('SD') ? extractGrade(keyword) : '',
+  standard: '',
+  strengthGrade: '',
   size: extractSize(keyword),
   shape: '',
   quantity: '',
@@ -299,12 +381,100 @@ const form = reactive({
   extraNote: '',
 })
 
+const currentMaterialKey = computed(() => getMaterialOptionKey(form.materialName))
+const currentMaterialOptions = computed(() => MATERIAL_OPTION_MAP[currentMaterialKey.value] || MATERIAL_OPTION_MAP.generic)
+
+applyKeywordOptions(keyword)
+applyDefaultSiteFromProfile()
+onMounted(loadDraft)
+
+watch(currentMaterialKey, (next, previous) => {
+  if (next === previous) return
+  resetMaterialSpecificOptions()
+  form.category = currentMaterialOptions.value.category || parseCategory(form.materialName)
+})
+
 async function submitRequest() {
-  if (!Number.isFinite(form.siteLat) || !Number.isFinite(form.siteLng)) {
-    errorMessage.value = '주소 검색 결과에서 현장 주소를 선택해 주세요.'
+  const validationMessage = validateForRecommendation()
+  if (validationMessage) {
+    errorMessage.value = validationMessage
+    successMessage.value = ''
+    if (validationMessage.includes('현장')) scrollToSiteSection()
     return
   }
 
+  try {
+    isSubmitting.value = true
+    errorMessage.value = ''
+    successMessage.value = ''
+    const saved = await createMaterialRequest(buildRequestPayload())
+    router.push({
+      name: 'recommendation',
+      query: {
+        requestId: saved.backendDemandId || saved.id,
+        keyword: form.materialName,
+      },
+    })
+  } catch (error) {
+    errorMessage.value =
+      getApiErrorMessage(error) ||
+      error.message ||
+      '자재 요청을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.'
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+async function saveDraft() {
+  try {
+    isDraftSaving.value = true
+    errorMessage.value = ''
+    successMessage.value = ''
+    const draft = await saveMaterialRequestDraft(buildRequestPayload())
+    form.draftId = draft.draftId || draft.id || form.draftId
+    successMessage.value = '임시 저장되었습니다.'
+  } catch (error) {
+    errorMessage.value =
+      getApiErrorMessage(error) ||
+      error.message ||
+      '임시 저장에 실패했습니다. 잠시 후 다시 시도해주세요.'
+  } finally {
+    isDraftSaving.value = false
+  }
+}
+
+async function loadDraft() {
+  const draft = await getMaterialRequestDraft()
+  if (draft) applyDraftToForm(draft)
+}
+
+function validateForRecommendation() {
+  if (!form.siteAddress?.trim()) {
+    return '현장 주소를 입력해야 거리 기반 추천이 가능합니다. 주소 검색으로 현장 주소를 선택해 주세요.'
+  }
+  if (!Number.isFinite(form.siteLat) || !Number.isFinite(form.siteLng)) {
+    return '현장 주소의 위도/경도가 없어 거리 계산을 할 수 없습니다. 주소 검색 결과에서 현장 주소를 다시 선택해 주세요.'
+  }
+  if (!form.materialName?.trim()) {
+    return '추천받을 자재명을 입력해주세요.'
+  }
+  const combinationMessage = validateMaterialOptionCombination()
+  if (combinationMessage) {
+    return combinationMessage
+  }
+  if (!form.quantity || Number(form.quantity) <= 0) {
+    return '추천받을 수량을 입력해주세요.'
+  }
+  if (!form.unit) {
+    return '수량 단위를 선택해주세요.'
+  }
+  if (!form.requiredDate) {
+    return '희망 납기일을 입력해주세요.'
+  }
+  return ''
+}
+
+function buildRequestPayload() {
   const extraParts = [
     form.extraGradeNote && `재질/등급: ${form.extraGradeNote}`,
     form.manufacturer && `제조사: ${form.manufacturer}`,
@@ -312,11 +482,13 @@ async function submitRequest() {
     form.memo,
   ].filter(Boolean)
 
-  const payload = {
+  return {
+    draftId: form.draftId,
     materialName: form.materialName,
     category: form.category,
     standard: form.standard,
-    strengthGrade: [form.strengthGrade, form.size].filter(Boolean).join(' / '),
+    shape: form.shape,
+    strengthGrade: [form.strengthGrade, form.shape, form.size].filter(Boolean).join(' / '),
     requiredQuantity: `${form.quantity}${form.unit}`,
     siteAddress: form.siteAddress,
     siteZipNo: form.siteZipNo,
@@ -325,31 +497,134 @@ async function submitRequest() {
     requiredDate: form.requiredDate,
     isUrgent: form.isUrgent,
     memo: extraParts.join('\n'),
+    extraGradeNote: form.extraGradeNote,
+    manufacturer: form.manufacturer,
+    extraNote: form.extraNote,
   }
+}
 
-  try {
-    isSubmitting.value = true
-    errorMessage.value = ''
-    await createMaterialRequest(payload)
-    router.push('/inquiries')
-  } catch (error) {
-    errorMessage.value =
-      getApiErrorMessage(error) ||
-      '자재 요청을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.'
-  } finally {
-    isSubmitting.value = false
-  }
+function applyDraftToForm(draft) {
+  form.draftId = draft.draftId || draft.id || null
+  form.materialName = draft.materialName || form.materialName
+  form.category = draft.category || currentMaterialOptions.value.category || form.category
+  form.standard = isAllowedOptionValue(draft.standard, currentMaterialOptions.value.ksStandards.map((item) => item.value))
+    ? draft.standard
+    : ''
+  const parsedStrength = splitStrengthGrade(draft.strengthGrade || '')
+  const parsedShape = draft.shape || parsedStrength.shape || ''
+  form.strengthGrade = isAllowedOptionValue(parsedStrength.grade, currentMaterialOptions.value.strengthGrades)
+    ? parsedStrength.grade
+    : ''
+  form.shape = isAllowedOptionValue(parsedShape, currentMaterialOptions.value.shapes)
+    ? parsedShape
+    : ''
+  form.size = parsedStrength.size || form.size
+  form.quantity = draft.quantity || parseQuantityValue(draft.requiredQuantity) || form.quantity
+  form.unit = draft.unit || parseQuantityUnit(draft.requiredQuantity) || form.unit
+  form.siteAddress = draft.siteAddress || form.siteAddress
+  form.siteZipNo = draft.siteZipNo || form.siteZipNo
+  form.siteLat = draft.siteLat ?? form.siteLat
+  form.siteLng = draft.siteLng ?? form.siteLng
+  form.requiredDate = draft.requiredDate || form.requiredDate
+  form.isUrgent = Boolean(draft.isUrgent)
+  form.memo = draft.memo || form.memo
+  form.extraGradeNote = draft.extraGradeNote || form.extraGradeNote
+  form.manufacturer = draft.manufacturer || form.manufacturer
+  form.extraNote = draft.extraNote || form.extraNote
 }
 
 function applySiteAddress(address) {
-  form.siteAddress = address.roadAddress
-  form.siteZipNo = address.zipNo
+  form.siteAddress = address.roadAddress || address.fullRoadAddress || address.address || ''
+  form.siteZipNo = address.zipNo || ''
   form.siteLat = roundCoordinate(address.latitude)
   form.siteLng = roundCoordinate(address.longitude)
+  if (!hasKoreaCoordinate(form.siteLat, form.siteLng)) {
+    form.siteLat = null
+    form.siteLng = null
+    errorMessage.value = '선택한 주소의 좌표를 확인할 수 없습니다. 다른 주소를 선택해 주세요.'
+  } else {
+    errorMessage.value = ''
+  }
+}
+
+function applyDefaultSiteFromProfile() {
+  const user = authState.user
+  if (!user || user.role !== 'requester') return
+  if (!user.defaultSiteAddress || !hasKoreaCoordinate(user.defaultSiteLatitude, user.defaultSiteLongitude)) return
+
+  form.siteAddress = [user.defaultSiteAddress, user.defaultSiteDetailAddress].filter(Boolean).join(' ')
+  form.siteZipNo = user.defaultSiteZipNo || ''
+  form.siteLat = roundCoordinate(user.defaultSiteLatitude)
+  form.siteLng = roundCoordinate(user.defaultSiteLongitude)
+}
+
+function getMaterialOptionKey(materialName) {
+  const normalized = String(materialName || '').replace(/\s+/g, '').toLowerCase()
+  if (!normalized) return 'generic'
+  const matched = Object.entries(MATERIAL_OPTION_MAP).find(([key, option]) =>
+    key !== 'generic' && option.labels.some((label) =>
+      normalized.includes(String(label).replace(/\s+/g, '').toLowerCase()),
+    ),
+  )
+  return matched?.[0] || 'generic'
+}
+
+function resetMaterialSpecificOptions() {
+  form.standard = ''
+  form.strengthGrade = ''
+  form.shape = ''
+  form.size = ''
+  errorMessage.value = ''
+  successMessage.value = ''
+}
+
+function validateMaterialOptionCombination() {
+  const options = currentMaterialOptions.value
+  if (currentMaterialKey.value === 'generic') return ''
+
+  if (form.standard && !isAllowedOptionValue(form.standard, options.ksStandards.map((item) => item.value))) {
+    return `${form.materialName}에는 선택한 KS 규격이 맞지 않습니다. 자재명에 맞는 규격을 선택하거나 선택 안함으로 두세요.`
+  }
+  if (form.strengthGrade && !isAllowedOptionValue(form.strengthGrade, options.strengthGrades)) {
+    return `${form.materialName}에는 선택한 강도 등급이 맞지 않습니다. 자재명에 맞는 등급을 선택하거나 선택 안함으로 두세요.`
+  }
+  if (form.shape && !isAllowedOptionValue(form.shape, options.shapes)) {
+    return `${form.materialName}에는 선택한 형태가 맞지 않습니다. 자재명에 맞는 형태를 선택하거나 선택 안함으로 두세요.`
+  }
+  return ''
+}
+
+function isAllowedOptionValue(value, allowedValues = []) {
+  if (!value) return true
+  return allowedValues.includes(value)
+}
+
+function applyKeywordOptions(value) {
+  const materialKey = getMaterialOptionKey(value)
+  const options = MATERIAL_OPTION_MAP[materialKey] || MATERIAL_OPTION_MAP.generic
+  form.category = options.category || parseCategory(value)
+  const grade = extractGrade(value)
+  if (isAllowedOptionValue(grade, options.strengthGrades)) {
+    form.strengthGrade = grade
+  }
+  const size = extractSize(value)
+  if (size) form.size = size
+  if (materialKey === 'rebar' && grade) form.standard = 'KS D 3504'
+}
+
+function scrollToSiteSection() {
+  siteSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 function roundCoordinate(value) {
-  return Number(Number(value).toFixed(6))
+  const number = Number(value)
+  return Number.isFinite(number) ? Number(number.toFixed(6)) : null
+}
+
+function hasKoreaCoordinate(latitude, longitude) {
+  const lat = Number(latitude)
+  const lng = Number(longitude)
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132
 }
 
 function getApiErrorMessage(error) {
@@ -360,7 +635,17 @@ function getApiErrorMessage(error) {
 }
 
 function parseMaterialName(value) {
-  return value ? value.split(' ')[0] || '' : ''
+  const text = String(value || '').trim()
+  if (!text) return ''
+  const normalized = text.replace(/\s+/g, '').toLowerCase()
+  const labels = Object.values(MATERIAL_OPTION_MAP)
+    .flatMap((option) => option.labels)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+  const matched = labels.find((label) =>
+    normalized.includes(String(label).replace(/\s+/g, '').toLowerCase()),
+  )
+  return matched || text.split(' ')[0] || ''
 }
 
 function extractGrade(value) {
@@ -375,6 +660,25 @@ function extractSize(value) {
 
 function parseCategory(value) {
   return categories.find((c) => value.includes(c.name))?.name || ''
+}
+
+function splitStrengthGrade(value) {
+  const parts = String(value || '').split('/').map((part) => part.trim()).filter(Boolean)
+  const options = currentMaterialOptions.value
+  const grade = parts.find((part) => options.strengthGrades.includes(part)) || ''
+  const shape = parts.find((part) => options.shapes.includes(part)) || ''
+  const size = parts.find((part) => part !== grade && part !== shape) || ''
+  return { grade, shape, size }
+}
+
+function parseQuantityValue(value) {
+  const match = String(value || '').match(/\d+(?:\.\d+)?/)
+  return match ? match[0] : ''
+}
+
+function parseQuantityUnit(value) {
+  const unit = String(value || '').replace(/\d+(?:\.\d+)?/g, '').trim()
+  return unit || ''
 }
 </script>
 
@@ -410,6 +714,29 @@ function parseCategory(value) {
   font-weight: 600;
   color: #4b6380;
   background: #fff;
+}
+
+.success-message {
+  margin: 0 0 16px;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #047857;
+  background: #ecfdf5;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.material-option-help {
+  margin: 10px 0 0;
+  border: 1px solid #dbe8ff;
+  border-radius: 12px;
+  padding: 11px 13px;
+  color: #4b6380;
+  background: #f6f9ff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
 }
 
 /* ── 스텝 인디케이터 ── */

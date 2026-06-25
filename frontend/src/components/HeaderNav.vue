@@ -1,5 +1,5 @@
 <template>
-  <header class="header-nav">
+  <header :class="['header-nav', { 'home-header': isHomeRoute }]">
     <RouterLink class="brand" to="/">
       <img class="brand-logo" src="/logo.png" alt="PaceFlow" />
       <span>
@@ -67,16 +67,18 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { authState, logoutUser } from "../api/authApi";
+import { authState, getProfileImageUrl, logoutUser } from "../api/authApi";
 import NotificationBell from "./NotificationBell.vue";
 
 const router = useRouter();
 const route = useRoute();
 const isSupplier = computed(() => authState.user?.role === "supplier");
+const isHomeRoute = computed(() => route.name === "home");
 const inquiryRouteNames = ["inquiries", "inquiry-detail", "inquiry-edit"];
 const myPageRouteNames = computed(() => [
   "mypage",
   "supplier-mypage",
+  "supplier-materials",
   "supplier-profile",
   ...(!isSupplier.value ? inquiryRouteNames : []),
 ]);
@@ -84,9 +86,9 @@ const navItems = computed(() => [
   ...(isSupplier.value
     ? [
         {
-          name: "supplier-profile",
-          label: "프로필 관리",
-          activeRoutes: ["supplier-profile"],
+          name: "supplier-materials",
+          label: "자재 관리",
+          activeRoutes: ["supplier-materials", "supplier-profile"],
         },
         {
           name: "inquiries",
@@ -122,7 +124,7 @@ const displayName = computed(() =>
   authState.user?.name || authState.user?.companyName || ""
 );
 
-const profileImage = computed(() => localStorage.getItem("paceflow_profile_img") || null);
+const profileImage = computed(() => getProfileImageUrl(authState.user) || null);
 
 watch(showDropdown, (val) => {
   if (val) {
@@ -162,6 +164,27 @@ async function handleLogout() {
   flex-shrink: 0;
 }
 
+.header-nav.home-header {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
+  align-items: center;
+  min-height: 88px;
+  padding: 18px clamp(56px, 4.4vw, 72px);
+}
+
+.header-nav.home-header .brand {
+  justify-self: start;
+}
+
+.header-nav.home-header nav {
+  justify-self: center;
+  gap: 30px;
+}
+
+.header-nav.home-header .auth-actions {
+  justify-self: end;
+}
+
 /* ── 프로필 드롭다운 ── */
 .profile-wrap {
   position: relative;
@@ -173,15 +196,18 @@ async function handleLogout() {
   gap: 10px;
   height: 42px;
   padding: 0 14px 0 8px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid #d8e4f3;
   border-radius: 999px;
-  background: transparent;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: #102a56;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
 .profile-trigger:hover {
-  background: rgba(0, 0, 0, 0.05);
+  border-color: #bcd0ee;
+  background: #fff;
 }
 
 .profile-trigger.is-active {
@@ -286,25 +312,39 @@ async function handleLogout() {
   color: #c53030;
 }
 
-/* 홈페이지에서 흰색 스타일 */
+/* 홈페이지에서도 다른 페이지와 동일한 밝은 프로필 pill 유지 */
+.header-nav.home-header .profile-trigger,
 :global(.app-shell:has(.home-page)) .profile-trigger {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(8, 24, 54, 0.28);
+  border-color: rgba(216, 226, 240, 0.98) !important;
+  background: #fff !important;
+  box-shadow: 0 10px 28px rgba(8, 24, 54, 0.18) !important;
+  color: #102a56 !important;
 }
 
+.header-nav.home-header .profile-name,
 :global(.app-shell:has(.home-page)) .profile-name {
   color: #102a56;
-  border-color: rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 5px 16px rgba(3, 15, 36, 0.18);
+  border-color: rgba(226, 232, 240, 0.95);
+  background: #f8fafc;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
+.header-nav.home-header .profile-chevron,
 :global(.app-shell:has(.home-page)) .profile-chevron {
-  color: #cbd5e1;
+  color: #94a3b8;
 }
 
+.header-nav.home-header .profile-trigger:hover,
 :global(.app-shell:has(.home-page)) .profile-trigger:hover {
-  background: rgba(255, 255, 255, 0.1);
+  border-color: #bcd0ee !important;
+  background: #fff !important;
+}
+
+.header-nav.home-header :deep(.notification-trigger) {
+  border-color: rgba(216, 226, 240, 0.98) !important;
+  color: #40516b !important;
+  background: #fff !important;
+  box-shadow: 0 10px 28px rgba(8, 24, 54, 0.16) !important;
 }
 
 /* 드롭다운 전환 애니메이션 */
@@ -320,6 +360,18 @@ async function handleLogout() {
 }
 
 @media (max-width: 820px) {
+  .header-nav.home-header {
+    display: flex;
+    min-height: auto;
+    padding: 18px 20px;
+  }
+
+  .header-nav.home-header .brand,
+  .header-nav.home-header nav,
+  .header-nav.home-header .auth-actions {
+    justify-self: auto;
+  }
+
   .profile-wrap,
   .profile-trigger {
     width: 100%;

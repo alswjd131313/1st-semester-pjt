@@ -154,29 +154,33 @@ function detectMapAuthorizationFailure(currentRender) {
 }
 
 function getSupplierMarkerText(supplier) {
+  const materials = Array.isArray(supplier.materials) && supplier.materials.length
+    ? ` · 취급 자재: ${supplier.materials.slice(0, 4).join(", ")}${supplier.materials.length > 4 ? " 외" : ""}`
+    : "";
+  const address = supplier.address ? ` · ${supplier.address}` : "";
   const distanceM = Number(supplier.routeDistanceM ?? supplier.route_distance_m);
   const durationSec = Number(supplier.routeDurationSec ?? supplier.route_duration_sec);
   if (Number.isFinite(distanceM) && distanceM > 0 && Number.isFinite(durationSec) && durationSec > 0) {
     const minutes = Math.max(1, Math.round(durationSec / 60));
     const distanceKm = (distanceM / 1000).toFixed(1);
-    return `${supplier.supplierName} · ${minutes}분 · ${distanceKm}km`;
+    return `${supplier.supplierName} · ${minutes}분 · ${distanceKm}km${materials}${address}`;
   }
 
   const distanceText = supplier.routeNote || "거리 정보 확인 필요";
 
   if (supplier.locationBasis === "supplier_address") {
-    return `${supplier.supplierName} · 공급사 위치 · ${distanceText}`;
+    return `${supplier.supplierName} · 공급사 위치 · ${distanceText}${materials}${address}`;
   }
 
   if (supplier.locationBasis === "contract_agency_estimated") {
-    return `${supplier.supplierName} · 계약기관 추정 위치 · ${distanceText}`;
+    return `${supplier.supplierName} · 계약기관 추정 위치 · ${distanceText}${materials}${address}`;
   }
 
   if (supplier.locationBasis === "reference_estimated") {
-    return `${supplier.supplierName} · 참고 위치 · ${distanceText}`;
+    return `${supplier.supplierName} · 참고 위치 · ${distanceText}${materials}${address}`;
   }
 
-  return `${supplier.supplierName} · 위치 확인 필요 · ${distanceText}`;
+  return `${supplier.supplierName} · 위치 확인 필요 · ${distanceText}${materials}${address}`;
 }
 
 function getSupplierMarkerVariant(supplier) {
@@ -230,6 +234,10 @@ function renderSelectedSupplier() {
   supplierMarkers.forEach((supplierMarker) => {
     supplierMarker.setOpacity(supplierMarker === marker ? 1 : 0.6);
   });
+  mapInstance.panTo(marker.getPosition());
+  if (mapInstance.getLevel() > 5) {
+    mapInstance.setLevel(5);
+  }
   showInfoWindow(kakao, mapInstance, marker, getSupplierMarkerText(props.selectedSupplier));
 
   const routePath = Array.isArray(props.selectedSupplier.routePath)
@@ -282,12 +290,17 @@ function showSiteOverlay(kakao, map, position, address) {
 }
 
 function getSupplierKey(supplier) {
+  if (supplier?.supplierId || supplier?.supplier_id) {
+    return `supplier:${supplier.supplierId || supplier.supplier_id}`;
+  }
+
+  if (supplier?.id && supplier?.dataSource === "supplier_map") {
+    return `supplier:${supplier.id}`;
+  }
+
   return [
-    supplier.dataSource || "",
-    supplier.id || supplier.candidateId || "",
-    supplier.supplierName || "",
-    supplier.materialName || "",
-    supplier.standard || "",
+    supplier?.supplierName || supplier?.name || "",
+    supplier?.address || "",
   ].join("|");
 }
 
@@ -339,6 +352,7 @@ function createMarkerImage(kakao, variant) {
   const baseVariant = isSelected ? variant.replace("selected-", "") : variant;
   const colors = {
     site: "#1559e8",
+    top: "#f59e0b",
     actual: "#0f766e",
     estimated: "#f97316",
     unknown: "#64748b",

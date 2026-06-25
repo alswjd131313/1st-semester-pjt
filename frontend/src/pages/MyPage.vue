@@ -11,7 +11,7 @@
         <div class="avatar-wrap">
           <div class="avatar" @click="fileInput?.click()">
             <img v-if="profileImage" :src="profileImage" class="avatar-img" alt="프로필 사진" />
-            <span v-else class="avatar-letter">{{ initial }}</span>
+            <DefaultBeaverAvatar v-else class="profile-beaver-avatar" />
           </div>
           <button class="avatar-edit-btn" type="button" title="사진 변경" @click.stop="fileInput?.click()">
             <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
@@ -24,7 +24,9 @@
         <div class="profile-info">
           <h2 class="profile-name">{{ displayName }}</h2>
           <span class="role-badge">자재 요청자</span>
+          <p class="profile-company">{{ companyLabel }}</p>
           <p class="profile-email">{{ profileEmail }}</p>
+          <p class="profile-address">{{ defaultSiteLabel }}</p>
         </div>
       </div>
       <button class="btn-profile-edit" type="button" @click="openProfileModal">프로필 편집</button>
@@ -148,6 +150,24 @@
           <label>이메일 <span class="field-note">변경 불가</span></label>
           <input type="email" :value="authState.user?.email" disabled class="input-disabled" />
         </div>
+        <div class="form-group">
+          <label>회사명</label>
+          <input type="text" v-model.trim="editForm.companyName" placeholder="회사명을 입력하세요" />
+        </div>
+        <div class="form-group">
+          <AddressSearchField
+            v-model="editForm.defaultSiteAddress"
+            label="기본 현장 주소"
+            :zip-no="editForm.defaultSiteZipNo"
+            placeholder="자재 요청 시 기본값으로 사용할 현장 주소를 검색하세요"
+            @selected="handleDefaultAddressSelected"
+          />
+        </div>
+        <div class="form-group">
+          <label>상세 주소</label>
+          <input type="text" v-model.trim="editForm.defaultSiteDetailAddress" placeholder="동·호수, 출입구, 현장 구역 등" />
+        </div>
+        <p v-if="defaultAddressCoordinateLabel" class="coordinate-note">{{ defaultAddressCoordinateLabel }}</p>
         <p v-if="profileSaveMsg" :class="profileSaveMsg.type === 'error' ? 'error-msg' : 'success-msg'">{{ profileSaveMsg.text }}</p>
         <div class="modal-actions">
           <button class="btn-primary" :disabled="isSaving" @click="saveProfile">{{ isSaving ? '저장 중...' : '저장' }}</button>
@@ -185,9 +205,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { authState, logoutUser as authLogout, updateProfile } from "../api/authApi";
+import { authState, getProfileImageUrl, logoutUser as authLogout, updateProfile } from "../api/authApi";
 import { filterInquiriesForUser, getSupplierInquiries } from "../api/materialApi";
 import { getCommunityPosts } from "../api/communityApi";
+import DefaultBeaverAvatar from "../components/DefaultBeaverAvatar.vue";
+import AddressSearchField from "../components/AddressSearchField.vue";
 
 const router = useRouter();
 const inquiries = ref([]);
@@ -200,13 +222,35 @@ const isSaving = ref(false);
 const pwError = ref("");
 const profileSaveMsg = ref(null);
 const pw = reactive({ current: "", next: "", confirm: "" });
-const editForm = reactive({ name: "" });
+const editForm = reactive({
+  name: "",
+  companyName: "",
+  defaultSiteAddress: "",
+  defaultSiteDetailAddress: "",
+  defaultSiteZipNo: "",
+  defaultSiteLatitude: null,
+  defaultSiteLongitude: null,
+});
 const fileInput = ref(null);
-const profileImage = ref(localStorage.getItem("paceflow_profile_img") || null);
+const imageUploadError = ref("");
+const profileImage = computed(() => getProfileImageUrl(authState.user) || null);
 
 const displayName = computed(() => authState.user?.name ?? authState.user?.email ?? "사용자");
+const companyLabel = computed(() => authState.user?.companyName || "회사명 미등록");
 const profileEmail = computed(() => authState.user?.email || "-");
-const initial = computed(() => (displayName.value[0] ?? "U").toUpperCase());
+const defaultSiteLabel = computed(() => {
+  const address = [
+    authState.user?.defaultSiteAddress,
+    authState.user?.defaultSiteDetailAddress,
+  ].filter(Boolean).join(" ");
+  return address || "기본 현장 주소 미등록";
+});
+const defaultAddressCoordinateLabel = computed(() => {
+  if (!hasKoreaCoordinate(editForm.defaultSiteLatitude, editForm.defaultSiteLongitude)) {
+    return "";
+  }
+  return `좌표 저장됨 · ${editForm.defaultSiteLatitude}, ${editForm.defaultSiteLongitude}`;
+});
 
 const pendingStatuses = new Set(["received", "pending", "reviewing"]);
 const availableStatuses = new Set(["quoted", "accepted"]);
@@ -233,16 +277,35 @@ onMounted(async () => {
 
 function openProfileModal() {
   editForm.name = authState.user?.name ?? "";
+  editForm.companyName = authState.user?.companyName ?? "";
+  editForm.defaultSiteAddress = authState.user?.defaultSiteAddress ?? "";
+  editForm.defaultSiteDetailAddress = authState.user?.defaultSiteDetailAddress ?? "";
+  editForm.defaultSiteZipNo = authState.user?.defaultSiteZipNo ?? "";
+  editForm.defaultSiteLatitude = authState.user?.defaultSiteLatitude ?? null;
+  editForm.defaultSiteLongitude = authState.user?.defaultSiteLongitude ?? null;
   profileSaveMsg.value = null;
   showProfileModal.value = true;
 }
 
 async function saveProfile() {
   if (!editForm.name.trim()) { profileSaveMsg.value = { type: "error", text: "이름을 입력하세요." }; return; }
+  if (!editForm.companyName.trim()) { profileSaveMsg.value = { type: "error", text: "회사명을 입력하세요." }; return; }
+  if (editForm.defaultSiteAddress && !hasKoreaCoordinate(editForm.defaultSiteLatitude, editForm.defaultSiteLongitude)) {
+    profileSaveMsg.value = { type: "error", text: "기본 현장 주소는 주소 검색 결과에서 선택해야 좌표가 함께 저장됩니다." };
+    return;
+  }
   isSaving.value = true;
   profileSaveMsg.value = null;
   try {
-    await updateProfile({ name: editForm.name });
+    await updateProfile({
+      name: editForm.name,
+      companyName: editForm.companyName,
+      defaultSiteAddress: editForm.defaultSiteAddress,
+      defaultSiteDetailAddress: editForm.defaultSiteDetailAddress,
+      defaultSiteZipNo: editForm.defaultSiteZipNo,
+      defaultSiteLatitude: editForm.defaultSiteLatitude,
+      defaultSiteLongitude: editForm.defaultSiteLongitude,
+    });
     profileSaveMsg.value = { type: "success", text: "프로필이 저장되었습니다." };
     setTimeout(() => { showProfileModal.value = false; profileSaveMsg.value = null; }, 1200);
   } catch (e) {
@@ -250,6 +313,29 @@ async function saveProfile() {
   } finally {
     isSaving.value = false;
   }
+}
+
+function handleDefaultAddressSelected(address) {
+  editForm.defaultSiteAddress = address.roadAddress || address.fullRoadAddress || address.address || "";
+  editForm.defaultSiteZipNo = address.zipNo || "";
+  editForm.defaultSiteLatitude = roundCoordinate(address.latitude);
+  editForm.defaultSiteLongitude = roundCoordinate(address.longitude);
+  if (!hasKoreaCoordinate(editForm.defaultSiteLatitude, editForm.defaultSiteLongitude)) {
+    editForm.defaultSiteLatitude = null;
+    editForm.defaultSiteLongitude = null;
+    profileSaveMsg.value = { type: "error", text: "선택한 주소의 좌표를 확인할 수 없습니다. 다른 주소를 선택해 주세요." };
+  }
+}
+
+function roundCoordinate(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Number(number.toFixed(6)) : null;
+}
+
+function hasKoreaCoordinate(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;
 }
 
 async function logout() {
@@ -276,27 +362,14 @@ async function changePw() {
 async function handleImageUpload(event) {
   const file = event.target.files?.[0];
   if (!file) return;
-  const dataUrl = await resizeImage(file, 200);
-  profileImage.value = dataUrl;
-  localStorage.setItem("paceflow_profile_img", dataUrl);
-  event.target.value = "";
-}
-
-function resizeImage(file, maxSize) {
-  return new Promise((resolve) => {
-    const canvas = document.createElement("canvas");
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
-      canvas.width = img.width * ratio;
-      canvas.height = img.height * ratio;
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.src = url;
-  });
+  imageUploadError.value = "";
+  try {
+    await updateProfile({ profileImage: file });
+  } catch (e) {
+    imageUploadError.value = e.message;
+  } finally {
+    event.target.value = "";
+  }
 }
 </script>
 
@@ -342,9 +415,9 @@ function resizeImage(file, maxSize) {
   box-shadow: 0 4px 16px rgba(21, 89, 232, 0.25);
 }
 
-.avatar-letter { font-size: 28px; font-weight: 800; }
-
 .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+
+.profile-beaver-avatar { background: #eaf3ff; }
 
 .avatar-edit-btn {
   position: absolute;
@@ -381,6 +454,8 @@ function resizeImage(file, maxSize) {
 }
 
 .profile-email { font-size: 13px; color: #71809a; margin: 0; }
+.profile-company { font-size: 13px; color: #40506a; margin: 0; font-weight: 800; }
+.profile-address { margin: 4px 0 0; color: #8492a8; font-size: 13px; font-weight: 700; }
 
 .btn-profile-edit {
   border: 1px solid #dde7f7;
@@ -587,6 +662,7 @@ function resizeImage(file, maxSize) {
 .input-disabled { background: #f8fafc; color: #aab4c4; cursor: not-allowed; }
 .success-msg { font-size: 14px; color: #059669; margin: 8px 0; }
 .error-msg { font-size: 14px; color: #dc2626; margin: 8px 0; }
+.coordinate-note { margin: 0 0 12px; color: #047857; font-size: 13px; font-weight: 800; }
 .modal-actions { display: flex; gap: 12px; margin-top: 8px; }
 .btn-primary { background: #1559e8; color: #fff; border: none; border-radius: 10px; padding: 10px 24px; font-size: 15px; font-weight: 600; cursor: pointer; }
 .btn-ghost { background: none; border: 1px solid #dde7f7; border-radius: 10px; padding: 10px 20px; font-size: 15px; color: #71809a; cursor: pointer; }

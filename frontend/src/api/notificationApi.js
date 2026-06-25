@@ -1,3 +1,5 @@
+import { apiClient, buildApiUrl, USE_MOCK_API } from "./apiClient";
+
 const NOTIFICATION_STORAGE_KEY = "paceflow_v2_notifications";
 export const NOTIFICATION_CHANGE_EVENT = "paceflow:notifications-changed";
 
@@ -59,7 +61,45 @@ export function getUserRecipientKeys(user = {}) {
   return keys;
 }
 
-export function getNotificationsForUser(user) {
+function debugNotificationLog(message, payload = {}) {
+  if (!import.meta.env.DEV) return;
+  console.debug(`[notifications] ${message}`, payload);
+}
+
+function normalizeBackendNotification(item = {}) {
+  return {
+    id: item.id,
+    recipient_user_id: item.recipient_id ?? null,
+    actor_user_id: item.actor_id ?? null,
+    type: item.type,
+    title: item.title || "알림",
+    message: item.message || "",
+    related_inquiry_id: item.related_inquiry_id ?? null,
+    target_path: item.target_path || "/inquiries",
+    is_read: Boolean(item.is_read),
+    created_at: item.created_at || new Date().toISOString(),
+    event_key: item.event_key || "",
+  };
+}
+
+export async function getNotificationsForUser(user) {
+  if (!USE_MOCK_API) {
+    debugNotificationLog("fetch:start", { hasUser: Boolean(user?.id) });
+    try {
+      const { data } = await apiClient.get(buildApiUrl("/api/v1/notifications/"));
+      const list = Array.isArray(data) ? data : data.results || [];
+      const notifications = list.map(normalizeBackendNotification);
+      debugNotificationLog("fetch:success", { count: notifications.length });
+      return notifications;
+    } catch (error) {
+      debugNotificationLog("fetch:failed", {
+        status: error?.response?.status,
+        hasAuthorization: Boolean(error?.config?.headers?.Authorization),
+      });
+      throw error;
+    }
+  }
+
   const recipientKeys = getUserRecipientKeys(user);
   if (!recipientKeys.size) return [];
 
@@ -103,7 +143,31 @@ export function createNotification(payload) {
   return notification;
 }
 
-export function markNotificationRead(notificationId, user) {
+export async function getUnreadNotificationCount() {
+  if (!USE_MOCK_API) {
+    debugNotificationLog("unread-count:start");
+    try {
+      const { data } = await apiClient.get(buildApiUrl("/api/v1/notifications/unread-count/"));
+      debugNotificationLog("unread-count:success", { count: Number(data.count || 0) });
+      return Number(data.count || 0);
+    } catch (error) {
+      debugNotificationLog("unread-count:failed", {
+        status: error?.response?.status,
+        hasAuthorization: Boolean(error?.config?.headers?.Authorization),
+      });
+      throw error;
+    }
+  }
+  return null;
+}
+
+export async function markNotificationRead(notificationId, user) {
+  if (!USE_MOCK_API) {
+    await apiClient.post(buildApiUrl(`/api/v1/notifications/${notificationId}/read/`));
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_CHANGE_EVENT));
+    return;
+  }
+
   const recipientKeys = getUserRecipientKeys(user);
   let changed = false;
   const notifications = readNotifications().map((item) => {
@@ -121,7 +185,13 @@ export function markNotificationRead(notificationId, user) {
   if (changed) writeNotifications(notifications);
 }
 
-export function markAllNotificationsRead(user) {
+export async function markAllNotificationsRead(user) {
+  if (!USE_MOCK_API) {
+    await apiClient.post(buildApiUrl("/api/v1/notifications/read-all/"));
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_CHANGE_EVENT));
+    return;
+  }
+
   const recipientKeys = getUserRecipientKeys(user);
   let changed = false;
   const notifications = readNotifications().map((item) => {
@@ -134,7 +204,19 @@ export function markAllNotificationsRead(user) {
   if (changed) writeNotifications(notifications);
 }
 
-export function deleteReadNotifications(user) {
+export async function deleteReadNotifications(user) {
+  if (!USE_MOCK_API) {
+    // 서버에는 "읽은 알림 일괄 삭제" API를 두지 않고, 프론트에서 읽은 알림을 순차 삭제합니다.
+    const notifications = await getNotificationsForUser(user);
+    await Promise.all(
+      notifications
+        .filter((item) => item.is_read)
+        .map((item) => deleteNotification(item.id, user)),
+    );
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_CHANGE_EVENT));
+    return;
+  }
+
   const recipientKeys = getUserRecipientKeys(user);
   const notifications = readNotifications().filter((item) => !(
     item.recipient_role === user.role
@@ -144,7 +226,13 @@ export function deleteReadNotifications(user) {
   writeNotifications(notifications);
 }
 
-export function deleteNotification(notificationId, user) {
+export async function deleteNotification(notificationId, user) {
+  if (!USE_MOCK_API) {
+    await apiClient.delete(buildApiUrl(`/api/v1/notifications/${notificationId}/`));
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_CHANGE_EVENT));
+    return;
+  }
+
   const recipientKeys = getUserRecipientKeys(user);
   let changed = false;
   const notifications = readNotifications().filter((item) => {
