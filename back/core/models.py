@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.core.validators import MinValueValidator
 
@@ -18,6 +19,36 @@ class Material(models.Model):
         ("non_structural", "비구조재"),
     ]
 
+    MATERIAL_GROUP_CHOICES = [
+        ("rebar", "철근"),
+        ("shape_steel", "형강·강재"),
+        ("cement", "시멘트"),
+        ("insulation", "단열재"),
+        ("electrical_conduit", "전기 배관재"),
+    ]
+
+    MATERIAL_SUBTYPE_CHOICES = [
+        ("deformed_rebar", "이형철근"),
+        ("round_rebar", "원형철근"),
+        ("h_beam", "H형강"),
+        ("angle", "ㄱ형강"),
+        ("channel", "ㄷ형강"),
+        ("square_tube", "각형강관"),
+        ("steel_plate", "강판"),
+        ("ordinary_portland", "보통 포틀랜드 시멘트"),
+        ("blast_furnace_slag", "고로슬래그 시멘트"),
+        ("high_early_strength", "조강 포틀랜드 시멘트"),
+        ("eps", "EPS"),
+        ("xps", "XPS"),
+        ("glass_wool", "글라스울"),
+        ("rigid_polyurethane", "경질 우레탄폼"),
+        ("rigid_conduit", "경질 전선관"),
+        ("flexible_conduit", "가요 전선관"),
+        ("cd_conduit", "CD관"),
+        ("pf_conduit", "PF관"),
+        ("other", "기타/검토 필요"),
+    ]
+
     name       = models.CharField(max_length=100, verbose_name="자재명")
     ks_code    = models.CharField(max_length=50,  verbose_name="KS 규격 번호")   # 예: KS D 3504
     ks_grade   = models.CharField(max_length=50,  verbose_name="KS 등급",   blank=True)  # 예: SD400
@@ -27,6 +58,20 @@ class Material(models.Model):
         choices=CATEGORY_CHOICES,
         default="structural",
         verbose_name="시공 분류",
+    )
+    material_group = models.CharField(
+        max_length=30,
+        choices=MATERIAL_GROUP_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="자재 대분류",
+    )
+    material_subtype = models.CharField(
+        max_length=30,
+        choices=MATERIAL_SUBTYPE_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="세부 품목",
     )
     is_seismic = models.BooleanField(default=False, verbose_name="내진 구조 적용 가능")
     is_weldable = models.BooleanField(default=False, verbose_name="용접 시공 가능")
@@ -106,6 +151,140 @@ class MaterialSpec(models.Model):
 
     def __str__(self):
         return f"{self.material} 물성치"
+
+
+# ──────────────────────────────────────────
+# 2-1. KS 표준 및 조건부 검증 기준
+# ──────────────────────────────────────────
+
+class KSStandard(models.Model):
+    """추천 근거로 사용하는 KS 표준의 메타데이터."""
+
+    VERIFICATION_CHOICES = [
+        ("verified", "구조화 완료"),
+        ("partial", "일부 구조화"),
+        ("needs_source", "기준 자료 보강 필요"),
+    ]
+
+    code = models.CharField(max_length=30, verbose_name="표준 번호")
+    revision = models.CharField(max_length=10, verbose_name="개정 연도")
+    title = models.CharField(max_length=200, verbose_name="표준명")
+    material_group = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_GROUP_CHOICES,
+        db_index=True,
+        verbose_name="자재 대분류",
+    )
+    material_subtype = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_SUBTYPE_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="세부 품목",
+    )
+    scope_note = models.TextField(blank=True, verbose_name="적용 범위 요약")
+    verification_status = models.CharField(
+        max_length=20,
+        choices=VERIFICATION_CHOICES,
+        default="partial",
+        verbose_name="구조화 상태",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ks_standards"
+        ordering = ["code", "-revision"]
+        constraints = [
+            models.UniqueConstraint(fields=["code", "revision"], name="unique_ks_standard_revision"),
+        ]
+        verbose_name = "KS 표준"
+        verbose_name_plural = "KS 표준 목록"
+
+    def __str__(self):
+        return f"{self.code}:{self.revision} {self.title}"
+
+
+class KSRequirement(models.Model):
+    """두께, 재령, 밀도처럼 적용 조건이 달라지는 KS 검증 기준."""
+
+    VALUE_TYPE_CHOICES = [
+        ("minimum", "최솟값"),
+        ("maximum", "최댓값"),
+        ("range", "범위"),
+        ("exact", "일치값"),
+        ("classification", "분류 기준"),
+    ]
+
+    standard = models.ForeignKey(
+        KSStandard,
+        on_delete=models.CASCADE,
+        related_name="requirements",
+        verbose_name="표준",
+    )
+    material_subtype = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_SUBTYPE_CHOICES,
+        blank=True,
+        db_index=True,
+        verbose_name="세부 품목",
+    )
+    grade = models.CharField(max_length=50, blank=True, db_index=True, verbose_name="등급 또는 종류")
+    property_code = models.CharField(max_length=50, db_index=True, verbose_name="물성 코드")
+    property_name = models.CharField(max_length=100, verbose_name="검증 항목")
+    value_type = models.CharField(max_length=20, choices=VALUE_TYPE_CHOICES, verbose_name="기준 유형")
+    min_value = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True, verbose_name="최솟값")
+    max_value = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True, verbose_name="최댓값")
+    text_value = models.CharField(max_length=200, blank=True, verbose_name="분류 또는 표시값")
+    unit = models.CharField(max_length=30, blank=True, verbose_name="단위")
+    condition = models.JSONField(default=dict, blank=True, verbose_name="적용 조건")
+    source_location = models.CharField(max_length=100, blank=True, verbose_name="표·절 위치")
+    display_priority = models.PositiveSmallIntegerField(default=100, verbose_name="표시 우선순위")
+
+    class Meta:
+        db_table = "ks_requirements"
+        ordering = ["standard", "display_priority", "grade", "property_code"]
+        indexes = [
+            models.Index(fields=["material_subtype", "grade"], name="ks_req_subtype_grade_idx"),
+        ]
+        verbose_name = "KS 검증 기준"
+        verbose_name_plural = "KS 검증 기준 목록"
+
+    def __str__(self):
+        return f"{self.standard.code} {self.grade} {self.property_name}".strip()
+
+
+class KSSectionProfile(models.Model):
+    """형강·강관의 공칭 치수와 단면 성능 표."""
+
+    standard = models.ForeignKey(
+        KSStandard,
+        on_delete=models.CASCADE,
+        related_name="section_profiles",
+        verbose_name="표준",
+    )
+    profile_type = models.CharField(max_length=30, db_index=True, verbose_name="단면 종류")
+    designation = models.CharField(max_length=80, verbose_name="호칭 치수")
+    dimensions = models.JSONField(default=dict, blank=True, verbose_name="치수")
+    unit_mass_kg_m = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="단위 무게 (kg/m)")
+    area_cm2 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, verbose_name="단면적 (cm²)")
+    section_properties = models.JSONField(default=dict, blank=True, verbose_name="단면 성능")
+    source_location = models.CharField(max_length=100, blank=True, verbose_name="표·부표 위치")
+
+    class Meta:
+        db_table = "ks_section_profiles"
+        ordering = ["profile_type", "designation"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["standard", "profile_type", "designation"],
+                name="unique_ks_section_profile",
+            ),
+        ]
+        verbose_name = "KS 단면 규격"
+        verbose_name_plural = "KS 단면 규격 목록"
+
+    def __str__(self):
+        return f"{self.standard.code} {self.profile_type} {self.designation}"
 
 
 # ──────────────────────────────────────────
@@ -256,6 +435,84 @@ class SupplyHistory(models.Model):
         return f"{self.supplier} / {self.material} / {self.contract_date}"
 
 
+class CategoryContractHistory(models.Model):
+    """
+    특정 KS 자재로 확정할 수 없는 자재군 단위 계약 이력.
+    가격·단가 추이·정확 자재 납품 횟수에는 사용하지 않고,
+    공급사의 자재군 경험을 나타내는 보조 신뢰도에만 사용한다.
+    """
+
+    MAPPING_STATUS_CHOICES = [
+        ("category_only", "자재군만 확인"),
+        ("pending_review", "검토 대기"),
+    ]
+
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.CASCADE,
+        related_name="category_contract_histories",
+        verbose_name="공급사",
+    )
+    material_category = models.CharField(
+        max_length=30,
+        choices=Material.MATERIAL_GROUP_CHOICES,
+        db_index=True,
+        verbose_name="자재군",
+    )
+    contract_date = models.DateField(verbose_name="계약 체결일")
+    contract_name = models.CharField(max_length=255, verbose_name="계약명")
+    unit_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="계약 금액 (원)",
+        validators=[MinValueValidator(0)],
+    )
+    quantity = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="수량",
+        validators=[MinValueValidator(0)],
+    )
+    keyword = models.CharField(max_length=100, blank=True, verbose_name="수집 검색어")
+    mapping_status = models.CharField(
+        max_length=30,
+        choices=MAPPING_STATUS_CHOICES,
+        default="category_only",
+        db_index=True,
+        verbose_name="매핑 상태",
+    )
+    mapping_reason = models.CharField(max_length=255, blank=True, verbose_name="매핑 보류 사유")
+    source_api = models.CharField(max_length=50, default="나라장터", verbose_name="원천 API")
+    external_id = models.CharField(max_length=100, verbose_name="외부 계약 식별자")
+    raw_data = models.JSONField(default=dict, blank=True, verbose_name="원본 응답")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "category_contract_history"
+        ordering = ["-contract_date", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["supplier", "source_api", "external_id"],
+                name="uniq_category_contract_source_external",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["supplier", "material_category", "mapping_status"],
+                name="category_contract_exp_idx",
+            ),
+        ]
+        verbose_name = "자재군 계약 이력"
+        verbose_name_plural = "자재군 계약 이력 목록"
+
+    def __str__(self):
+        return f"{self.supplier} / {self.get_material_category_display()} / {self.contract_date}"
+
+
 # ──────────────────────────────────────────
 # 6. 수요 등록 (시공사)
 # ──────────────────────────────────────────
@@ -266,13 +523,30 @@ class Demand(models.Model):
     MVP에서는 내부 집계 용도. 추후 공급사 알림 연동 예정.
     """
 
-    site_name  = models.CharField(max_length=200, verbose_name="현장명")
+    STATUS_CHOICES = [
+        ("draft", "임시 저장"),
+        ("submitted", "제출됨"),
+        ("recommended", "추천 완료"),
+    ]
+
+    owner      = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="demands",
+        verbose_name="요청자 계정",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="submitted", db_index=True)
+    site_name  = models.CharField(max_length=200, blank=True, verbose_name="현장명")
     site_lat   = models.DecimalField(
         max_digits=9, decimal_places=6,
+        null=True, blank=True,
         verbose_name="현장 위도",
     )
     site_lng   = models.DecimalField(
         max_digits=9, decimal_places=6,
+        null=True, blank=True,
         verbose_name="현장 경도",
     )
     material   = models.ForeignKey(
@@ -282,11 +556,13 @@ class Demand(models.Model):
     )
     quantity   = models.DecimalField(
         max_digits=15, decimal_places=2,
+        null=True, blank=True,
         verbose_name="필요 수량 (kg)",
         validators=[MinValueValidator(0)],
     )
-    deadline   = models.DateField(verbose_name="납기 기한")
+    deadline   = models.DateField(null=True, blank=True, verbose_name="납기 기한")
     memo       = models.TextField(blank=True, verbose_name="메모")
+    draft_payload = models.JSONField(default=dict, blank=True, verbose_name="요청 원본 데이터")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -296,3 +572,268 @@ class Demand(models.Model):
 
     def __str__(self):
         return f"{self.site_name} / {self.material} / {self.deadline}"
+
+
+# ──────────────────────────────────────────
+# 7. 공급사 직접 등록 자재 (MVP)
+# ──────────────────────────────────────────
+
+class SupplierMaterialRegistration(models.Model):
+    """
+    공급사 회원이 직접 등록한 취급 자재.
+    나라장터 이력과 별도로 MVP 화면에서 공급사별 등록 데이터를 구분한다.
+    """
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="supplier_material_registrations",
+        verbose_name="등록 공급사 계정",
+    )
+    supplier_name = models.CharField(max_length=200, verbose_name="공급사명")
+    contact = models.CharField(max_length=30, blank=True, verbose_name="연락처")
+    address = models.TextField(blank=True, verbose_name="주소")
+    zip_no = models.CharField(max_length=10, blank=True, verbose_name="우편번호")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="위도")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="경도")
+    main_materials = models.CharField(max_length=200, blank=True, verbose_name="주요 취급 자재")
+    material_name = models.CharField(max_length=100, verbose_name="자재명")
+    standard = models.CharField(max_length=100, blank=True, verbose_name="KS 규격")
+    strength_grade = models.CharField(max_length=50, blank=True, verbose_name="강도 등급")
+    material_group = models.CharField(max_length=100, blank=True, verbose_name="자재군")
+    specification = models.CharField(max_length=150, blank=True, verbose_name="규격")
+    ks_standard = models.CharField(max_length=150, blank=True, verbose_name="KS 기준/등급")
+    recent_price = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="최근 단가")
+    unit = models.CharField(max_length=50, blank=True, verbose_name="단위")
+    manufacturer = models.CharField(max_length=100, blank=True, verbose_name="제조사")
+    stock_available = models.BooleanField(default=True, verbose_name="재고 여부")
+    service_area = models.CharField(max_length=200, blank=True, verbose_name="납품 가능 지역")
+    distance_km = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="거리")
+    delivery_count = models.PositiveIntegerField(default=0, verbose_name="과거 납품 횟수")
+    note = models.TextField(blank=True, verbose_name="비고")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "supplier_material_registrations"
+        ordering = ["-created_at"]
+        verbose_name = "공급사 직접 등록 자재"
+        verbose_name_plural = "공급사 직접 등록 자재 목록"
+
+    def __str__(self):
+        return f"{self.supplier_name} / {self.material_name}"
+
+
+# ──────────────────────────────────────────
+# 8. 커뮤니티 MVP
+# ──────────────────────────────────────────
+
+# ──────────────────────────────────────────
+# 8. 공급사 문의
+# ──────────────────────────────────────────
+
+class SupplierInquiry(models.Model):
+    STATUS_CHOICES = [
+        ("pending",   "확인 대기"),
+        ("reviewing", "검토 중"),
+        ("accepted",  "납품 가능"),
+        ("rejected",  "거절"),
+    ]
+
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_inquiries",
+        verbose_name="요청자 계정",
+    )
+    supplier_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="received_inquiries",
+        verbose_name="공급사 계정",
+    )
+
+    material_name = models.CharField(max_length=200, verbose_name="자재명")
+    standard = models.CharField(max_length=200, blank=True, verbose_name="규격")
+    quantity = models.CharField(max_length=100, blank=True, verbose_name="문의 수량")
+    desired_date = models.DateField(null=True, blank=True, verbose_name="희망 납기일")
+    site_address = models.TextField(blank=True, verbose_name="현장 주소")
+    requester_name = models.CharField(max_length=100, blank=True, verbose_name="담당자명")
+    contact = models.CharField(max_length=50, blank=True, verbose_name="연락처")
+    message = models.TextField(blank=True, verbose_name="요청 메모")
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        db_index=True,
+        verbose_name="문의 상태",
+    )
+    status_updated_at = models.DateTimeField(null=True, blank=True, verbose_name="상태 변경 일시")
+    supplier_deleted_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="공급사 목록 삭제 일시")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "supplier_inquiries"
+        ordering = ["-created_at"]
+        verbose_name = "공급사 문의"
+        verbose_name_plural = "공급사 문의 목록"
+
+    def __str__(self):
+        return f"{self.requester} → {self.supplier_user} / {self.material_name} / {self.status}"
+
+
+class Notification(models.Model):
+    """사용자별 알림. 문의 생성/응답, 커뮤니티 이벤트 등 시연 흐름의 알림 배지 원천 데이터."""
+
+    TYPE_CHOICES = [
+        ("supplier_inquiry_created", "공급사 문의 도착"),
+        ("supplier_inquiry_status_changed", "공급사 문의 응답"),
+        ("community_comment_created", "커뮤니티 댓글"),
+        ("community_contact_request", "커뮤니티 대화 요청"),
+    ]
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        verbose_name="수신자",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sent_notifications",
+        verbose_name="발신자",
+    )
+    type = models.CharField(max_length=60, choices=TYPE_CHOICES, db_index=True, verbose_name="알림 유형")
+    title = models.CharField(max_length=120, verbose_name="제목")
+    message = models.TextField(verbose_name="내용")
+    target_path = models.CharField(max_length=255, blank=True, default="/inquiries", verbose_name="이동 경로")
+    related_inquiry = models.ForeignKey(
+        SupplierInquiry,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications",
+        verbose_name="관련 문의",
+    )
+    event_key = models.CharField(max_length=120, blank=True, db_index=True, verbose_name="중복 방지 키")
+    is_read = models.BooleanField(default=False, db_index=True, verbose_name="읽음 여부")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notifications"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["recipient", "is_read", "-created_at"], name="notification_recipient_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipient", "event_key"],
+                condition=~models.Q(event_key=""),
+                name="uniq_notification_recipient_event",
+            ),
+        ]
+        verbose_name = "알림"
+        verbose_name_plural = "알림 목록"
+
+    def __str__(self):
+        return f"{self.recipient} / {self.type} / {self.title}"
+
+
+# ──────────────────────────────────────────
+# 9. 커뮤니티 MVP
+# ──────────────────────────────────────────
+
+class CommunityPost(models.Model):
+    DISPLAY_CHOICES = [
+        ("profile", "실명/프로필"),
+        ("anonymous", "익명"),
+    ]
+    TYPE_CHOICES = [
+        ("substitute_review", "대체 자재 후기"),
+        ("supplier_review", "공급사 후기"),
+        ("field_question", "현장 질문"),
+    ]
+
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="community_posts",
+    )
+    display_mode = models.CharField(max_length=20, choices=DISPLAY_CHOICES, default="profile")
+    anonymous_alias = models.CharField(max_length=20, blank=True)
+    post_type = models.CharField(max_length=30, choices=TYPE_CHOICES, db_index=True)
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    material_name = models.CharField(max_length=200, blank=True)
+    supplier_name = models.CharField(max_length=200, blank=True)
+    region = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "community_posts"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
+class CommunityComment(models.Model):
+    DISPLAY_CHOICES = [
+        ("profile", "실명/프로필"),
+        ("anonymous", "익명"),
+    ]
+
+    post = models.ForeignKey(CommunityPost, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="community_comments",
+    )
+    display_mode = models.CharField(max_length=20, choices=DISPLAY_CHOICES, default="profile")
+    anonymous_alias = models.CharField(max_length=20, blank=True)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "community_comments"
+        ordering = ["created_at"]
+
+
+class CommunityContactRequest(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "수락 대기"),
+        ("confirmed", "확인 완료"),
+        ("rejected", "거절됨"),
+    ]
+
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_community_contact_requests",
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_community_contact_requests",
+    )
+    post = models.ForeignKey(
+        CommunityPost,
+        on_delete=models.CASCADE,
+        related_name="contact_requests",
+    )
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "community_contact_requests"
+        ordering = ["-created_at"]

@@ -12,25 +12,24 @@ npm run dev
 
 Vite가 터미널에 표시하는 `Local:` 주소로 접속합니다.
 
-## API 전환 설정
+## 환경 변수 설정
 
-기본값은 mock/localStorage 모드입니다. Django API가 준비되기 전까지는 별도 설정 없이 실행할 수 있습니다.
-
-```bash
-cp .env.example .env
-```
-
-```env
-VITE_USE_MOCK=true
-VITE_API_BASE_URL=http://localhost:8000
-```
-
-백엔드 API와 연결할 때는 아래처럼 변경합니다.
+API 연동 확인 시에는 `frontend/.env.local` 파일만 만들면 됩니다. `.env.example`은 사용하지 않습니다.
 
 ```env
 VITE_USE_MOCK=false
 VITE_API_BASE_URL=http://localhost:8000
+VITE_KAKAO_JAVASCRIPT_KEY=카카오_JavaScript_키
 ```
+
+백엔드는 `back/.env` 파일에 아래 값을 넣습니다.
+
+```env
+JUSO_SEARCH_API_KEY=도로명주소_API_키
+KAKAO_REST_API_KEY=카카오_REST_API_키
+```
+
+실제 키가 들어간 `.env.local`과 `.env`는 git에 올리지 않습니다.
 
 현재 연결 준비된 endpoint:
 

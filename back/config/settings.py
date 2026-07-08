@@ -2,9 +2,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 # ──────────────────────────────────────────
 # 보안
@@ -25,9 +24,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # 서드파티
     "rest_framework",
+    "rest_framework.authtoken",
     "corsheaders",
     # 내부
     "core",
+    "accounts",
 ]
 
 # ──────────────────────────────────────────
@@ -101,6 +102,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
     ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+    ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
 }
@@ -110,16 +114,24 @@ REST_FRAMEWORK = {
 # ──────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",   # Vite 기본 포트
+    "http://localhost:5174",   # PaceFlow 프론트 개발 포트
+    "http://localhost:5175",   # 포트 충돌 시 Vite 대체 포트
+    "http://localhost:5176",   # 로컬 API 연동 확인용 대체 포트
     "http://localhost:3000",
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
 # ──────────────────────────────────────────
 # 외부 API 키
 # ──────────────────────────────────────────
-NARAJANGTEO_API_KEY      = os.getenv("NARAJANGTEO_API_KEY", "")
+NARAJANGTEO_API_KEY      = os.getenv("NARAJANGTEO_API_KEY", os.getenv("NARA_API_KEY", ""))
 NARAJANGTEO_USER_API_KEY = os.getenv("NARAJANGTEO_USER_API_KEY", "")  # 추가
-JUSO_API_KEY             = os.getenv("JUSO_API_KEY", "")
+JUSO_API_KEY             = os.getenv("JUSO_SEARCH_API_KEY", os.getenv("JUSO_API_KEY", ""))
+KAKAO_REST_API_KEY       = os.getenv("KAKAO_REST_API_KEY", "")
 KAKAO_MAP_KEY            = os.getenv("KAKAO_MAP_KEY", "")
 
 # ──────────────────────────────────────────
@@ -135,5 +147,7 @@ USE_TZ        = True
 # ──────────────────────────────────────────
 STATIC_URL  = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

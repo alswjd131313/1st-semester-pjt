@@ -10,8 +10,8 @@
       <span class="completion-mark">완료</span>
       <h2>공급사 자재 등록이 완료되었습니다.</h2>
       <p>
-        등록한 자재는 추천 결과 후보에 반영됩니다. 실제 노출 여부와 문의 가능 여부는
-        백엔드 API 연결 이후 더 정확하게 관리할 수 있습니다.
+        등록한 자재는 추천 결과 후보에 반영됩니다. 문의가 접수되면 문의 내역에서
+        상태를 확인하고 후속 대응을 진행할 수 있습니다.
       </p>
       <div class="completion-summary">
         <strong>{{ completedMaterial?.materialName }}</strong>
@@ -24,7 +24,6 @@
         <RouterLink class="primary-button" to="/recommendations">추천 결과 확인하기</RouterLink>
       </div>
     </section>
-
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     <p v-if="isLoading" class="loading-message">등록된 자재를 불러오는 중입니다.</p>
 
@@ -39,10 +38,14 @@
         <input v-model="form.contact" type="tel" placeholder="02-1234-5678" required />
       </label>
 
-      <label class="full-field">
-        주소
-        <input v-model="form.address" type="text" placeholder="서울 성동구 아차산로 123" required />
-      </label>
+      <AddressSearchField
+        v-model="form.address"
+        class="full-field"
+        label="공급사 주소"
+        :zip-no="form.zipNo"
+        placeholder="예: 서울 성동구 아차산로 123"
+        @selected="applySupplierAddress"
+      />
 
       <label>
         주요 취급 자재
@@ -122,6 +125,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { authState } from "../api/authApi";
 import { getSupplierMaterials, registerSupplierMaterial } from "../api/materialApi";
+import AddressSearchField from "../components/AddressSearchField.vue";
 
 const registeredMaterials = ref([]);
 const isRegistrationComplete = ref(false);
@@ -134,6 +138,9 @@ const form = reactive({
   supplierName: authState.user?.companyName || "",
   contact: "",
   address: "",
+  zipNo: "",
+  latitude: null,
+  longitude: null,
   mainMaterials: "",
   materialName: "",
   standard: "",
@@ -148,6 +155,11 @@ const form = reactive({
 onMounted(loadSupplierMaterials);
 
 async function submitSupplier() {
+  if (!Number.isFinite(form.latitude) || !Number.isFinite(form.longitude)) {
+    errorMessage.value = "주소 검색 결과에서 공급사 주소를 선택해 주세요.";
+    return;
+  }
+
   try {
     isSubmitting.value = true;
     errorMessage.value = "";
@@ -161,6 +173,17 @@ async function submitSupplier() {
   } finally {
     isSubmitting.value = false;
   }
+}
+
+function applySupplierAddress(address) {
+  form.address = address.roadAddress;
+  form.zipNo = address.zipNo;
+  form.latitude = roundCoordinate(address.latitude);
+  form.longitude = roundCoordinate(address.longitude);
+}
+
+function roundCoordinate(value) {
+  return Number(Number(value).toFixed(6));
 }
 
 async function loadSupplierMaterials() {
@@ -186,6 +209,9 @@ function resetForm() {
   form.supplierName = "";
   form.contact = "";
   form.address = "";
+  form.zipNo = "";
+  form.latitude = null;
+  form.longitude = null;
   form.mainMaterials = "";
   form.materialName = "";
   form.standard = "";

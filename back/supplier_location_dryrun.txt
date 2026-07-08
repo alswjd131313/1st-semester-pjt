@@ -1,0 +1,1785 @@
+[카카오 API 키] KAKAO_REST_API_KEY
+[실행 모드] dry-run: DB에 저장하지 않습니다. 실제 저장은 --apply 옵션이 필요합니다.
+
+[실행 전]
+전체 Supplier: 181
+좌표 있음: 33
+좌표 없음: 148
+
+검색 대상 Supplier: 50개
+
+[검색 대상] 하이테크 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 하이테크
+  후보 1:
+    place_name: 하이테크에너지
+    road_address_name: 경기 성남시 중원구 순환로 128
+    address_name: 경기 성남시 중원구 상대원동 375-12
+    x(longitude): 127.179141960984
+    y(latitude): 37.4351669403294
+    phone: 031-745-5189
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > SK주유소
+    place_url: http://place.map.kakao.com/11718524
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 제천하이테크주유소
+    road_address_name: 충북 제천시 단양로 2897
+    address_name: 충북 제천시 대랑동 71-3
+    x(longitude): 128.257320925713
+    y(latitude): 37.0923572329649
+    phone: 043-653-9010
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > 알뜰주유소
+    place_url: http://place.map.kakao.com/849999021
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 현대자동차 시화하이테크센터
+    road_address_name: 경기 시흥시 경제로 137
+    address_name: 경기 시흥시 정왕동 1359-6
+    x(longitude): 126.711720164796
+    y(latitude): 37.3352550198592
+    phone: 031-497-6110
+    category_name: 교통,수송 > 자동차 > 자동차정비 > 현대자동차정비센터
+    place_url: http://place.map.kakao.com/614163730
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 하이테크셀프주유소
+    road_address_name: 울산 울주군 삼남읍 반구대로 133
+    address_name: 울산 울주군 삼남읍 방기리 71-1
+    x(longitude): 129.09478881544
+    y(latitude): 35.5100193149149
+    phone: 052-221-0051
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > HD현대오일뱅크주유소
+    place_url: http://place.map.kakao.com/11499409
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 에이스하이테크시티
+    road_address_name: 서울 영등포구 경인로 775
+    address_name: 서울 영등포구 문래동3가 55-20
+    x(longitude): 126.89956817219586
+    y(latitude): 37.51460653142371
+    phone: 02-6309-6114
+    category_name: 부동산 > 빌딩
+    place_url: http://place.map.kakao.com/8002738
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 새한이엔텔 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 새한이엔텔
+    후보 없음
+  query: 새한이엔텔 공장
+    후보 없음
+  query: 새한이엔텔 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] 효근보령 / 기존 address=충청남도 아산시 미래도시관리사업소
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 효근보령
+    후보 없음
+  query: 효근보령 철근
+    후보 없음
+  query: 효근보령 공장
+    후보 없음
+  query: 효근보령 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] 주식회사 중원 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 중원
+  후보 1:
+    place_name: 엔포드호텔 중원산업
+    road_address_name: 충북 청주시 청원구 충청대로 114
+    address_name: 충북 청주시 청원구 율량동 500-3
+    x(longitude): 127.494559778999
+    y(latitude): 36.6666108139511
+    phone: 043-290-1000
+    category_name: 여행 > 숙박 > 호텔
+    place_url: http://place.map.kakao.com/492056258
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 중원대학교
+    road_address_name: 충북 괴산군 괴산읍 문무로 85
+    address_name: 충북 괴산군 괴산읍 동부리 5
+    x(longitude): 127.79903223887993
+    y(latitude): 36.81930336567168
+    phone: 043-830-8114
+    category_name: 교육,학문 > 학교 > 대학교
+    place_url: http://place.map.kakao.com/8077804
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 중원구청
+    road_address_name: 경기 성남시 중원구 제일로 36
+    address_name: 경기 성남시 중원구 성남동 3129
+    x(longitude): 127.137231710026
+    y(latitude): 37.430599014471
+    phone: 1577-3100
+    category_name: 사회,공공기관 > 지방행정기관 > 구청
+    place_url: http://place.map.kakao.com/8077803
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 중원
+    road_address_name: 서울 노원구 동일로242가길 36
+    address_name: 서울 노원구 상계동 1115-18
+    x(longitude): 127.05615781746714
+    y(latitude): 37.67752609860431
+    phone: 02-930-6188
+    category_name: 음식점 > 중식 > 중국요리
+    place_url: http://place.map.kakao.com/1382921458
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 중원계곡
+    road_address_name: -
+    address_name: 경기 양평군 용문면 중원리 산 158
+    x(longitude): 127.616851074192
+    y(latitude): 37.5533126331425
+    phone: -
+    category_name: 여행 > 관광,명소 > 계곡
+    place_url: http://place.map.kakao.com/25046671
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 동성이앤지 / 기존 address=경상북도 김천시
+  query: 동성이앤지
+  후보 1:
+    place_name: 동성이엔지
+    road_address_name: 충남 천안시 서북구 직산읍 자은가리2길 70-16
+    address_name: 충남 천안시 서북구 직산읍 자은가리 144
+    x(longitude): 127.12539420686265
+    y(latitude): 36.87427877798121
+    phone: -
+    category_name: 서비스,산업 > 제조업 > 전기,전자 > 냉난방기제조
+    place_url: http://place.map.kakao.com/2144762161
+    confidence: MEDIUM (회사명 일부 토큰(동성이) 일치)
+  후보 2:
+    place_name: 동성ENG
+    road_address_name: 경기 화성시 만세구 향남읍 우등길 41
+    address_name: 경기 화성시 만세구 향남읍 증거리 436-19
+    x(longitude): 126.9817224821454
+    y(latitude): 37.13648076308391
+    phone: 031-354-2924
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 공구,공작기계
+    place_url: http://place.map.kakao.com/19495034
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 3:
+    place_name: 동성파이프
+    road_address_name: 경북 김천시 농소면 남곡3길 2
+    address_name: 경북 김천시 농소면 월곡리 1150-2
+    x(longitude): 128.16492645321202
+    y(latitude): 36.11235638366676
+    phone: 054-439-0634
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/8255603
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 4:
+    place_name: 동성이엔지
+    road_address_name: 부산 사상구 사상로367번길 62
+    address_name: 부산 사상구 덕포동 372-13
+    x(longitude): 128.981544601023
+    y(latitude): 35.1781717771339
+    phone: 051-303-6745
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 공구,공작기계
+    place_url: http://place.map.kakao.com/20492222
+    confidence: MEDIUM (회사명 일부 토큰(동성이) 일치)
+  후보 5:
+    place_name: 동성이엔지
+    road_address_name: 전북특별자치도 익산시 배산로24길 62
+    address_name: 전북특별자치도 익산시 모현동1가 111-1
+    x(longitude): 126.94793610552404
+    y(latitude): 35.95058060386521
+    phone: 063-855-3157
+    category_name: 서비스,산업 > 건설,건축 > 시공업체
+    place_url: http://place.map.kakao.com/25778391
+    confidence: MEDIUM (회사명 일부 토큰(동성이) 일치)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 남강철강 주식회사 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 남강철강
+    후보 없음
+  query: 남강철강 공장
+    후보 없음
+  query: 남강철강 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] 대한강관 주식회사 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 대한강관
+  후보 1:
+    place_name: 대한강관 본사
+    road_address_name: 경남 함안군 함안면 광정로 344-9
+    address_name: 경남 함안군 함안면 파수리 465-11
+    x(longitude): 128.406288584187
+    y(latitude): 35.2376308165946
+    phone: 055-585-4900
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/19133660
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 대한강관 창원사무소
+    road_address_name: 경남 창원시 의창구 의창대로282번길 3-2
+    address_name: 경남 창원시 의창구 중동 763-1
+    x(longitude): 128.62902005310855
+    y(latitude): 35.26079811911959
+    phone: 055-296-7100
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/24433610
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 거양 / 기존 address=조달청 대전지방조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 거양
+  후보 1:
+    place_name: 거양금속
+    road_address_name: 대구 달성군 구지면 국가산단대로33길 214
+    address_name: 대구 달성군 구지면 화산리 1113-8
+    x(longitude): 128.4004471312556
+    y(latitude): 35.65420289187186
+    phone: 053-610-7800
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 교통운송기계장비
+    place_url: http://place.map.kakao.com/23830327
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 거양금속 의령공장
+    road_address_name: 경남 의령군 의령읍 구룡로4남길 14-3
+    address_name: 경남 의령군 의령읍 동동리 1542-1
+    x(longitude): 128.27341581786902
+    y(latitude): 35.3153780138934
+    phone: 055-570-5200
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 금속처리
+    place_url: http://place.map.kakao.com/8559325
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 거양
+    road_address_name: 서울 강서구 양천로53길 30
+    address_name: 서울 강서구 가양동 51-3
+    x(longitude): 126.84690812162549
+    y(latitude): 37.56653946649505
+    phone: -
+    category_name: 교통,수송 > 자동차 > 자동차정비
+    place_url: http://place.map.kakao.com/1181763894
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 거양
+    road_address_name: 경기 안성시 미양면 제2공단4길 33
+    address_name: 경기 안성시 미양면 계륵리 273-5
+    x(longitude): 127.256626754472
+    y(latitude): 36.9785926245696
+    phone: -
+    category_name: 교통,수송 > 운송
+    place_url: http://place.map.kakao.com/204316592
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 거양전기
+    road_address_name: 경기 안산시 단원구 신촌1길 34
+    address_name: 경기 안산시 단원구 초지동 704-11
+    x(longitude): 126.815882734152
+    y(latitude): 37.3147212192973
+    phone: 031-492-1862
+    category_name: 서비스,산업 > 건설,건축 > 시공업체 > 전기시공
+    place_url: http://place.map.kakao.com/745151567
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] (주)대양씨에스피 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 대양씨에스피
+  후보 1:
+    place_name: 대양CSP
+    road_address_name: 강원특별자치도 영월군 북면 밤재로 302-3
+    address_name: 강원특별자치도 영월군 북면 마차리 1113
+    x(longitude): 128.46414361116976
+    y(latitude): 37.260169885275374
+    phone: 033-372-0034
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 금속처리
+    place_url: http://place.map.kakao.com/10142387
+    confidence: LOW (회사명 핵심어 불일치)
+  결과: HIGH 신뢰도 후보가 아니므로 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 세일열기 / 기존 address=경기도김포교육청 김포신풍초등학교
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 세일열기
+    후보 없음
+  query: 세일열기 공장
+    후보 없음
+  query: 세일열기 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] 부창ENT / 기존 address=전라남도 광양시
+  query: 부창ENT
+  후보 1:
+    place_name: 부창ENT
+    road_address_name: 전남 광양시 금영로 77
+    address_name: 전남 광양시 광영동 452-5
+    x(longitude): 127.721148823237
+    y(latitude): 34.9587237286915
+    phone: -
+    category_name: 서비스,산업 > 제조업 > 산업용품
+    place_url: http://place.map.kakao.com/15535472
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 부창이엔티
+    road_address_name: 경남 거제시 장목면 옥포대첩로 1479
+    address_name: 경남 거제시 장목면 율천리 157
+    x(longitude): 128.68536427841389
+    y(latitude): 34.97621539417348
+    phone: -
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/26811489
+    confidence: LOW (회사명 핵심어 불일치)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 썬시멘트주식회사 / 기존 address=조달청 인천지방조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 썬시멘트
+  후보 1:
+    place_name: 썬스라그시멘트
+    road_address_name: 전남 영암군 삼호읍 용앙로 438
+    address_name: 전남 영암군 삼호읍 난전리 1707-9
+    x(longitude): 126.422298274957
+    y(latitude): 34.7543058366592
+    phone: 061-461-1267
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/12856332
+    confidence: MEDIUM (회사명 일부 토큰(시멘트) 일치)
+  결과: HIGH 신뢰도 후보가 아니므로 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 구룡 / 기존 address=경상북도 포항시 맑은물사업본부
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 구룡
+  후보 1:
+    place_name: 구룡
+    road_address_name: 울산 남구 달삼로84번길 10
+    address_name: 울산 남구 달동 1301-8
+    x(longitude): 129.3382021070404
+    y(latitude): 35.535891827093494
+    phone: 052-276-4477
+    category_name: 음식점 > 중식 > 중국요리
+    place_url: http://place.map.kakao.com/10785087
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 구룡자동차야영장
+    road_address_name: 강원특별자치도 원주시 소초면 구룡마을길 14
+    address_name: 강원특별자치도 원주시 소초면 학곡리 920
+    x(longitude): 128.045501502923
+    y(latitude): 37.40799940782537
+    phone: 033-732-4635
+    category_name: 여행 > 숙박 > 야영,캠핑장 > 오토캠핑장
+    place_url: http://place.map.kakao.com/12465049
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 구룡에너지주유소
+    road_address_name: 충북 청주시 청원구 오창읍 오창대로 149
+    address_name: 충북 청주시 청원구 오창읍 구룡리 132
+    x(longitude): 127.41443097263647
+    y(latitude): 36.71814450028342
+    phone: 043-216-9263
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > SK주유소
+    place_url: http://place.map.kakao.com/17912505
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 구룡마을상황실
+    road_address_name: 서울 강남구 양재대로 478
+    address_name: 서울 강남구 개포동 571-1
+    x(longitude): 127.064817429837
+    y(latitude): 37.4778883973021
+    phone: -
+    category_name: 서비스,산업 > 전문대행 > 공간대여 > 모임공간
+    place_url: http://place.map.kakao.com/27535402
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 구룡터널
+    road_address_name: -
+    address_name: 서울 강남구 개포동 산 53-22
+    x(longitude): 127.06508966877048
+    y(latitude): 37.4698052871888
+    phone: -
+    category_name: 교통,수송 > 도로시설 > 터널
+    place_url: http://place.map.kakao.com/15149629
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 한라시멘트주식회사 / 기존 address=경상남도 김해시
+  query: 한라시멘트
+  후보 1:
+    place_name: 한라시멘트
+    road_address_name: 제주특별자치도 제주시 한림읍 월각로 294-34
+    address_name: 제주특별자치도 제주시 한림읍 상대리 1008
+    x(longitude): 126.30561925935656
+    y(latitude): 33.39560094433744
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/336497750
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 한라시멘트 본사
+    road_address_name: 강원특별자치도 강릉시 옥계면 산계길 225
+    address_name: 강원특별자치도 강릉시 옥계면 산계리 280-1
+    x(longitude): 129.008364481719
+    y(latitude): 37.5898888185986
+    phone: 033-534-1000
+    category_name: 서비스,산업 > 기업
+    place_url: http://place.map.kakao.com/1962848421
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 한라시멘트
+    road_address_name: 충남 서천군 장항읍 장산로 232
+    address_name: 충남 서천군 장항읍 신창리 421-1
+    x(longitude): 126.68560096665503
+    y(latitude): 36.00843940737552
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/24063037
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 한라시멘트
+    road_address_name: 경기 연천군 청산면 청신로118번길 40
+    address_name: 경기 연천군 청산면 초성리 460-2
+    x(longitude): 127.07172217807475
+    y(latitude): 37.98404967817121
+    phone: -
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/397890373
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 한라시멘트 인천공장
+    road_address_name: 인천 중구 서해대로 79
+    address_name: 인천 중구 항동7가 117
+    x(longitude): 126.615666873571
+    y(latitude): 37.4366168412484
+    phone: 032-881-6204
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/10370487
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 대호산업개발(주) / 기존 address=경상남도 김해시
+  query: 대호산업개발
+  후보 1:
+    place_name: 대호산업개발
+    road_address_name: 서울 중랑구 면목로33길 14
+    address_name: 서울 중랑구 면목동 352-20
+    x(longitude): 127.08505139576135
+    y(latitude): 37.57678753022484
+    phone: 02-435-7906
+    category_name: 서비스,산업 > 건설,건축 > 인테리어
+    place_url: http://place.map.kakao.com/25829747
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 대호산업개발
+    road_address_name: 대구 동구 화랑로 489
+    address_name: 대구 동구 용계동 442-2
+    x(longitude): 128.677421481349
+    y(latitude): 35.8754519714854
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재 > 건설기계
+    place_url: http://place.map.kakao.com/17751784
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 대호산업개발
+    road_address_name: 강원특별자치도 춘천시 우석로101번길 20
+    address_name: 강원특별자치도 춘천시 석사동 722-2
+    x(longitude): 127.756286408519
+    y(latitude): 37.866740188608
+    phone: 033-263-9001
+    category_name: 서비스,산업 > 건설,건축
+    place_url: http://place.map.kakao.com/65953117
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 대호산업개발 경주지점
+    road_address_name: 경북 경주시 외동읍 내외로 620-19
+    address_name: 경북 경주시 외동읍 제내리 645-8
+    x(longitude): 129.26924409530028
+    y(latitude): 35.714806162162304
+    phone: 031-480-0353
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/518517801
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 대호산업개발 본사
+    road_address_name: 경기 안산시 단원구 광덕대로 130
+    address_name: 경기 안산시 단원구 고잔동 775
+    x(longitude): 126.83064876178858
+    y(latitude): 37.308115266791305
+    phone: 031-480-0353
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/10791218
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 필 글로벌(PHIL GLOBAL) / 기존 address=울산광역시 종합건설본부
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 필 글로벌(PHIL GLOBAL)
+  후보 1:
+    place_name: 필글로벌윤활유
+    road_address_name: 울산 남구 장생포고래로183번길 21
+    address_name: 울산 남구 장생포동 199-1
+    x(longitude): 129.37418597797938
+    y(latitude): 35.50351462939657
+    phone: 010-9322-3629
+    category_name: 서비스,산업 > 무역업,중개업
+    place_url: http://place.map.kakao.com/1202057236
+    confidence: MEDIUM (회사명 일부 토큰(필글로벌) 일치)
+  결과: HIGH 신뢰도 후보가 아니므로 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 서아기업 / 기존 address=조달청 전북지방조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 서아기업
+    후보 없음
+  query: 서아기업 공장
+    후보 없음
+  query: 서아기업 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] (주)스타빌엔지니어링 / 기존 address=전라남도 목포시
+  query: 스타빌엔지니어링
+  후보 1:
+    place_name: 스타빌엔지니어링
+    road_address_name: 세종특별자치시 장군면 하봉금수동길 66
+    address_name: 세종특별자치시 장군면 하봉리 147-4
+    x(longitude): 127.195305722573
+    y(latitude): 36.49139744072007
+    phone: 044-868-8936
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/26798292
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 스타빌엔지니어링 본사
+    road_address_name: 세종특별자치시 장군면 봉안산소골길 7-7
+    address_name: 세종특별자치시 장군면 봉안리 327-4
+    x(longitude): 127.2203699150402
+    y(latitude): 36.49999047042432
+    phone: 044-566-8289
+    category_name: 서비스,산업 > 건설,건축 > 건설자재 > 내,외장재
+    place_url: http://place.map.kakao.com/867266288
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] (주)서강이엠 / 기존 address=경기도수원교육청 중앙기독초등학교
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 서강이엠
+  후보 1:
+    place_name: 서강이엠
+    road_address_name: 서울 종로구 율곡로22나길 11
+    address_name: 서울 종로구 충신동 175-13
+    x(longitude): 127.0050250098984
+    y(latitude): 37.57397722593135
+    phone: -
+    category_name: 서비스,산업 > 제조업 > 전기,전자
+    place_url: http://place.map.kakao.com/855360344
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 디에스앤피플(주) / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 디에스앤피플
+    후보 없음
+  query: 디에스앤피플 공장
+    후보 없음
+  query: 디에스앤피플 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] 주식회사 세은정보기술 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 세은정보기술
+  후보 1:
+    place_name: 세은정보기술
+    road_address_name: 전남 순천시 해룡면 해룡산단1로 82-47
+    address_name: 전남 순천시 해룡면 선월리 188-1
+    x(longitude): 127.566009998792
+    y(latitude): 34.907482202905
+    phone: 061-754-9620
+    category_name: 서비스,산업 > 정보통신
+    place_url: http://place.map.kakao.com/1888681554
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사 디씨앤아이 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 디씨앤아이
+    후보 없음
+  query: 디씨앤아이 공장
+    후보 없음
+  query: 디씨앤아이 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] 주식회사 세명피씨 / 기존 address=전라남도 곡성군
+  query: 세명피씨
+  후보 1:
+    place_name: 세명피씨
+    road_address_name: 전남 화순군 화순읍 정곡로 222
+    address_name: 전남 화순군 화순읍 서태리 198
+    x(longitude): 126.94882551083
+    y(latitude): 35.0356254569731
+    phone: 061-373-0484
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/26920286
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사신화콘크리트 / 기존 address=경상북도 청송군
+  query: 신화콘크리트
+  후보 1:
+    place_name: 신화콘크리트
+    road_address_name: 경북 안동시 풍산읍 절뒤길 15
+    address_name: 경북 안동시 풍산읍 괴정리 235
+    x(longitude): 128.53740454929
+    y(latitude): 36.5973296686275
+    phone: 054-859-7718
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/8348587
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사 현성 / 기존 address=조달청 인천지방조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 현성
+  후보 1:
+    place_name: 현성주유소
+    road_address_name: 경남 김해시 김해대로 2648
+    address_name: 경남 김해시 안동 543-8
+    x(longitude): 128.916427893956
+    y(latitude): 35.2287056849567
+    phone: 055-321-6711
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > GS칼텍스
+    place_url: http://place.map.kakao.com/11413763
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 현성
+    road_address_name: 경북 경산시 하양읍 남하들길3길 24
+    address_name: 경북 경산시 하양읍 남하리 231-1
+    x(longitude): 128.7776186784506
+    y(latitude): 35.882849687074284
+    phone: 053-965-3131
+    category_name: 교통,수송 > 자동차 > 자동차부품
+    place_url: http://place.map.kakao.com/1998487397
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 현성
+    road_address_name: 경남 함안군 법수면 법수로 358-16
+    address_name: 경남 함안군 법수면 윤외리 2167
+    x(longitude): 128.363028904202
+    y(latitude): 35.3100208671488
+    phone: -
+    category_name: 서비스,산업 > 기업
+    place_url: http://place.map.kakao.com/1528017274
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 현성기업
+    road_address_name: 경남 김해시 진례면 고모로180번길 47-36
+    address_name: 경남 김해시 진례면 송현리 994-2
+    x(longitude): 128.77429703676574
+    y(latitude): 35.24119824650767
+    phone: 055-345-0082
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 교통운송기계장비
+    place_url: http://place.map.kakao.com/18163127
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 현성빌딩
+    road_address_name: 서울 강남구 테헤란로53길 28
+    address_name: 서울 강남구 역삼동 695-8
+    x(longitude): 127.046080944475
+    y(latitude): 37.5060374493374
+    phone: -
+    category_name: 부동산 > 빌딩
+    place_url: http://place.map.kakao.com/27545045
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 광진철강주식회사 / 기존 address=전라남도 고흥군
+  query: 광진철강
+  후보 1:
+    place_name: 광진철강
+    road_address_name: 인천 서구 보도진로 100-23
+    address_name: 인천 서구 가좌동 173-609
+    x(longitude): 126.65894566239177
+    y(latitude): 37.4948474832056
+    phone: 032-882-3382
+    category_name: 서비스,산업 > 제조업 > 철강
+    place_url: http://place.map.kakao.com/448028542
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 광진철강
+    road_address_name: 전남 고흥군 고흥읍 흥양길 105
+    address_name: 전남 고흥군 고흥읍 행정리 157-2
+    x(longitude): 127.27872354534183
+    y(latitude): 34.61303994699887
+    phone: 010-9295-0182
+    category_name: 서비스,산업 > 제조업 > 철강
+    place_url: http://place.map.kakao.com/1556932432
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 광진철강
+    road_address_name: 광주 북구 하남대로 529
+    address_name: 광주 북구 동림동 933-9
+    x(longitude): 126.85112001285
+    y(latitude): 35.17492505968
+    phone: 062-513-9588
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 철물
+    place_url: http://place.map.kakao.com/8767775
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 광진철강
+    road_address_name: 경기 시흥시 금오로121번길 20
+    address_name: 경기 시흥시 무지내동 320-3
+    x(longitude): 126.837515737186
+    y(latitude): 37.415098341539
+    phone: 031-2579-4574
+    category_name: 서비스,산업 > 제조업 > 산업용품
+    place_url: http://place.map.kakao.com/10149995
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 광진실업
+    road_address_name: 부산 기장군 장안읍 오리산단로 106
+    address_name: 부산 기장군 장안읍 오리 1101-1
+    x(longitude): 129.26934924570503
+    y(latitude): 35.36521807373702
+    phone: 051-204-9101
+    category_name: 서비스,산업 > 제조업 > 철강
+    place_url: http://place.map.kakao.com/1386961923
+    confidence: LOW (회사명 핵심어 불일치)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 세운 / 기존 address=강원특별자치도 속초시 환경자원사업소
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 세운
+  후보 1:
+    place_name: 세운전자상가
+    road_address_name: 서울 종로구 청계천로 159
+    address_name: 서울 종로구 장사동 116-4
+    x(longitude): 126.995236793525
+    y(latitude): 37.5691379916808
+    phone: 02-2271-2344
+    category_name: 가정,생활 > 상가,아케이드
+    place_url: http://place.map.kakao.com/27192181
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 주)세운주유소&계량소
+    road_address_name: 경기 포천시 영북면 호국로 4319
+    address_name: 경기 포천시 영북면 자일리 379-5
+    x(longitude): 127.289323972232
+    y(latitude): 38.1113219370553
+    phone: 031-536-4300
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > HD현대오일뱅크주유소
+    place_url: http://place.map.kakao.com/9148436
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 호텔 더보타닉세운 명동
+    road_address_name: 서울 중구 을지로19길 23-1
+    address_name: 서울 중구 입정동 281
+    x(longitude): 126.99432117956867
+    y(latitude): 37.567477416150304
+    phone: 02-6926-1500
+    category_name: 여행 > 숙박 > 호텔
+    place_url: http://place.map.kakao.com/1102243060
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 세운스퀘어
+    road_address_name: 서울 종로구 창경궁로 109
+    address_name: 서울 종로구 인의동 112-14
+    x(longitude): 126.997301354539
+    y(latitude): 37.5718770827626
+    phone: -
+    category_name: 부동산 > 빌딩
+    place_url: http://place.map.kakao.com/7955182
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 세운광장
+    road_address_name: -
+    address_name: 서울 종로구 종로3가 143-1
+    x(longitude): 126.995146166002
+    y(latitude): 37.5702516183839
+    phone: 070-4224-9296
+    category_name: 여행 > 관광,명소 > 광장
+    place_url: http://place.map.kakao.com/684651861
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 태영피앤엑스 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 태영피앤엑스
+  후보 1:
+    place_name: 태영피앤엑스
+    road_address_name: 경북 칠곡군 왜관읍 아곡7길 16-23
+    address_name: 경북 칠곡군 왜관읍 아곡리 804
+    x(longitude): 128.4327900046161
+    y(latitude): 36.00872104042685
+    phone: 054-972-3226
+    category_name: 서비스,산업 > 제조업 > 산업용품
+    place_url: http://place.map.kakao.com/213227748
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사 아텍 / 기존 address=조달청 광주지방조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 아텍
+  후보 1:
+    place_name: 아텍
+    road_address_name: 경남 김해시 진례면 고모로526번길 31-59
+    address_name: 경남 김해시 진례면 고모리 630
+    x(longitude): 128.779642064055
+    y(latitude): 35.2711864506362
+    phone: 055-343-9977
+    category_name: 서비스,산업 > 광업
+    place_url: http://place.map.kakao.com/25458365
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 아텍
+    road_address_name: 전남 순천시 서면 승주로 1372
+    address_name: 전남 순천시 서면 대구리 85-1
+    x(longitude): 127.436897752976
+    y(latitude): 35.0315795426649
+    phone: 061-754-4900
+    category_name: 서비스,산업 > 제조업 > 산업용품
+    place_url: http://place.map.kakao.com/1595489400
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 아텍
+    road_address_name: 경기 화성시 효행구 봉담읍 쇠틀길 30-1
+    address_name: 경기 화성시 효행구 봉담읍 수기리 77
+    x(longitude): 126.97357450882663
+    y(latitude): 37.2000686032435
+    phone: 031-227-4304
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 공구,공작기계
+    place_url: http://place.map.kakao.com/21174020
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 아텍시스템
+    road_address_name: 인천 부평구 안남로369번길 18
+    address_name: 인천 부평구 청천동 175-25
+    x(longitude): 126.708830704971
+    y(latitude): 37.5163157974194
+    phone: -
+    category_name: 서비스,산업 > 제조업 > 전기,전자 > 전기자재,부품
+    place_url: http://place.map.kakao.com/9259000
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 아텍 본사
+    road_address_name: 광주 남구 봉선1로 118-1
+    address_name: 광주 남구 봉선동 178-11
+    x(longitude): 126.91789053586552
+    y(latitude): 35.127260775063526
+    phone: 062-226-1113
+    category_name: 서비스,산업 > 건설,건축 > 시공업체
+    place_url: http://place.map.kakao.com/1558393559
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 영남산업 주식회사 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 영남산업
+  후보 1:
+    place_name: 영남산업
+    road_address_name: 경남 함안군 칠원읍 용산6길 99
+    address_name: 경남 함안군 칠원읍 용산리 667
+    x(longitude): 128.50707830155
+    y(latitude): 35.3059859584483
+    phone: 055-586-8200
+    category_name: 서비스,산업 > 제조업 > 전기,전자 > 전기자재,부품
+    place_url: http://place.map.kakao.com/10644579
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 영남산업
+    road_address_name: 경북 경주시 천북면 천북산단로2길 31
+    address_name: 경북 경주시 천북면 오야리 1393
+    x(longitude): 129.276190152221
+    y(latitude): 35.941736379638
+    phone: 055-366-0841
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/1219012773
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 영남산업
+    road_address_name: 경북 안동시 앙실2길 74-1
+    address_name: 경북 안동시 수하동 797-27
+    x(longitude): 128.6783980513936
+    y(latitude): 36.56089317691988
+    phone: 054-855-2700
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/19528294
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 영남산업
+    road_address_name: 경북 경주시 건천읍 단석로 1631-325
+    address_name: 경북 경주시 건천읍 송선리 775-1
+    x(longitude): 129.057274134697
+    y(latitude): 35.8288817975465
+    phone: 054-751-6141
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/10645785
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 영남폐차산업
+    road_address_name: 대전 대덕구 방두말4길 43
+    address_name: 대전 대덕구 평촌동 312
+    x(longitude): 127.4275001037003
+    y(latitude): 36.4274707448102
+    phone: 042-936-1616
+    category_name: 교통,수송 > 자동차 > 폐차
+    place_url: http://place.map.kakao.com/9225287
+    confidence: LOW (회사명 핵심어 불일치)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] (주)다은 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 다은
+  후보 1:
+    place_name: 다은공영주차장
+    road_address_name: -
+    address_name: 경기 화성시 동탄구 반송동 105
+    x(longitude): 127.07303702738105
+    y(latitude): 37.20095008794537
+    phone: 031-8059-6538
+    category_name: 교통,수송 > 교통시설 > 주차장 > 공영주차장
+    place_url: http://place.map.kakao.com/241510351
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 다은
+    road_address_name: 충북 진천군 이월면 중미로 93
+    address_name: 충북 진천군 이월면 중산리 190-2
+    x(longitude): 127.448322295872
+    y(latitude): 36.9073461277566
+    phone: 043-534-4385
+    category_name: 서비스,산업 > 제조업 > 산업용품
+    place_url: http://place.map.kakao.com/10161655
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 김포다은병원
+    road_address_name: 경기 김포시 돌문로 111
+    address_name: 경기 김포시 사우동 187
+    x(longitude): 126.71197538672186
+    y(latitude): 37.62269648931044
+    phone: 031-996-1338
+    category_name: 의료,건강 > 병원 > 정신건강의학과
+    place_url: http://place.map.kakao.com/14507728
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 다은회관
+    road_address_name: 전북특별자치도 고창군 고창읍 동산7길 1
+    address_name: 전북특별자치도 고창군 고창읍 읍내리 72-1
+    x(longitude): 126.709444996391
+    y(latitude): 35.4323523567123
+    phone: 063-564-6543
+    category_name: 음식점 > 한식 > 해물,생선
+    place_url: http://place.map.kakao.com/8217977
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 다은마을사거리
+    road_address_name: -
+    address_name: 경기 화성시 동탄구 반송동
+    x(longitude): 127.070888744403
+    y(latitude): 37.2019389453988
+    phone: -
+    category_name: 교통,수송 > 도로시설 > 교차로
+    place_url: http://place.map.kakao.com/20037679
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] (주)동일양회 / 기존 address=한국공항공사 김포공항
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 동일양회
+    후보 없음
+  query: 동일양회 시멘트
+    후보 없음
+  query: 동일양회 공장
+    후보 없음
+  query: 동일양회 본사
+    후보 없음
+  결과: 후보 없음
+
+[검색 대상] (주)건설자재산업 / 기존 address=한국공항공사 김포공항
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 건설자재산업
+  후보 1:
+    place_name: 강진건설자재산업
+    road_address_name: 대전 대덕구 오정로75번길 78-10
+    address_name: 대전 대덕구 오정동 307-4
+    x(longitude): 127.406231606728
+    y(latitude): 36.3510763684021
+    phone: 042-621-9995
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/1459686200
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 태원 건설자재산업
+    road_address_name: 경남 양산시 동면 금산4길 8
+    address_name: 경남 양산시 동면 금산리 588-4
+    x(longitude): 129.027081099057
+    y(latitude): 35.3061176715497
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/10013740
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 무등건축자재산업
+    road_address_name: 제주특별자치도 제주시 아연로 423
+    address_name: 제주특별자치도 제주시 오등동 1366-1
+    x(longitude): 126.525812612844
+    y(latitude): 33.4747209136019
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/206110928
+    confidence: MEDIUM (회사명 일부 토큰(자재산업) 일치)
+  후보 4:
+    place_name: 코엠건설산업
+    road_address_name: 경기 파주시 월롱면 통일로644번길 71
+    address_name: 경기 파주시 월롱면 영태리 473-3
+    x(longitude): 126.79536770366022
+    y(latitude): 37.770646617569355
+    phone: 031-943-9773
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/25489730
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 5:
+    place_name: 우신건설산업
+    road_address_name: 충북 청주시 서원구 남이면 사동구암로 318
+    address_name: 충북 청주시 서원구 남이면 구암리 215-4
+    x(longitude): 127.40602284979809
+    y(latitude): 36.59123784279333
+    phone: 043-238-2043
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/26897140
+    confidence: LOW (회사명 핵심어 불일치)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 비케이 / 기존 address=법무부
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 비케이
+  후보 1:
+    place_name: 비케이주유소
+    road_address_name: 경남 김해시 상동면 상동로 707
+    address_name: 경남 김해시 상동면 대감리 14-2
+    x(longitude): 128.94407313896
+    y(latitude): 35.3149210821738
+    phone: 055-314-5191
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > GS칼텍스
+    place_url: http://place.map.kakao.com/7914583
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 비케이대운 대현주유소
+    road_address_name: 경남 김해시 한림면 장방로 92
+    address_name: 경남 김해시 한림면 가동리 651-5
+    x(longitude): 128.765905758901
+    y(latitude): 35.321364501698
+    phone: 055-344-0020
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > HD현대오일뱅크주유소
+    place_url: http://place.map.kakao.com/12264146
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 비케이에너지 동양가스충전소
+    road_address_name: 부산 북구 금곡대로 103
+    address_name: 부산 북구 덕천동 547
+    x(longitude): 129.006059144226
+    y(latitude): 35.2190054985838
+    phone: 051-334-0378
+    category_name: 교통,수송 > 자동차 > 주유,가스 > LPG충전소 > SK LPG충전소
+    place_url: http://place.map.kakao.com/15229701
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 제주비케이 경남대로충전소
+    road_address_name: 경남 창녕군 도천면 경남대로 3270
+    address_name: 경남 창녕군 도천면 논리 650-6
+    x(longitude): 128.52329190473858
+    y(latitude): 35.42587252961294
+    phone: 055-536-9087
+    category_name: 교통,수송 > 자동차 > 주유,가스 > LPG충전소 > HD현대오일뱅크 LPG충전소
+    place_url: http://place.map.kakao.com/11496784
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 비케이
+    road_address_name: 제주특별자치도 제주시 동광로10길 37-1
+    address_name: 제주특별자치도 제주시 이도이동 1134-25
+    x(longitude): 126.53561600772252
+    y(latitude): 33.4998548168858
+    phone: -
+    category_name: 가정,생활 > 미용 > 미용실
+    place_url: http://place.map.kakao.com/1953194261
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 하나레미콘 주식회사 / 기존 address=경상북도 포항시 맑은물사업본부
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 하나레미콘
+  후보 1:
+    place_name: 하나레미콘
+    road_address_name: 경북 포항시 북구 흥해읍 덕실마을길3번길 8
+    address_name: 경북 포항시 북구 흥해읍 용전리 298-2
+    x(longitude): 129.3440267117593
+    y(latitude): 36.1223365350218
+    phone: 054-261-3800
+    category_name: 서비스,산업 > 건설,건축 > 건설자재 > 건설기계
+    place_url: http://place.map.kakao.com/1286152258
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 하나레미콘
+    road_address_name: 충북 충주시 산척면 수회길 343
+    address_name: 충북 충주시 산척면 영덕리 330
+    x(longitude): 127.96548736865867
+    y(latitude): 37.057865416116165
+    phone: 043-843-0303
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/27537664
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 하나레미콘
+    road_address_name: 전북특별자치도 군산시 임해로 75
+    address_name: 전북특별자치도 군산시 소룡동 466-4
+    x(longitude): 126.663966825662
+    y(latitude): 35.9823352132448
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재 > 건설기계
+    place_url: http://place.map.kakao.com/858034314
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 하나레미콘
+    road_address_name: 전남 진도군 군내면 대사길 114
+    address_name: 전남 진도군 군내면 녹진리 291
+    x(longitude): 126.29003154623618
+    y(latitude): 34.555048408497434
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재 > 건설기계
+    place_url: http://place.map.kakao.com/26495087
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 제우스 / 기존 address=건강보험심사평가원
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 제우스
+  후보 1:
+    place_name: 제우스주유소
+    road_address_name: 경남 창원시 마산합포구 현동로 20
+    address_name: 경남 창원시 마산합포구 우산동 85
+    x(longitude): 128.551345161747
+    y(latitude): 35.1531259036463
+    phone: 055-244-5700
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > GS칼텍스
+    place_url: http://place.map.kakao.com/27441449
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 제우스
+    road_address_name: 광주 남구 대남대로149번길 16
+    address_name: 광주 남구 봉선동 1119-17
+    x(longitude): 126.908726145573
+    y(latitude): 35.1322108195109
+    phone: 062-433-5311
+    category_name: 음식점 > 술집 > 호프,요리주점
+    place_url: http://place.map.kakao.com/16664017
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 제우스
+    road_address_name: 제주특별자치도 제주시 첨단로 175
+    address_name: 제주특별자치도 제주시 영평동 2160-2
+    x(longitude): 126.57174874595121
+    y(latitude): 33.457013927227706
+    phone: 064-724-0001
+    category_name: 서비스,산업 > 식품 > 식품가공,제조
+    place_url: http://place.map.kakao.com/2089367669
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 제우스 본사
+    road_address_name: 경기 화성시 병점구 안녕남로 132
+    address_name: 경기 화성시 병점구 안녕동 227
+    x(longitude): 126.99576948392816
+    y(latitude): 37.19530310625979
+    phone: 031-377-9500
+    category_name: 서비스,산업 > 기업
+    place_url: http://place.map.kakao.com/1025689381
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 제우스
+    road_address_name: 부산 사상구 사상로500번길 15-3
+    address_name: 부산 사상구 모라동 985-4
+    x(longitude): 128.989273710579
+    y(latitude): 35.1889726503366
+    phone: -
+    category_name: 부동산 > 주거시설 > 빌라,주택
+    place_url: http://place.map.kakao.com/1404701549
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 그린 / 기존 address=강원특별자치도 평창군
+  query: 그린
+  후보 1:
+    place_name: 그린주유소
+    road_address_name: 대구 수성구 달구벌대로 2899
+    address_name: 대구 수성구 연호동 154-94
+    x(longitude): 128.67554653092554
+    y(latitude): 35.84524603882347
+    phone: 053-792-0891
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > 알뜰주유소
+    place_url: http://place.map.kakao.com/11028795
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 그린주유소
+    road_address_name: 충북 청주시 서원구 서부로 1409
+    address_name: 충북 청주시 서원구 개신동 316-4
+    x(longitude): 127.454297062487
+    y(latitude): 36.619627769848
+    phone: 043-264-5151
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > 알뜰주유소
+    place_url: http://place.map.kakao.com/8217150
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 동탄그린주유소
+    road_address_name: 경기 화성시 동탄구 동탄산단5길 10-44
+    address_name: 경기 화성시 동탄구 방교동 797-1
+    x(longitude): 127.08433225178773
+    y(latitude): 37.17213499724174
+    phone: 031-373-5828
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > GS칼텍스
+    place_url: http://place.map.kakao.com/1580674343
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 그린주유소
+    road_address_name: 대전 서구 동서대로 953
+    address_name: 대전 서구 내동 152-3
+    x(longitude): 127.368660214752
+    y(latitude): 36.3347219790235
+    phone: 042-534-5301
+    category_name: 교통,수송 > 자동차 > 주유,가스 > 주유소 > 알뜰주유소
+    place_url: http://place.map.kakao.com/8688380
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 아이워즈그린 황금점
+    road_address_name: 대구 수성구 들안로 176-1
+    address_name: 대구 수성구 황금동 813-1
+    x(longitude): 128.617040409829
+    y(latitude): 35.8456242433552
+    phone: -
+    category_name: 음식점 > 카페
+    place_url: http://place.map.kakao.com/1726964225
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 서강제니스 / 기존 address=경상북도 상주시
+  query: 서강제니스
+  후보 1:
+    place_name: 서강제니스
+    road_address_name: 경기 용인시 처인구 포곡읍 석성로 948-3
+    address_name: 경기 용인시 처인구 포곡읍 영문리 353-1
+    x(longitude): 127.20157762935551
+    y(latitude): 37.276044632804215
+    phone: 031-321-6123
+    category_name: 서비스,산업 > 건설,건축 > 종합건설사
+    place_url: http://place.map.kakao.com/9002204
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] (주)삼표시멘트 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 삼표시멘트
+  후보 1:
+    place_name: 삼표시멘트
+    road_address_name: 강원특별자치도 삼척시 삼척항길 152
+    address_name: 강원특별자치도 삼척시 정하동 48-7
+    x(longitude): 129.1882880108305
+    y(latitude): 37.43436162537577
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/23791584
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 삼표시멘트
+    road_address_name: 강원특별자치도 삼척시 박걸남로 904
+    address_name: 강원특별자치도 삼척시 적노동 산 29
+    x(longitude): 129.173345183729
+    y(latitude): 37.4120442081394
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/197451401
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 삼표시멘트
+    road_address_name: 울산 남구 부두로 205
+    address_name: 울산 남구 여천동 50-6
+    x(longitude): 129.369415015882
+    y(latitude): 35.5259429008877
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/1044138094
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 삼표시멘트 부산사업소
+    road_address_name: 부산 서구 원양로 268
+    address_name: 부산 서구 암남동 655
+    x(longitude): 129.00657523295553
+    y(latitude): 35.07611767247611
+    phone: 051-250-5500
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/1661217089
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 삼표시멘트 본사
+    road_address_name: 강원특별자치도 삼척시 동양길 20
+    address_name: 강원특별자치도 삼척시 사직동 114
+    x(longitude): 129.175623106655
+    y(latitude): 37.4292535094038
+    phone: 033-571-7000
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/1015877887
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] (주)하이코리아 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 하이코리아
+  후보 1:
+    place_name: 하이코리아
+    road_address_name: 광주 광산구 평동산단1번로 121
+    address_name: 광주 광산구 장록동 749-5
+    x(longitude): 126.769700660547
+    y(latitude): 35.1374814155221
+    phone: 062-513-8000
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/11442313
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 하이코리아
+    road_address_name: 부산 강서구 공항앞길13번길 20
+    address_name: 부산 강서구 대저2동 2057-4
+    x(longitude): 128.95406382082598
+    y(latitude): 35.17921678438002
+    phone: 051-804-8815
+    category_name: 서비스,산업 > 인쇄,복사
+    place_url: http://place.map.kakao.com/541565291
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 하이에어코리아
+    road_address_name: 경남 창녕군 도천면 적말길 50
+    address_name: 경남 창녕군 도천면 송진리 868
+    x(longitude): 128.5141709441682
+    y(latitude): 35.414521986225616
+    phone: 055-530-8817
+    category_name: 서비스,산업 > 제조업 > 해양 > 선박
+    place_url: http://place.map.kakao.com/1698142008
+    confidence: MEDIUM (회사명 일부 토큰(코리아) 일치)
+  후보 4:
+    place_name: 하이에어코리아 김해본사
+    road_address_name: 경남 김해시 진례면 고모로324번길 204
+    address_name: 경남 김해시 진례면 담안리 1432-11
+    x(longitude): 128.784895935489
+    y(latitude): 35.2459908452659
+    phone: 055-340-5000
+    category_name: 서비스,산업 > 제조업 > 전기,전자 > 냉난방기제조
+    place_url: http://place.map.kakao.com/10761100
+    confidence: MEDIUM (회사명 일부 토큰(코리아) 일치)
+  후보 5:
+    place_name: 하이코리아
+    road_address_name: 충남 아산시 둔포면 장영실로 903-9
+    address_name: 충남 아산시 둔포면 신남리 620-3
+    x(longitude): 127.00561953204
+    y(latitude): 36.9089091463316
+    phone: -
+    category_name: 서비스,산업 > 식품 > 식품가공,제조 > 전통식품제조 > 장류
+    place_url: http://place.map.kakao.com/9463574
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 이큐브 / 기존 address=조달청 서울지방조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 이큐브
+  후보 1:
+    place_name: E CUBE HOTEL
+    road_address_name: 서울 용산구 한강대로71길 24
+    address_name: 서울 용산구 갈월동 98-14
+    x(longitude): 126.972195496455
+    y(latitude): 37.5404110062217
+    phone: -
+    category_name: 여행 > 숙박 > 호텔
+    place_url: http://place.map.kakao.com/1945827592
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 2:
+    place_name: 이큐브
+    road_address_name: 충북 음성군 금왕읍 멍심이길 179
+    address_name: 충북 음성군 금왕읍 도청리 5-12
+    x(longitude): 127.537734931261
+    y(latitude): 36.9777891560279
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/1350793148
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 이큐브
+    road_address_name: 인천 연수구 청학로16번길 60
+    address_name: 인천 연수구 청학동 539-5
+    x(longitude): 126.666748127015
+    y(latitude): 37.4278978243483
+    phone: 032-831-5195
+    category_name: 서비스,산업 > 건설,건축 > 인테리어
+    place_url: http://place.map.kakao.com/516572975
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 이큐브
+    road_address_name: 서울 구로구 공원로 3
+    address_name: 서울 구로구 구로동 106-4
+    x(longitude): 126.892278659231
+    y(latitude): 37.497708070988
+    phone: 02-861-1553
+    category_name: 서비스,산업 > 제조업 > 산업용품
+    place_url: http://place.map.kakao.com/26553414
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 이큐브
+    road_address_name: 충북 음성군 소이면 한불로 528
+    address_name: 충북 음성군 소이면 금고리 254-7
+    x(longitude): 127.752063859373
+    y(latitude): 36.9175652610308
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 시공업체
+    place_url: http://place.map.kakao.com/985744899
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 플러스산업 / 기존 address=강원특별자치도 고성군
+  query: 플러스산업
+  후보 1:
+    place_name: 플러스산업
+    road_address_name: 대전 유성구 계백로 933-54
+    address_name: 대전 유성구 원내동 825
+    x(longitude): 127.32987026994371
+    y(latitude): 36.302150392660415
+    phone: 042-255-2200
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/2052259377
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 플러스산업
+    road_address_name: 부산 남구 수영로 237
+    address_name: 부산 남구 대연동 1741-8
+    x(longitude): 129.092631829976
+    y(latitude): 35.1354218221927
+    phone: 051-612-3604
+    category_name: 서비스,산업 > 건설,건축 > 인테리어
+    place_url: http://place.map.kakao.com/315923896
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 플러스산업
+    road_address_name: 전북특별자치도 익산시 고제길 33
+    address_name: 전북특별자치도 익산시 석탄동 976-1
+    x(longitude): 126.959505031419
+    y(latitude): 35.9169542553766
+    phone: 063-915-4929
+    category_name: 서비스,산업 > 건설,건축 > 건설자재 > 셔터,샷시
+    place_url: http://place.map.kakao.com/2116782920
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 플러스산업
+    road_address_name: 강원특별자치도 원주시 입춘로 45
+    address_name: 강원특별자치도 원주시 반곡동 1809-11
+    x(longitude): 127.97838980178831
+    y(latitude): 37.32767926098312
+    phone: 033-747-3470
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/1059800746
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 플러스산업
+    road_address_name: 전북특별자치도 전주시 덕진구 팔과정로 17
+    address_name: 전북특별자치도 전주시 덕진구 팔복동3가 402
+    x(longitude): 127.085071276834
+    y(latitude): 35.8504159217785
+    phone: -
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 금속처리
+    place_url: http://place.map.kakao.com/1546743822
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 제일정보통신 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 제일정보통신
+  후보 1:
+    place_name: 제일정보통신
+    road_address_name: 경남 김해시 주촌면 주선로 122
+    address_name: 경남 김해시 주촌면 선지리 323-2
+    x(longitude): 128.837571018599
+    y(latitude): 35.2392652210508
+    phone: 055-321-6767
+    category_name: 서비스,산업 > 건설,건축 > 시공업체 > 통신시공
+    place_url: http://place.map.kakao.com/7852726
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 제일정보통신
+    road_address_name: 경북 구미시 화신로 60
+    address_name: 경북 구미시 광평동 423-7
+    x(longitude): 128.35852898164
+    y(latitude): 36.1079255944769
+    phone: 054-457-7008
+    category_name: 서비스,산업 > 건설,건축 > 시공업체 > 통신시공
+    place_url: http://place.map.kakao.com/10799234
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 제일정보통신
+    road_address_name: 부산 동구 초량상로 126
+    address_name: 부산 동구 초량동 92-30
+    x(longitude): 129.04036232682517
+    y(latitude): 35.12251207922184
+    phone: 051-462-7507
+    category_name: 가정,생활 > 전자제품 > 전자제품판매 > 휴대폰판매
+    place_url: http://place.map.kakao.com/16214726
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 4:
+    place_name: 제일정보통신
+    road_address_name: 대전 중구 동서대로 1184-1
+    address_name: 대전 중구 태평동 414-3
+    x(longitude): 127.39147392878452
+    y(latitude): 36.32660642076026
+    phone: 042-254-3033
+    category_name: 서비스,산업 > 정보통신 > 통신기기
+    place_url: http://place.map.kakao.com/18915998
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 5:
+    place_name: 제일정보통신
+    road_address_name: 전북특별자치도 완주군 이서면 안전로 151
+    address_name: 전북특별자치도 완주군 이서면 갈산리 664-6
+    x(longitude): 127.058219161632
+    y(latitude): 35.8375376465336
+    phone: -
+    category_name: 가정,생활 > 통신판매
+    place_url: http://place.map.kakao.com/1256500907
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 주식회사 하나로솔루션 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 하나로솔루션
+  후보 1:
+    place_name: 하나로솔루션
+    road_address_name: 경남 양산시 옥곡8길 15
+    address_name: 경남 양산시 남부동 875-1
+    x(longitude): 129.03565629387614
+    y(latitude): 35.332978207443155
+    phone: 055-781-1234
+    category_name: 가정,생활 > 전자제품 > 전자제품판매 > 컴퓨터주변기기
+    place_url: http://place.map.kakao.com/1836012204
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사 위쥬테크 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 위쥬테크
+  후보 1:
+    place_name: 위쥬테크
+    road_address_name: 경기 광명시 하안로 108
+    address_name: 경기 광명시 소하동 1365
+    x(longitude): 126.89219321618855
+    y(latitude): 37.44777132274669
+    phone: 02-2663-2366
+    category_name: 서비스,산업 > 관리,운영 > 주차시설관리
+    place_url: http://place.map.kakao.com/9237865
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사 씨앤텍 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 씨앤텍
+  후보 1:
+    place_name: 씨앤테크
+    road_address_name: 충남 천안시 서북구 직산읍 자은가리1길 49
+    address_name: 충남 천안시 서북구 직산읍 자은가리 147-5
+    x(longitude): 127.125599392047
+    y(latitude): 36.871496862153
+    phone: -
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/1895082248
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 2:
+    place_name: 씨앤텍
+    road_address_name: 경남 김해시 한림면 안곡로 460
+    address_name: 경남 김해시 한림면 안곡리 319
+    x(longitude): 128.841612090334
+    y(latitude): 35.3007584455386
+    phone: -
+    category_name: 서비스,산업 > 제조업
+    place_url: http://place.map.kakao.com/14842044
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 씨엔테크
+    road_address_name: 경기 평택시 서탄면 발안로 1074-17
+    address_name: 경기 평택시 서탄면 내천리 22
+    x(longitude): 127.02144964846768
+    y(latitude): 37.130547638998955
+    phone: -
+    category_name: 서비스,산업 > 제조업 > 산업용품 > 비철금속처리
+    place_url: http://place.map.kakao.com/433350374
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 4:
+    place_name: 씨엔텍
+    road_address_name: 경기 안성시 원곡면 지문로 97-6
+    address_name: 경기 안성시 원곡면 지문리 490-3
+    x(longitude): 127.13539736446485
+    y(latitude): 37.04970142473549
+    phone: 031-654-1900
+    category_name: 서비스,산업 > 제조업 > 산업용품
+    place_url: http://place.map.kakao.com/9103161
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 5:
+    place_name: 씨앤텍 화성1공장
+    road_address_name: 경기 화성시 만세구 양감면 초록로 757
+    address_name: 경기 화성시 만세구 양감면 송산리 237-2
+    x(longitude): 126.98210516440973
+    y(latitude): 37.11725573985427
+    phone: 031-354-3828
+    category_name: 서비스,산업 > 공장
+    place_url: http://place.map.kakao.com/9852237
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 사이테크놀로지스 주식회사 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 사이테크놀로지스
+  후보 1:
+    place_name: 사이테크놀로지스
+    road_address_name: 대전 대덕구 한밭대로 1064
+    address_name: 대전 대덕구 오정동 390-5
+    x(longitude): 127.41656991018128
+    y(latitude): 36.35838984230329
+    phone: 1544-8189
+    category_name: 서비스,산업 > 제조업 > 전기,전자 > 보안제품
+    place_url: http://place.map.kakao.com/18386562
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사 제이엔아이티 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 제이엔아이티
+  후보 1:
+    place_name: 제이엔아이티
+    road_address_name: 경기 성남시 중원구 사기막골로45번길 14
+    address_name: 경기 성남시 중원구 상대원동 146-8
+    x(longitude): 127.16985301895072
+    y(latitude): 37.436719586494405
+    phone: -
+    category_name: 서비스,산업 > 무역업,중개업
+    place_url: http://place.map.kakao.com/964283784
+    confidence: HIGH (회사명 핵심어가 일치하고 후보가 1개)
+  결과: dry-run, 저장 안 함
+
+[검색 대상] 주식회사 펜타게이트 / 기존 address=조달청
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 펜타게이트
+  후보 1:
+    place_name: 펜타게이트
+    road_address_name: 인천 남동구 남동대로 353
+    address_name: 인천 남동구 남촌동 624-3
+    x(longitude): 126.70489272948485
+    y(latitude): 37.41521019859567
+    phone: 070-5220-1798
+    category_name: 서비스,산업 > 인터넷,IT > 소프트웨어
+    place_url: http://place.map.kakao.com/730800761
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 펜타게이트
+    road_address_name: 경기 화성시 만세구 우정읍 포승향남로 1452-22
+    address_name: 경기 화성시 만세구 우정읍 조암리 753-21
+    x(longitude): 126.799492985417
+    y(latitude): 37.0764089152537
+    phone: -
+    category_name: 서비스,산업 > 제조업 > 전기,전자 > 보안제품
+    place_url: http://place.map.kakao.com/267452299
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 포항펜타시티한신더휴4단지아파트 정문
+    road_address_name: -
+    address_name: 경북 포항시 북구 흥해읍 대련리 1386
+    x(longitude): 129.311641775381
+    y(latitude): 36.056835028754
+    phone: -
+    category_name: 교통,수송 > 입출구
+    place_url: http://place.map.kakao.com/1020166453
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 4:
+    place_name: 새샘마을6단지한신더휴펜타힐스아파트 후문
+    road_address_name: 세종특별자치시 남세종로 302
+    address_name: 세종특별자치시 소담동 586
+    x(longitude): 127.30533643584
+    y(latitude): 36.4819883244774
+    phone: -
+    category_name: 교통,수송 > 입출구
+    place_url: http://place.map.kakao.com/492389634
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 5:
+    place_name: 새샘마을6단지한신더휴펜타힐스아파트 중문
+    road_address_name: 세종특별자치시 남세종로 302
+    address_name: 세종특별자치시 소담동 586
+    x(longitude): 127.30438501021995
+    y(latitude): 36.48410126506205
+    phone: -
+    category_name: 교통,수송 > 입출구
+    place_url: http://place.map.kakao.com/1639727737
+    confidence: LOW (회사명 핵심어 불일치)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[검색 대상] 세종공구철물 / 기존 address=주택도시보증공사
+  기존 address는 기관/발주처 주소로 의심되어 좌표 변환에 사용하지 않습니다.
+  query: 세종공구철물
+  후보 1:
+    place_name: 세종공구철물
+    road_address_name: 경기 성남시 수정구 대왕판교로 930-1
+    address_name: 경기 성남시 수정구 시흥동 201-10
+    x(longitude): 127.10284712134721
+    y(latitude): 37.42328073257015
+    phone: -
+    category_name: 서비스,산업 > 건설,건축 > 건설자재
+    place_url: http://place.map.kakao.com/813954524
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 2:
+    place_name: 세종공구철물
+    road_address_name: 세종특별자치시 장군면 장척로 425
+    address_name: 세종특별자치시 장군면 도계리 160-1
+    x(longitude): 127.207137222102
+    y(latitude): 36.4985903508844
+    phone: 044-866-0982
+    category_name: 가정,생활 > 생활용품점 > 철물점
+    place_url: http://place.map.kakao.com/1823561239
+    confidence: MEDIUM (회사명 핵심어는 일치하지만 후보가 여러 개)
+  후보 3:
+    place_name: 세종 철물안전공구할인마트
+    road_address_name: 전남 무안군 삼향읍 남악2로22번길 30
+    address_name: 전남 무안군 삼향읍 남악리 2273
+    x(longitude): 126.4598938275464
+    y(latitude): 34.807419524908056
+    phone: 061-282-0933
+    category_name: 가정,생활 > 생활용품점 > 철물점
+    place_url: http://place.map.kakao.com/482347226
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 4:
+    place_name: 세종철물안전공구해광씽크
+    road_address_name: 전남 무안군 삼향읍 남악2로22번길 30
+    address_name: 전남 무안군 삼향읍 남악리 2273
+    x(longitude): 126.459778340568
+    y(latitude): 34.8073649284023
+    phone: 061-282-0933
+    category_name: 가정,생활 > 가구판매
+    place_url: http://place.map.kakao.com/1660591463
+    confidence: LOW (회사명 핵심어 불일치)
+  후보 5:
+    place_name: 금성건축공구철물건재
+    road_address_name: 세종특별자치시 금남면 용포로 101
+    address_name: 세종특별자치시 금남면 용포리 205-36
+    x(longitude): 127.281656330797
+    y(latitude): 36.4677226465415
+    phone: 044-866-8290
+    category_name: 가정,생활 > 생활용품점 > 철물점
+    place_url: http://place.map.kakao.com/25785572
+    confidence: MEDIUM (회사명 일부 토큰(공구철물) 일치)
+  결과: 후보가 여러 개입니다. 자동 저장하지 않습니다. 수동 검토 필요
+
+[처리 요약]
+저장 완료: 0
+dry-run 저장 가능 후보: 10
+수동 검토 필요: 32
+후보 없음: 8
+좌표 오류: 0
+API/처리 오류: 0
+
+[실행 후]
+전체 Supplier: 181
+좌표 있음: 33
+좌표 없음: 148
