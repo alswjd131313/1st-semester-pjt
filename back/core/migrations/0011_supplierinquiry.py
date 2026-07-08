@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('requester_name', models.CharField(blank=True, max_length=100, verbose_name='담당자명')),
                 ('contact', models.CharField(blank=True, max_length=50, verbose_name='연락처')),
                 ('message', models.TextField(blank=True, verbose_name='요청 메모')),
-                ('status', models.CharField(choices=[('pending', '확인 대기'), ('reviewing', '검토 중'), ('accepted', '납품 가능'), ('rejected', '거절')], db_index=True, default='pending', max_length=20, verbose_name='문의 상태')),
+                ('status', models.CharField(choices=[('pending', '협의 필요'), ('reviewing', '검토 중'), ('accepted', '납품 가능'), ('rejected', '거절')], db_index=True, default='pending', max_length=20, verbose_name='문의 상태')),
                 ('status_updated_at', models.DateTimeField(blank=True, null=True, verbose_name='상태 변경 일시')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
